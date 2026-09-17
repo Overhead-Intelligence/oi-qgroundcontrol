@@ -41,7 +41,8 @@ Read this before flying with it.
 
 - Switch it on with the **Keyboard** checkbox at the bottom of the Fly view. It is off every time the app starts, and turns itself off when the vehicle disconnects or you press **Esc**.
 - It only works on ArduPlane in **GUIDED** mode. In any other mode the panel says "Switch to GUIDED" and the keys do nothing. It never changes the flight mode for you.
-- **W / S**: climb / descend by the altitude step (default 15 m / 50 ft), clamped to the guided minimum and maximum altitude settings. Holding the key repeats.
+- **W / S**: climb / descend by the altitude step (default 15 m / 50 ft), clamped to the guided minimum and maximum altitude settings. Holding the key repeats. The panel shows the autopilot's own altitude target ("target 165 m", relative to home) as it moves.
+- **No GPS needed.** Heading uses ArduPlane's compass-heading type, not course over ground. Altitude changes are sent as a relative offset that ArduPlane adds to its current guided target, in whatever altitude frame that target already has (relative, AMSL or terrain); no absolute altitude or frame is ever sent, and the aircraft flies it on the barometer. Terrain frame only matters for Go To Location, which is tracked separately.
 - **A / D**: standard-rate turn (3 deg/s) for as long as the key is held. Release the key and the aircraft holds the new heading (ArduPlane's guided heading hold). The **Release** button in the panel hands it back to the guided loiter point.
 - **Arrow keys**: gimbal tilt (up/down) and pan (left/right) while held.
 - Keys are ignored while a text field has focus, so typing a mission altitude never steers the aircraft.

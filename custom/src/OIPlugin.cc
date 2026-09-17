@@ -18,11 +18,14 @@
 #include <QtCore/QStringList>
 #include <QtCore/QVariant>
 #include <QtQml/QQmlApplicationEngine>
+#include <QtQml/qqml.h>
 
 #include "AppSettings.h"
 #include "FactMetaData.h"
 #include "FactValueGrid.h"
 #include "InstrumentValueData.h"
+#include "MAVLinkLib.h"
+#include "OIKeyboardController.h"
 #include "QGCLoggingCategory.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
@@ -156,11 +159,30 @@ void OIPlugin::init()
 {
     QGCCorePlugin::init();
     _deployBundledActions();
+
+    // Created here, after SettingsManager::init(), because its settings group needs the
+    // settings system. Registered before the QML engine exists so FlyViewCustomLayer can
+    // "import OI.Controls" and use the OIKeyboard singleton.
+    _keyboard = new OIKeyboardController(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
 }
 
 QString OIPlugin::stableDownloadLocation() const
 {
     return QStringLiteral("github.com/Overhead-Intelligence/oi-qgroundcontrol/releases");
+}
+
+bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
+{
+    Q_UNUSED(link);
+
+    if (_keyboard && (message.msgid == MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT)) {
+        mavlink_nav_controller_output_t navControllerOutput{};
+        mavlink_msg_nav_controller_output_decode(&message, &navControllerOutput);
+        _keyboard->setAltitudeError(vehicle, static_cast<double>(navControllerOutput.alt_error));
+    }
+
+    return true;    // let the vehicle process the message as usual
 }
 
 /*===========================================================================*/

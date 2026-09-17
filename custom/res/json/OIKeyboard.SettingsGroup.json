@@ -1,0 +1,50 @@
+{
+    "version": 1,
+    "fileType": "FactMetaData",
+    "QGC.MetaData.Facts": [
+        {
+            "name": "altitudeStep",
+            "shortDesc": "Altitude change per W or S key press. Holding the key repeats the step.",
+            "type": "double",
+            "units": "vertical m",
+            "min": 1,
+            "max": 150,
+            "decimalPlaces": 0,
+            "default": 15.24,
+            "label": "Altitude step"
+        },
+        {
+            "name": "turnRate",
+            "shortDesc": "Heading change rate while A or D is held. 3 deg/s is a standard-rate turn.",
+            "type": "double",
+            "units": "deg/s",
+            "min": 0.5,
+            "max": 15,
+            "decimalPlaces": 1,
+            "default": 3,
+            "label": "Turn rate"
+        },
+        {
+            "name": "turnBankLimit",
+            "shortDesc": "Maximum bank angle the aircraft may use to follow a keyboard turn (sent to ArduPlane as an acceleration limit).",
+            "type": "double",
+            "units": "deg",
+            "min": 5,
+            "max": 45,
+            "decimalPlaces": 0,
+            "default": 20,
+            "label": "Turn bank limit"
+        },
+        {
+            "name": "gimbalRate",
+            "shortDesc": "Gimbal pan and tilt rate while an arrow key is held.",
+            "type": "double",
+            "units": "deg/s",
+            "min": 1,
+            "max": 90,
+            "decimalPlaces": 0,
+            "default": 15,
+            "label": "Gimbal rate"
+        }
+    ]
+}

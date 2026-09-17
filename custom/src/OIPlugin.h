@@ -24,6 +24,7 @@
 
 class FactMetaData;
 class FactValueGrid;
+class OIKeyboardController;
 class QQmlApplicationEngine;
 class QSettings;
 
@@ -68,6 +69,12 @@ public:
     /// Shown to the operator as the place to get builds (the update check itself is off in custom builds).
     QString stableDownloadLocation() const final;
 
+    /// Feeds NAV_CONTROLLER_OUTPUT altitude error to the keyboard controller (altitude target display and clamp).
+    bool mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message) final;
+
+    /// The keyboard guided-control singleton (also exposed to QML as OI.Controls/OIKeyboard).
+    OIKeyboardController *keyboard() const { return _keyboard; }
+
 private:
     /// One-time import of the telemetry bar, links, units, video and Fly view settings from the
     /// previous OI build (or stock QGC) into a fresh settings file. Runs from the constructor.
@@ -79,4 +86,5 @@ private:
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
     QQmlApplicationEngine *_qmlEngine = nullptr;
     OIUrlInterceptor *_urlInterceptor = nullptr;
+    OIKeyboardController *_keyboard = nullptr;
 };
