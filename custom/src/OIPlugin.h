@@ -69,6 +69,11 @@ public:
     /// Shown to the operator as the place to get builds (the update check itself is off in custom builds).
     QString stableDownloadLocation() const final;
 
+    /// No first-run "Preferences" prompt: the OI defaults already answer the vehicle and units
+    /// questions (both false makes firstRunPromptStdIds() empty).
+    bool showInitialSetupVehiclePreferences() const final { return false; }
+    bool showInitialSetupMeasurementUnits() const final { return false; }
+
     /// Feeds NAV_CONTROLLER_OUTPUT altitude error to the keyboard controller (altitude target display and clamp).
     bool mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message) final;
 
