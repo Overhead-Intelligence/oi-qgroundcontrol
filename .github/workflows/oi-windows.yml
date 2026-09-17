@@ -176,5 +176,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.exe
-          generate_release_notes: true
+          # The release is created with notes from CHANGELOG.md before the tag build runs;
+          # this step only attaches the installer and must not rewrite the notes.
+          generate_release_notes: false
           fail_on_unmatched_files: true

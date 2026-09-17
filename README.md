@@ -8,7 +8,7 @@ Overhead Intelligence's build of [QGroundControl](https://github.com/mavlink/qgr
 - **OI custom actions** in the Fly view: wingtip lights, gripper, EK3 PosXY source. Loaded automatically.
 - **Keyboard guided control**: W/S bump the target altitude, A/D fly a standard-rate turn, arrow keys move the gimbal. Off by default, behind a switch.
 
-Current version: 0.0.0 (not released yet). Built on upstream QGroundControl **v5.1.4**.
+Current version: 1.0.0 (2026-09-17). Built on upstream QGroundControl **v5.1.4**.
 
 ## Download
 

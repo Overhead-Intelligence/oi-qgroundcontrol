@@ -8,6 +8,10 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-17
+
+First OI release. Built on upstream QGroundControl v5.1.4.
+
 ### Added
 - Keyboard guided control for ArduPlane in GUIDED mode, behind a "Keyboard" switch at the bottom of the Fly view (off at every start, off on Esc, off when the vehicle changes). W/S bump the target altitude by a step (default 15 m, clamped to the guided min/max altitude settings), A/D fly a standard-rate turn (3 deg/s) for as long as the key is held and the aircraft then holds the new heading, arrow keys pan and tilt the gimbal. A "Release" button clears the heading hold. Works without GPS: heading commands use the compass-heading type and altitude changes are relative offsets in the guided target's existing frame; the panel shows the autopilot's reported altitude target and clamps bumps against it. Step and rates are settings in the panel. Keys are ignored while a text field has focus. The aircraft-side watchdog `custom/ardupilot-scripts/heading_hold_timeout.lua` is shipped alongside.
 - OI custom build under `custom/` (QGC's custom-build overlay, nothing under `src/` changed): app name `QGroundControl-OI` with its own settings file and Documents folder, "Overhead Intelligence" as the organisation, the OI logo mark (vector) in the toolbar and view menu tinted to the theme, OI window, taskbar and installer icons, and the OI installer header.
