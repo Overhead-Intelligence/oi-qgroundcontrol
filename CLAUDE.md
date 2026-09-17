@@ -16,6 +16,11 @@ SITL bench is `ardupilot-SITL-environment`.
 
 Current version: 1.0.0 (released 2026-09-17). Upstream base: QGroundControl
 **v5.1.4** (`main` and `development` both started from tag `v5.1.4`).
+The QGC line is Roger's decision, not a sync: on 2026-09-17 he weighed going
+back to the 5.0 line (he dislikes parts of the 5.1 interface) and chose to
+stay on 5.1.x for its features, with the interface changed through `custom/`
+overrides as he names things. A complete 5.0 port is parked on branch
+`wip/base-5.0-fallback` (build unverified). Ask him before moving the base.
 
 ## Layout
 
@@ -31,7 +36,10 @@ Current version: 1.0.0 (released 2026-09-17). Upstream base: QGroundControl
   `adjustSettingMetaData` (defaults read from `res/OI-defaults.ini`),
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
   `res/OI-Actions.json`, creates the keyboard controller, registers the
-  `OI.Controls` QML singleton), `createQmlApplicationEngine` (URL interceptor).
+  `OI.Controls` QML singleton), `createQmlApplicationEngine` (URL interceptor),
+  `showInitialSetupVehiclePreferences` / `showInitialSetupMeasurementUnits`
+  (both false: no first-run Preferences prompt), `mavlinkMessage` (altitude
+  error for the keyboard panel).
   The constructor runs `_importLegacySettings`: once per settings file, if the
   file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
   `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from

@@ -8,6 +8,11 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Changed
+- No first-run "Preferences" prompt (vehicle type, measurement units) on a fresh install: the OI defaults already answer it.
+- The hidden ArduPlane flight-mode list carries both QGC's mixed-case names and the upper-case names an ArduPilot 4.6+ aircraft reports, so the trimmed mode list holds whether or not a vehicle is connected.
+- Decision record: the fork stays on the QGC 5.1 line (Roger, 2026-09-17) for its features; UI complaints are handled as overrides in `custom/`. A complete port to the 5.0 line is parked on branch `wip/base-5.0-fallback` (build unverified).
+
 ## [1.0.0] - 2026-09-17
 
 First OI release. Built on upstream QGroundControl v5.1.4.
