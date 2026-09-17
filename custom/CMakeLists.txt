@@ -22,6 +22,10 @@ set(QGC_RESOURCES ${QGC_RESOURCES} ${CUSTOM_RESOURCES} CACHE STRING "Paths to .q
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardController.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardSettings.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardSettings.h
     CACHE INTERNAL "" FORCE
 )
 

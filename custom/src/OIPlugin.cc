@@ -18,11 +18,13 @@
 #include <QtCore/QStringList>
 #include <QtCore/QVariant>
 #include <QtQml/QQmlApplicationEngine>
+#include <QtQml/qqml.h>
 
 #include "AppSettings.h"
 #include "FactMetaData.h"
 #include "FactValueGrid.h"
 #include "InstrumentValueData.h"
+#include "OIKeyboardController.h"
 #include "QGCLoggingCategory.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
@@ -156,6 +158,12 @@ void OIPlugin::init()
 {
     QGCCorePlugin::init();
     _deployBundledActions();
+
+    // Created here, after SettingsManager::init(), because its settings group needs the
+    // settings system. Registered before the QML engine exists so FlyViewCustomLayer can
+    // "import OI.Controls" and use the OIKeyboard singleton.
+    _keyboard = new OIKeyboardController(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
 }
 
 QString OIPlugin::stableDownloadLocation() const

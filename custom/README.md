@@ -16,7 +16,10 @@ version of it.
 | `res/Images/OILogoMark.svg` | The OI logo mark as a vector, used for the toolbar logo and menus | Rebranding |
 | `res/icons/`, `deploy/windows/` | App icon, installer icon and installer header | Rebranding |
 | `src/OIPlugin.{h,cc}` | The QGC core plugin: applies the defaults, builds the telemetry bar, deploys the actions file, installs the override interceptor | Adding a new hook |
-| `src/qml/QGCToolBarButton.qml` | Stock control with the logo tinted to the theme | Rarely |
+| `src/qml/QGCToolBarButton.qml`, `src/qml/SelectViewDropdown.qml` | Stock controls with the logo swapped for the OI mark and tinted to the theme | Rarely |
+| `src/OIKeyboardController.{h,cc}` | Keyboard guided control: key handling, GUIDED commands, safety gates | Changing what a key does |
+| `src/OIKeyboardSettings.{h,cc}`, `res/json/OIKeyboard.SettingsGroup.json` | Its tunables (altitude step, turn rate, bank limit, gimbal rate) and their defaults | Changing a default step or rate |
+| `src/qml/FlyViewCustomLayer.qml` | The Fly view overlay: keyboard switch, status line, settings | Changing the panel |
 | `ardupilot-scripts/` | Lua scripts that belong on the aircraft, kept next to the GCS feature that needs them | Changing aircraft-side behaviour |
 | `VERSION` | The OI release version (kept here, not at the repo root, because a root `VERSION` shadows the C++ `<version>` header on Windows) | Cutting a release |
 

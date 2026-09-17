@@ -11,6 +11,12 @@
     <qresource prefix="/Custom/qml">
         <file alias="QGroundControl/Controls/QGCToolBarButton.qml">src/qml/QGCToolBarButton.qml</file>
         <file alias="QGroundControl/Toolbar/SelectViewDropdown.qml">src/qml/SelectViewDropdown.qml</file>
+        <file alias="QGroundControl/FlyView/FlyViewCustomLayer.qml">src/qml/FlyViewCustomLayer.qml</file>
+    </qresource>
+
+    <!-- Settings groups: SettingsGroup loads :/json/<Name>.SettingsGroup.json -->
+    <qresource prefix="/json">
+        <file alias="OIKeyboard.SettingsGroup.json">res/json/OIKeyboard.SettingsGroup.json</file>
     </qresource>
 
     <!-- OI-only resources, read by OIPlugin.cc -->
