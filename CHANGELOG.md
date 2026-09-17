@@ -1,200 +1,32 @@
-# QGroundControl Change Log
+# Changelog
 
-> **Note:** This file only contains high‑level features or important fixes.
+All notable changes to this project will be documented in this file.
 
-## [5.0] – Daily Build
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- **New UI**: Combined compass + attitude instrument for enhanced navigation.
-- **Instrument Selection**: Click on desktop or long‑press on mobile to switch instruments.
-- **MAVLink Actions**:
-  - Fly View & Joystick custom actions renamed from “Custom Actions” to **Mavlink Actions** (move your JSON files accordingly).
-  - Support for setting individual MAVLink message rates in the Inspector.
-  - Enabled MAVLink 2 signing.
-- **Battery Display**: Dynamic bars with configurable thresholds (100%, Config 1, Config 2, Low, Critical).
+Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl version it is built on.
 
----
+## [Unreleased]
 
-<details>
-<summary><strong>4.1</strong></summary>
+### Changed
+- The fork now builds on the QGC 5.0 line (upstream branch `Stable_V5.0`, v5.0.8 plus its maintenance fixes) instead of v5.1.4. Roger rejected the 5.1 interface changes; the 5.0 line is what the May 2026 OI build and the operators know. v1.0.0 (5.1.4-based) is superseded. Everything under `custom/` was re-ported to the 5.0 plugin hooks and QML modules; the toolbar and view menu keep the 5.0 look.
+- The first-run "Preferences" prompt (units, vehicle type) no longer appears on a fresh install: the OI defaults already answer it.
+- The first-start import now copies every settings group and top-level key of the previous OI build (same QGC generation), except the custom-actions file selection, so links, telemetry bar, units, video, gimbal, hidden modes and save path all carry over.
+- Hidden ArduPlane flight modes list both QGC's mixed-case names and the upper-case names an ArduPilot 4.6+ aircraft reports, so the trimmed mode list holds whether or not a vehicle is connected.
+- CI builds with Qt 6.8.3, GStreamer 1.22.12 and NSIS as upstream `Stable_V5.0` does; `custom/build-config.json` records the versions for the workflow and the local build scripts (local builds default to video OFF).
 
-### [4.1.2] – Not yet released
-- **Bugfix**: Radio setup – double‑send of `MAV_CMD_PREFLIGHT_CALIBRATION` causing “Unable to send command.”
+## [1.0.0] - 2026-09-17
 
-### [4.1.1] – Stable
-- **Fix**: TCP link communications.
+First OI release. Built on upstream QGroundControl v5.1.4.
 
-### [4.1.0]
-- **Camera**: Support simple cameras (only `DIGICAM_CONTROL`) in Photo/Video control.
-- **Parameters**:
-  - Load from file even if missing on vehicle.
-  - Diff dialog + selective param upload.
-- **Video Streaming**: Capture individual images from the stream.
-- **Fly**: Long‑press arm = Force Arm; click again to arm.
-- **VTOL**:
-  - Transition‑distance setting for takeoff/landing patterns.
-  - Improved VTOL support throughout.
-- **Maps**: Zoom up to level 23 (even without tiles).
-- **Settings/Mavlink**: Forward traffic to specified UDP port.
-- **Terrain Protocol**: Query GCS for terrain data (`TERRAIN_FRAME`) in mission planning.
-- **Plan**:
-  - VTOL Landing Pattern.
-  - KML export improvements for 3D verification.
-  - Terrain Profile with collision indications.
-- **Fly**: Rearchitected view & controls for custom builds.
+### Added
+- Keyboard guided control for ArduPlane in GUIDED mode, behind a "Keyboard" switch at the bottom of the Fly view (off at every start, off on Esc, off when the vehicle changes). W/S bump the target altitude by a step (default 15 m, clamped to the guided min/max altitude settings), A/D fly a standard-rate turn (3 deg/s) for as long as the key is held and the aircraft then holds the new heading, arrow keys pan and tilt the gimbal. A "Release" button clears the heading hold. Works without GPS: heading commands use the compass-heading type and altitude changes are relative offsets in the guided target's existing frame; the panel shows the autopilot's reported altitude target and clamps bumps against it. Step and rates are settings in the panel. Keys are ignored while a text field has focus. The aircraft-side watchdog `custom/ardupilot-scripts/heading_hold_timeout.lua` is shipped alongside.
+- OI custom build under `custom/` (QGC's custom-build overlay, nothing under `src/` changed): app name `QGroundControl-OI` with its own settings file and Documents folder, "Overhead Intelligence" as the organisation, the OI logo mark (vector) in the toolbar and view menu tinted to the theme, OI window, taskbar and installer icons, and the OI installer header.
+- Fleet defaults for a fresh install, read from `custom/res/OI-defaults.ini` by `OIPlugin::adjustSettingMetaData` (taken from Roger's live operator settings, 2026-09-16): metric units, guided limits (50 m floor, 914 m ceiling, 3048 m go-to range, 200 m forward-flight loiter radius), the Large Vertical instrument panel with a nose-up compass and extra indicators, the OI hidden-mode list (FBW A, FBW B, Auto, RTL, Loiter, Guided and the QuadPlane Hover, Loiter, Land and RTL modes stay visible), gimbal on-screen control with an 80x65 degree camera FOV, and ArduPilot fixed wing at 21 m/s for offline plans. Operators keep any value they change; "Reset to defaults" returns to these.
+- The OI telemetry bar as the default layout (8 columns x 2 rows: Alt (Rel), Distance to Home, Climb Rate, Ground Speed, AirSpd, Thr, Flight Time, Flight Distance, Alt (Above Terrain), Voltage, Wind Direction, Wind Spd, MGRS Position, Mission Item Index, rangefinder Down and Forward).
+- One-time import of an operator's existing settings into a fresh settings file: telemetry bar, link list, units, video, Fly view and map position are copied from the previous OI build's settings (`%APPDATA%\QGroundControl\QGroundControl OI Build.ini`), or from stock QGC's file, on the first start. Nobody rebuilds their telemetry bar or fleet links after installing this build.
+- OI custom actions (`custom/res/OI-Actions.json`: Wingtip Lights ON/OFF, Gripper Release/Grab, PosXY GPS Enable/Disable) copied into the MavlinkActions folder at every start and selected as the Fly view actions file.
+- Repository bootstrap on upstream QGroundControl v5.1.4: OI `README.md` and `CLAUDE.md`, PR template, `CODEOWNERS`, and the `oi-windows.yml` workflow that builds the Windows x64 installer on every PR and push and attaches it to tagged GitHub releases.
 
-</details>
-
----
-
-<details>
-<summary><strong>4.0</strong></summary>
-
-### [4.0.9] – Not yet released
-- Don’t auto‑connect to second Cube Orange/Yellow composite port.
-- **Plan**: Fix mission commands with altitude but no lat/lon.
-- Fix view switching break after altitude‑mode warning.
-
-### [4.0.8] – Stable
-- **iOS**: Update file storage for Files app.
-- **Mobile**: Fix Log Replay status‑bar file selection.
-
-### [4.0.7] – Stable
-- Fix video page sizing.
-- **Virtual Joystick**:
-  - Right‑stick centering fix.
-  - Rover/sub reverse‑throttle support.
-- Fix display of multiple ADSB vehicles.
-
-### [4.0.6] – Stable
-- **Analyze/Log Download**: Fix mobile download.
-- **Fly**: Continue Mission & Change Altitude now available after pause.
-- **PX4 Flow**: Video display fix.
-
-### [4.0.5] – Stable
-- **Solo**: Fix mission upload failures.
-- **Plan**: Crash fix for Create Plan → Survey (fixed‑wing).
-
-### [4.0.4]
-- **Mobile File Save**: Incorrect extension fix.
-- **Radio Setup**: Spektrum bind fix.
-- **Plan/Fly**: Restore waypoint number display.
-
-### [4.0.3]
-- **Plan**:
-  - Optional takeoff item.
-  - Enforce takeoff before other items.
-- **Video**: Low‑latency mode option.
-- **ArduPilot**: Firmware list generation fix.
-
-### [4.0.2]
-- Fix MAVLink V2 negotiation via capability bits.
-- Fix `AUTOPILOT_VERSION` response wait.
-- **ArduPilot**: More reliable fence/rally support.
-
-### [4.0.1]
-- Fix ArduPilot mission‑item tracking in Fly view.
-- Fix ADSB display.
-- Fix Plan view map positioning.
-- Fix Windows `0xCC000007B` startup error (VC++ runtimes).
-
-### [4.0.0]
-- **Flight**: ROI option + Cancel ROI toggle + ROI‑affected path color.
-- **Windows**: 64‑bit builds, Qt 5.12.5.
-- **ADSB**: SBS server & USB SDR dongle support.
-- **Toolbar**: Scrollable on small screens.
-- **Plan View**: New initial‑plan UI.
-- **Editing Tools**: Corridor & Polygon click‑trace.
-- **Performance**: No mobile path‑length limit.
-- **ArduPilot**:
-  - Motor Test page.
-  - Copter: Simple/Super‑Simple modes, advanced tuning, 3.5+ support.
-  - Plane: 3.8+ support.
-  - Rover: Frame setup & 3.4+ support.
-  - Airframe UI overhaul.
-- **Plan/Pattern**: Named presets (Survey).
-- **ChibiOS**: Improved bootloader support.
-- **Misc**:
-  - Camera API open to all firmwares.
-  - Configurable MAVLink stream rates.
-  - Structure Scan rewrite (old plans must be recreated).
-  - Object‑avoidance, joystick action modes.
-  - UDP RTP H.265, English‑only Linux TTS.
-  - Automated Crowdin localization.
-  - Korean & Chinese font improvements.
-  - New QtQuick MAVLink Inspector.
-
-</details>
-
----
-
-<details>
-<summary><strong>3.5</strong></summary>
-
-#### [3.5.5]
-- Fix MAVLink `memset` causing wrong ArduPilot GotoLocation commands.
-- Disable Pause when fixed‑wing is landing.
-
-#### [3.5.4]
-- Update Windows drivers.
-- Add FMUK66 flashing support.
-- Guard against null GStreamer geometry.
-- `.apj` file‑selection for custom flash.
-
-#### [3.5.3]
-- RTK Survey‑In limit → 0.01 m.
-- Windows driver‑detection logic fix.
-- GeoFence vertex crash fix.
-- **PX4:** Add `MC_YAW_FF` to PID Tuning.
-- **ArduPilot:** Fix bad chars in param‑file save.
-
-#### [3.5.2]
-- Fix Ubuntu AppImage startup.
-
-#### [3.5.1]
-- Update Windows USB drivers.
-- Add CubeBlack Service‑Bulletin check.
-- Fix PX4/ArduPilot logo in toolbar.
-- OfflineMaps tile‑set count fix.
-
-#### [3.5.0]
-- **Plan GeoFence:** Fix loading from 3.4.
-- **Structure Scan:** Height loading fix.
-- **ArduPilot:** Home‑position fix (Issue #6840).
-- Multi‑component param loading fix.
-- Mobile file‑dialog delete fix.
-- Fixed RTK station setting.
-- Airmap integration.
-- Add `ESTIMATOR_STATUS` FactGroup.
-- Chinese/Turkish + partial German localization.
-- Distance‑to‑GCS & Heading‑to‑Home instruments.
-- Position dialog on polygon vertices.
-- **Fixed‑Wing Landing**: Stop photo/video support.
-- SHP polygon loading.
-- Settings version bump (reset defaults).
-- Orbit rotation direction toggle.
-- Taisync 2.4 GHz ViUlinx HD link.
-- NMEA GPS UDP port option.
-
-</details>
-
----
-
-<details>
-<summary><strong>3.4</strong></summary>
-
-#### [3.4.4]
-- Notify desktop if newer version available.
-- Fix Multi‑Vehicle Start/Pause (Issue #6864).
-
-#### [3.4.3]
-- Resume Mission display fix (Issue #6835).
-- Home‑Position altitude fix (Issue #6846).
-
-#### [3.4.2]
-- Fix new mission items altitude = 0 bug (Issue #6823).
-
-#### [3.4.1]
-- Crash on quick terrain‑follow move fix.
-- Terrain‑follow rate fields swapped fix.
-
-</details>
+### Removed
+- Upstream QGroundControl CI workflows (Android, iOS, macOS, Linux, docs, CodeQL, ...) and bot configuration (Dependabot, Renovate, labeler, Copilot). OI ships Windows only; the reusable actions under `.github/actions` are kept because the OI workflow uses them.

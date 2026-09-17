@@ -1,0 +1,181 @@
+# OI Windows build (QGC 5.0 line).
+#
+# Builds the Overhead Intelligence QGroundControl installer on every PR, on every
+# push to development/main, and on version tags (vX.Y.Z). A tag build also
+# attaches the installer to the matching GitHub release, which is where the
+# team and customers download it from.
+#
+# Only Windows x64 is built. The upstream QGC workflows (Android, macOS, Linux,
+# iOS, docs, ...) were removed from this fork on purpose: OI ships Windows.
+#
+# The steps mirror upstream Stable_V5.0's windows.yml (Qt 6.8.3, GStreamer
+# 1.22.12, NSIS, Vulkan SDK) and reuse its composite actions under
+# .github/actions. Keep custom/build-config.json in step with the env below.
+
+name: OI Windows Build
+
+on:
+  push:
+    branches:
+      - main
+      - development
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+permissions:
+  contents: read
+
+env:
+  QT_VERSION: 6.8.3
+  QT_MODULES: qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors
+  GST_VERSION: 1.22.12
+  BUILD_DIR: ${{ github.workspace }}\..\shadow_build_dir
+
+jobs:
+  build:
+    name: Build Windows x64 installer
+    runs-on: windows-2022
+    timeout-minutes: 150
+
+    outputs:
+      artifact: ${{ steps.installer.outputs.artifact }}
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Checkout (full history so the version comes from git tags)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Initial Setup
+        uses: ./.github/actions/common
+
+      - name: Install Vulkan
+        working-directory: ${{ runner.temp }}
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/latest/windows/vulkan-sdk.exe" -OutFile vulkan-sdk.exe
+          .\vulkan-sdk.exe --root C:\VulkanSDK\latest --accept-licenses --default-answer --confirm-command install com.lunarg.vulkan.glm com.lunarg.vulkan.volk com.lunarg.vulkan.vma com.lunarg.vulkan.debug
+          echo "VULKAN_SDK=C:\VulkanSDK\latest" >> $env:GITHUB_ENV
+
+      - name: Install GStreamer
+        uses: blinemedical/setup-gstreamer@v1
+        with:
+          version: ${{ env.GST_VERSION }}
+          dir: ${{ runner.temp }}
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create build directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force -Path "${{ runner.temp }}\shadow_build_dir" | Out-Null
+
+      - name: Setup Caching
+        uses: ./.github/actions/cache
+        with:
+          host: windows
+          target: win64_msvc2022_64
+          build-type: Release
+          cpm-modules: ${{ runner.temp }}\shadow_build_dir\cpm_modules
+
+      - name: Install Qt for Windows (x64)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          dir: ${{ runner.temp }}
+          modules: ${{ env.QT_MODULES }}
+          cache: true
+
+      - name: Set up Visual Studio shell
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        working-directory: ${{ runner.temp }}\shadow_build_dir
+        run: ${{ env.QT_ROOT_DIR }}/bin/qt-cmake -S ${{ github.workspace }} -B . -G Ninja
+              -DCMAKE_BUILD_TYPE=Release
+              -DQGC_STABLE_BUILD=${{ github.ref_type == 'tag' && 'ON' || 'OFF' }}
+
+      - name: Build
+        working-directory: ${{ runner.temp }}\shadow_build_dir
+        run: cmake --build . --target all --config Release
+
+      - name: Resolve app name (QGC_APP_NAME from the CMake cache)
+        id: app
+        shell: pwsh
+        run: |
+          $line = Get-Content "${{ runner.temp }}\shadow_build_dir\CMakeCache.txt" | Where-Object { $_ -match '^QGC_APP_NAME:' } | Select-Object -First 1
+          if (-not $line) { Write-Error "QGC_APP_NAME not found in CMakeCache.txt"; exit 1 }
+          $name = $line.Split('=', 2)[1].Trim()
+          Write-Host "App name: $name"
+          "app_name=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Sanity check release executable
+        working-directory: ${{ runner.temp }}\shadow_build_dir\Release
+        run: ${{ steps.app.outputs.app_name }}.exe --simple-boot-test
+
+      - name: Create installer
+        working-directory: ${{ runner.temp }}\shadow_build_dir
+        run: cmake --install . --config Release
+
+      - name: Name the installer
+        id: installer
+        shell: pwsh
+        run: |
+          $buildDir = "${{ runner.temp }}\shadow_build_dir"
+          $found = Get-ChildItem -Path $buildDir -Filter "*installer*.exe" -File | Select-Object -First 1
+          if (-not $found) { Write-Error "Installer .exe not found in $buildDir"; Get-ChildItem $buildDir | Select-Object Name; exit 1 }
+          $artifact = "${{ steps.app.outputs.app_name }}-installer-AMD64"
+          $target = Join-Path $buildDir "$artifact.exe"
+          if ($found.FullName -ne $target) { Copy-Item $found.FullName $target -Force }
+          Write-Host "Installer: $target ($([math]::Round((Get-Item $target).Length / 1MB)) MB)"
+          "artifact=$artifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "path=$target" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.installer.outputs.artifact }}
+          path: ${{ steps.installer.outputs.path }}
+          retention-days: ${{ github.event_name == 'pull_request' && 14 || 90 }}
+          compression-level: 0
+          if-no-files-found: error
+
+  release:
+    name: Attach installer to the GitHub release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: dist
+
+      - name: Create or update the release for this tag
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          # The release is created with notes from CHANGELOG.md before the tag build runs;
+          # this step only attaches the installer and must not rewrite the notes.
+          generate_release_notes: false
+          fail_on_unmatched_files: true

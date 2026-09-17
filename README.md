@@ -1,56 +1,68 @@
+# OI QGroundControl
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Dronecode/UX-Design/35d8148a8a0559cd4bcf50bfa2c94614983cce91/QGC/Branding/Deliverables/QGC_RGB_Logo_Horizontal_Positive_PREFERRED/QGC_RGB_Logo_Horizontal_Positive_PREFERRED.svg" alt="QGroundControl Logo" width="500">
-</p>
+Overhead Intelligence's build of [QGroundControl](https://github.com/mavlink/qgroundcontrol), the ground station we fly the OI fleet with (ArduPlane QuadPlanes on Cube Orange). It is stock QGC plus what every OI laptop needs on day one:
 
-<p align="center">
-  <a href="https://github.com/mavlink/QGroundControl/releases">
-    <img src="https://img.shields.io/github/release/mavlink/QGroundControl.svg" alt="Latest Release">
-  </a>
-</p>
+- **OI branding**: logo, icons, installer, and the app name `QGroundControl-OI`. It installs beside stock QGC and keeps its own settings.
+- **Fleet defaults on first launch**: metric units, the OI telemetry bar (8 columns, rangefinder included), guided-mode limits (50 m floor, 914 m ceiling, 3048 m go-to range, 200 m forward-flight loiter radius), the trimmed ArduPlane flight-mode list, gimbal on-screen control.
+- **Your existing settings come along**: on its first start the build imports the telemetry bar, fleet links, units, video and Fly view settings from the previous OI build (or from stock QGC). Nobody rebuilds a telemetry bar after installing.
+- **OI custom actions** in the Fly view: wingtip lights, gripper, EK3 PosXY source. Loaded automatically.
+- **Keyboard guided control**: W/S bump the target altitude, A/D fly a standard-rate turn, arrow keys move the gimbal. Off by default, behind a switch.
 
-*QGroundControl* (QGC) is a highly intuitive and powerful Ground Control Station (GCS) designed for UAVs. Whether you're a first-time pilot or an experienced professional, QGC provides a seamless user experience for flight control and mission planning, making it the go-to solution for any *MAVLink-enabled drone*.
+Current version: 1.0.0 (2026-09-17). Built on the upstream QGroundControl **5.0 line** (branch `Stable_V5.0`: v5.0.8 plus its maintenance fixes), the version the OI operators know. It stays on that line on purpose; moving to a newer QGC is a decision, not a routine update.
 
----
+## Download
 
-### 🌟 *Why Choose QGroundControl?*
+Go to [Releases](https://github.com/Overhead-Intelligence/oi-qgroundcontrol/releases) and download `QGroundControl-OI-installer-AMD64.exe` (Windows 10/11, 64-bit). Run it, then start **QGroundControl-OI** from the Start menu.
 
-- *🚀 Ease of Use*: A beginner-friendly interface designed for smooth operation without sacrificing advanced features for pros.
-- *✈️ Comprehensive Flight Control*: Full flight control and mission management for *PX4* and *ArduPilot* powered UAVs.
-- *🛠️ Mission Planning*: Easily plan complex missions with a simple drag-and-drop interface.
+Settings live in `%APPDATA%\Overhead Intelligence\QGroundControl-OI.ini`; missions, logs and custom actions in `Documents\QGroundControl-OI`. A stock QGroundControl install is not touched.
 
-🔍 For a deeper dive into using QGC, check out the [User Manual](https://docs.qgroundcontrol.com/en/) – although, thanks to QGC's intuitive UI, you may not even need it!
+Every pull request and every push to `development` also produces an installer: open the run on the [Actions tab](https://github.com/Overhead-Intelligence/oi-qgroundcontrol/actions) and download the `QGroundControl-OI-installer-AMD64` artifact. Those are development builds: they run as "QGroundControl-OI Daily" with their own settings, so they never disturb a release install.
 
+## What is in this fork
 
----
+All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build overlay, so upstream releases merge cleanly. Nothing under `src/` is modified.
 
-### 🚁 *Key Features*
+| Area | Where to look |
+|---|---|
+| Branding (name, icons, installer header, toolbar logo) | `custom/cmake/CustomOverrides.cmake`, `custom/res/`, `custom/deploy/windows/`, `custom/src/qml/QGCToolBarButton.qml` |
+| Default settings on first launch | `custom/res/OI-defaults.ini` (change a value there, rebuild, done) |
+| Telemetry bar layout | `custom/src/OIPlugin.cc`, `factValueGridCreateDefaultSettings` |
+| Import of an operator's previous settings | `custom/src/OIPlugin.cc`, `_importLegacySettings` (runs once per settings file) |
+| Custom actions | `custom/res/OI-Actions.json` (copied to `Documents\QGroundControl-OI\MavlinkActions` at startup) |
+| Keyboard guided control | `custom/src/OIKeyboardController.cc`, `custom/src/qml/FlyViewCustomLayer.qml` |
+| Aircraft-side helper scripts | `custom/ardupilot-scripts/` |
+| CI and releases | `.github/workflows/oi-windows.yml` |
 
-- 🕹️ *Full Flight Control*: Supports all *MAVLink drones*.
-- ⚙️ *Vehicle Setup*: Tailored configuration for *PX4* and *ArduPilot* platforms.
-- 🔧 *Fully Open Source*: Customize and extend the software to suit your needs.
+Defaults are only defaults: an operator can still change any setting in the app, and "Reset to defaults" comes back to the OI values.
 
-🎯 Check out the latest updates in our [New Features and Release Notes](https://github.com/mavlink/qgroundcontrol/blob/master/ChangeLog.md).
+## Keyboard guided control
 
----
+Read this before flying with it.
 
-### 💻 *Get Involved!*
+- Switch it on with the **Keyboard** checkbox at the bottom of the Fly view. It is off every time the app starts, and turns itself off when the vehicle disconnects or you press **Esc**.
+- It only works on ArduPlane in **GUIDED** mode. In any other mode the panel says "Switch to GUIDED" and the keys do nothing. It never changes the flight mode for you.
+- **W / S**: climb / descend by the altitude step (default 15 m / 50 ft), clamped to the guided minimum and maximum altitude settings. Holding the key repeats. The panel shows the autopilot's own altitude target ("target 165 m", relative to home) as it moves.
+- **No GPS needed.** Heading uses ArduPlane's compass-heading type, not course over ground. Altitude changes are sent as a relative offset that ArduPlane adds to its current guided target, in whatever altitude frame that target already has (relative, AMSL or terrain); no absolute altitude or frame is ever sent, and the aircraft flies it on the barometer. Terrain frame only matters for Go To Location, which is tracked separately.
+- **A / D**: standard-rate turn (3 deg/s) for as long as the key is held. Release the key and the aircraft holds the new heading (ArduPlane's guided heading hold). The **Release** button in the panel hands it back to the guided loiter point.
+- **Arrow keys**: gimbal tilt (up/down) and pan (left/right) while held.
+- Keys are ignored while a text field has focus, so typing a mission altitude never steers the aircraft.
+- A held heading persists until Release, a new guided target, or a mode change. Install `custom/ardupilot-scripts/heading_hold_timeout.lua` on the aircraft as a watchdog: it drops the aircraft to LOITER after `HHT_TIMEOUT` seconds (default 120) without a new heading command.
+- The step and rates are settings (gear button in the panel): altitude step, turn rate, bank limit, gimbal rate.
 
-QGroundControl is *open-source*, meaning you have the power to shape it! Whether you're fixing bugs, adding features, or customizing for your specific needs, QGC welcomes contributions from the community.
+## Working on this repo
 
-🛠️ Start building today with our [Developer Guide](https://dev.qgroundcontrol.com/en/) and [build instructions](https://dev.qgroundcontrol.com/en/getting_started/).
+Same flow as `oi-raspi-toolkit`:
 
----
+1. `main` is what has been released. `development` is where work lands. Nobody pushes to either directly.
+2. Branch off `development` (`feat/...`, `fix/...`, `docs/...`, `chore/...`), commit with Conventional Commits, add a line to `CHANGELOG.md` under `[Unreleased]`, open a PR against `development`. CI builds the installer (about 25 minutes) and attaches it to the run. A human reviews and merges (merge commit).
+3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `custom/VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
 
-### 🔗 *Useful Links*
+No local Qt toolchain is needed to contribute: CI builds every PR. To iterate faster, build on your own Windows PC with the three scripts in `custom/scripts/` (`install-qt.cmd` once, then `build-local.cmd` and `run-local.cmd`); see [custom/README.md](custom/README.md#building-on-your-own-pc-minutes-instead-of-a-ci-run). CMake picks up the `custom/` directory automatically.
 
-- 🌐 [Official Website](http://qgroundcontrol.com)
-- 📘 [User Manual](https://docs.qgroundcontrol.com/en/)
-- 🛠️ [Developer Guide](https://dev.qgroundcontrol.com/en/)
-- 💬 [Discussion & Support](https://docs.qgroundcontrol.com/en/Support/Support.html)
-- 🤝 [Contributing](https://dev.qgroundcontrol.com/en/contribute/)
-- 📜 [License Information](https://github.com/mavlink/qgroundcontrol/blob/master/.github/COPYING.md)
+### Syncing with upstream
 
----
+This fork follows upstream's `Stable_V5.0` maintenance branch. To take its new commits: `git fetch upstream Stable_V5.0`, branch `chore/upstream-stable-5.0` off `development`, `git merge upstream/Stable_V5.0`, resolve (conflicts are expected in `README.md`, `CHANGELOG.md` and `.github/`; keep ours), open a PR. Do not merge upstream `master` or a `Stable_V5.1`+ branch: changing the QGC line is Roger's call.
 
-With QGroundControl, you're in full command of your UAV, ready to take your missions to the next level.
+## License
+
+QGroundControl is dual licensed under Apache 2.0 and GPLv3; see [COPYING.md](COPYING.md). OI's additions under `custom/` are offered under the same terms.

@@ -1,0 +1,11 @@
+{
+    "_comment": "Build inputs for the OI fork on the QGC 5.0 line. Read by .github/workflows/oi-windows.yml and custom/scripts/*.cmd. Keep in step with upstream Stable_V5.0's .github/workflows/windows.yml when syncing.",
+    "qt": {
+        "version": "6.8.3",
+        "arch": "win64_msvc2022_64",
+        "modules": "qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors"
+    },
+    "gstreamer": {
+        "version": "1.22.12"
+    }
+}

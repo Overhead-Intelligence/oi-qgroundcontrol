@@ -1,23 +1,18 @@
-<!--- Title -->
+## What
 
-Description
------------
-<!--- Describe your changes in detail. -->
+<!-- One or two sentences. What does this change do for an operator or a developer? -->
 
-Test Steps
------------
-<!-- Describe the steps to reproduce. -->
+## Why
 
-Checklist:
-----------
-<!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
-- [ ] [Review Contribution Guidelines](https://github.com/mavlink/qgroundcontrol/blob/master/.github/CONTRIBUTING.md).
-- [ ] [Review Code of Conduct](https://github.com/mavlink/qgroundcontrol/blob/master/.github/CODE_OF_CONDUCT.md).
-- [ ] I have tested my changes.
+<!-- The problem or request behind it. Link the issue or the conversation if there is one. -->
 
-Related Issue
------------
-<!-- If any, please provide issue ID. -->
+## How it was tested
 
+- [ ] CI installer (Actions tab, artifact `QGroundControl-OI-installer-AMD64`) installed and run
+- [ ] Checked against SITL / bench / aircraft (say which)
 
-By submitting this pull request, I confirm that you can use, modify, copy, and redistribute this contribution, under the terms of your choice.
+## Checklist
+
+- [ ] `CHANGELOG.md` has an entry under `[Unreleased]`
+- [ ] Docs updated if behaviour changed (`README.md`, `CLAUDE.md`, `custom/README.md`)
+- [ ] Changes stay inside `custom/` and `.github/` (anything else is listed here with the reason)

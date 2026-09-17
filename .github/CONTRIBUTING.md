@@ -1,17 +1,13 @@
-# QGroundControl License
+# Contributing
 
-Thank you for considering to contribute to QGroundControl.
+This is Overhead Intelligence's fork of QGroundControl. The workflow (branches,
+PRs, releases, how CI builds the installer for you) is described in the
+repository [README](../README.md#working-on-this-repo) and, for Claude Code
+sessions, in [CLAUDE.md](../CLAUDE.md).
 
-Contributions must be made under QGroundControl's dual-license system, under GPLv3 and Apache 2.0. This by definition rules out the re-use of any copyleft (e.g. GPL) licensed code. All contributions must be original or from a compatible license (BSD 2/3 clause, MIT, Apache 2.0).
+Short version: branch off `development`, open a PR to `development` with a
+`CHANGELOG.md` entry, wait for the CI installer, a human merges.
 
-## Apache 2.0 License
-
-The [Apache 2.0](http://www.apache.org/licenses/LICENSE-2.0) License is a permissive license which allows QGC to be built and used in any environment, including proprietary applications. It allows QGC to be built for mobile app stores. When building with Apache 2.0 a commercial Qt license is required.
-
-## GPL v3 License
-
-The [GPL v3 License](http://www.gnu.org/licenses/gpl-3.0.en.html) is a strong copyleft license. When building QGC under this license the open source version of Qt can be used. Our licensing grants the permission to use a later version of the license, however, contributions have to be made under 3.0.
-
-## Contact
-
-If you have questions regarding the licensing, please contact the maintainer Lorenz Meier, [lm@groundcontrol.org].
+Changes that belong in QGroundControl itself should go to
+[mavlink/qgroundcontrol](https://github.com/mavlink/qgroundcontrol) and come
+back here through an upstream sync.
