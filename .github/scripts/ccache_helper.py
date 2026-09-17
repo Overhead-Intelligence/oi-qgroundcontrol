@@ -529,7 +529,9 @@ def determine_cache_scope(event_name: str, ref_name: str, pr_number: str = "") -
     elif event_name == "workflow_dispatch":
         scope = f"manual-{ref_name}"
     elif event_name == "push":
-        if ref_name != "master":
+        # OI: development and main pushes feed the shared cache that PR builds
+        # restore from (upstream only shares from master).
+        if ref_name not in ("master", "development", "main"):
             scope = f"branch-{ref_name}"
     else:
         scope = f"{event_name}-{ref_name}"
