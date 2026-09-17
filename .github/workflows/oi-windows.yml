@@ -1,0 +1,182 @@
+# OI Windows build.
+#
+# Builds the Overhead Intelligence QGroundControl installer on every PR, on every
+# push to development/main, and on version tags (vX.Y.Z). A tag build also
+# attaches the installer to the matching GitHub release, which is where the
+# team and customers download it from.
+#
+# Only Windows x64 is built. The upstream QGC workflows (Android, macOS, Linux,
+# iOS, docs, ...) were removed from this fork on purpose: OI ships Windows.
+#
+# The build steps reuse upstream's composite actions under .github/actions so
+# that an upstream sync keeps working without editing this file.
+
+name: OI Windows Build
+
+on:
+  push:
+    branches:
+      - main
+      - development
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+permissions:
+  contents: read
+
+env:
+  # Pinned aqtinstall source, copied from upstream windows.yml (unreleased Qt install fixes).
+  AQT_SOURCE: 'git+https://github.com/miurahr/aqtinstall.git@8d961e61720b3c06583517fbc68d57ec0a4e9f95'
+  # Exe and installer names come from QGC_APP_NAME (custom/cmake/CustomOverrides.cmake),
+  # read back from the CMake cache after configure (step "app" below).
+
+jobs:
+  build:
+    name: Build Windows x64 installer
+    runs-on: windows-2022
+    timeout-minutes: 150
+
+    outputs:
+      artifact: ${{ steps.app.outputs.app_name }}-installer-AMD64
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Checkout (full history so the version comes from git tags)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build Setup
+        id: build-setup
+        uses: ./.github/actions/build-setup
+        with:
+          qt-host: windows
+          qt-arch: win64_msvc2022_64
+          aqt-source: ${{ env.AQT_SOURCE }}
+          build-type: Release
+
+      - name: Configure
+        uses: ./.github/actions/cmake-configure
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+          extra-args: -DQGC_ENABLE_GST_VIDEOSTREAMING=ON
+
+      - name: Resolve app name (QGC_APP_NAME from the CMake cache)
+        id: app
+        shell: bash
+        run: |
+          python3 "${GITHUB_WORKSPACE}/.github/scripts/cmake_helper.py" cache-var             --build-dir "${RUNNER_TEMP}/build"             --name QGC_APP_NAME             --required             --output-key app_name
+
+      - name: Resolve GStreamer root
+        id: gst-root
+        shell: bash
+        run: |
+          python3 "${GITHUB_WORKSPACE}/.github/scripts/cmake_helper.py" cache-var \
+            --build-dir "${RUNNER_TEMP}/build" \
+            --name GStreamer_ROOT_DIR \
+            --required \
+            --output-key gst_root
+
+      - name: Add GStreamer to PATH
+        shell: bash
+        run: echo "${GST_ROOT}/bin" >> "$GITHUB_PATH"
+        env:
+          GST_ROOT: ${{ steps.gst-root.outputs.gst_root }}
+
+      - name: Build
+        uses: ./.github/actions/cmake-build
+        with:
+          build-dir: ${{ runner.temp }}/build
+          build-type: Release
+
+      - name: Verify executable
+        uses: ./.github/actions/verify-executable
+        with:
+          binary-path: ${{ runner.temp }}/build/Release/${{ steps.app.outputs.app_name }}.exe
+          type: exe
+          build-dir: ${{ runner.temp }}/build
+
+      - name: Create installer
+        uses: ./.github/actions/cmake-install
+        with:
+          build-dir: ${{ runner.temp }}\build
+          build-type: Release
+
+      - name: Install and verify installer
+        shell: pwsh
+        run: |
+          $buildDir = "${{ runner.temp }}\build"
+          $installerExe = Get-ChildItem -Path $buildDir -Filter "*installer*.exe" | Select-Object -First 1
+          if (-not $installerExe) {
+            Write-Error "Installer .exe not found in $buildDir"
+            exit 1
+          }
+          if ($installerExe.Name -ne "${{ steps.app.outputs.app_name }}-installer-AMD64.exe") {
+            Write-Error "Installer is named $($installerExe.Name), expected ${{ steps.app.outputs.app_name }}-installer-AMD64.exe (QGC_APP_NAME from the CMake cache)"
+            exit 1
+          }
+          $installDir = "${{ runner.temp }}\qgc-install-test"
+          Write-Host "Installing $($installerExe.Name) to $installDir"
+          Start-Process -FilePath $installerExe.FullName -ArgumentList "/S", "/D=$installDir" -Wait -NoNewWindow
+          $binary = Join-Path $installDir "bin\${{ steps.app.outputs.app_name }}.exe"
+          if (-not (Test-Path $binary)) {
+            Write-Error "${{ steps.app.outputs.app_name }}.exe not found at $binary after install"
+            Get-ChildItem -Path $installDir -Recurse | Select-Object FullName
+            exit 1
+          }
+          $pluginDir = Join-Path $installDir "lib\gstreamer-1.0"
+          if (Test-Path $pluginDir) {
+            $pluginCount = (Get-ChildItem -Path $pluginDir -Filter "*.dll" | Measure-Object).Count
+            Write-Host "GStreamer plugins found: $pluginCount"
+            if ($pluginCount -eq 0) {
+              Write-Error "No GStreamer plugin DLLs found in $pluginDir"
+              exit 1
+            }
+          } else {
+            Write-Error "GStreamer plugin directory not found: $pluginDir"
+            exit 1
+          }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.app.outputs.app_name }}-installer-AMD64
+          path: ${{ runner.temp }}/build/${{ steps.app.outputs.app_name }}-installer-AMD64.exe
+          retention-days: ${{ github.event_name == 'pull_request' && 14 || 90 }}
+          compression-level: 0
+          if-no-files-found: error
+
+  release:
+    name: Attach installer to the GitHub release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download installer artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: dist
+
+      - name: Create or update the release for this tag
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          # The release is created with notes from CHANGELOG.md before the tag build runs;
+          # this step only attaches the installer and must not rewrite the notes.
+          generate_release_notes: false
+          fail_on_unmatched_files: true

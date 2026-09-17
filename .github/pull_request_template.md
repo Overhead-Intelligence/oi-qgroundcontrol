@@ -1,49 +1,18 @@
-## Description
-<!-- Describe your changes in detail. What problem does this solve? -->
+## What
 
-## Type of Change
-<!-- Put an 'x' in the relevant boxes -->
-- [ ] Bug fix (non-breaking change that fixes an issue)
-- [ ] New feature (non-breaking change that adds functionality)
-- [ ] Breaking change (fix or feature that would cause existing functionality to change)
-- [ ] Documentation update
-- [ ] Refactoring (no functional changes)
-- [ ] CI/Build changes
-- [ ] Other
+<!-- One or two sentences. What does this change do for an operator or a developer? -->
 
-## Testing
-<!-- Describe the tests you ran and how to reproduce them -->
-- [ ] Tested locally
-- [ ] Added/updated unit tests
-- [ ] Tested with simulator (SITL)
-- [ ] Tested with hardware
+## Why
 
-### Platforms Tested
-<!-- Check all that apply -->
-- [ ] Linux
-- [ ] Windows
-- [ ] macOS
-- [ ] Android
-- [ ] iOS
+<!-- The problem or request behind it. Link the issue or the conversation if there is one. -->
 
-### Flight Stacks Tested
-<!-- If applicable -->
-- [ ] PX4
-- [ ] ArduPilot
+## How it was tested
 
-## Screenshots
-<!-- If applicable, add screenshots to help explain your changes -->
+- [ ] CI installer (Actions tab, artifact `QGroundControl-OI-installer-AMD64`) installed and run
+- [ ] Checked against SITL / bench / aircraft (say which)
 
 ## Checklist
-<!-- Go over all the following points, and put an 'x' in all the boxes that apply -->
-- [ ] I have read the [Contribution Guidelines](CONTRIBUTING.md)
-- [ ] I have read the [Code of Conduct](CODE_OF_CONDUCT.md)
-- [ ] My code follows the project's coding standards
-- [ ] I have added tests that prove my fix/feature works
-- [ ] New and existing unit tests pass locally
 
-## Related Issues
-<!-- Link any related issues using #issue_number -->
-
----
-By submitting this pull request, I confirm that my contribution is made under the terms of the project's dual license (Apache 2.0 and GPL v3).
+- [ ] `CHANGELOG.md` has an entry under `[Unreleased]`
+- [ ] Docs updated if behaviour changed (`README.md`, `CLAUDE.md`, `custom/README.md`)
+- [ ] Changes stay inside `custom/` and `.github/` (anything else is listed here with the reason)
