@@ -127,9 +127,9 @@ void OIPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData 
 {
     QGCCorePlugin::adjustSettingMetaData(settingsGroup, metaData, userVisible);
 
-    // QSettings stores keys of the empty group (App and MAVLink settings) under [General].
-    const QString iniGroup = settingsGroup.isEmpty() ? QStringLiteral("General") : settingsGroup;
-    const QString key = iniGroup + QLatin1Char('/') + metaData.name();
+    // Settings with an empty group name (App and MAVLink) sit in the [General] section of
+    // the ini, which QSettings exposes as top-level keys (no "General/" prefix).
+    const QString key = settingsGroup.isEmpty() ? metaData.name() : (settingsGroup + QLatin1Char('/') + metaData.name());
     if (!_defaults->contains(key)) {
         return;
     }
