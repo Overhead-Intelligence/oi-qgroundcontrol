@@ -69,6 +69,9 @@ public:
     /// Shown to the operator as the place to get builds (the update check itself is off in custom builds).
     QString stableDownloadLocation() const final;
 
+    /// Feeds NAV_CONTROLLER_OUTPUT altitude error to the keyboard controller (altitude target display and clamp).
+    bool mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message) final;
+
     /// The keyboard guided-control singleton (also exposed to QML as OI.Controls/OIKeyboard).
     OIKeyboardController *keyboard() const { return _keyboard; }
 

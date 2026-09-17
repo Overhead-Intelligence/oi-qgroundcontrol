@@ -24,6 +24,7 @@
 #include "FactMetaData.h"
 #include "FactValueGrid.h"
 #include "InstrumentValueData.h"
+#include "MAVLinkLib.h"
 #include "OIKeyboardController.h"
 #include "QGCLoggingCategory.h"
 #include "QmlObjectListModel.h"
@@ -169,6 +170,19 @@ void OIPlugin::init()
 QString OIPlugin::stableDownloadLocation() const
 {
     return QStringLiteral("github.com/Overhead-Intelligence/oi-qgroundcontrol/releases");
+}
+
+bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
+{
+    Q_UNUSED(link);
+
+    if (_keyboard && (message.msgid == MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT)) {
+        mavlink_nav_controller_output_t navControllerOutput{};
+        mavlink_msg_nav_controller_output_decode(&message, &navControllerOutput);
+        _keyboard->setAltitudeError(vehicle, static_cast<double>(navControllerOutput.alt_error));
+    }
+
+    return true;    // let the vehicle process the message as usual
 }
 
 /*===========================================================================*/

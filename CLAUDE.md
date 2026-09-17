@@ -85,8 +85,15 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
   disconnects and on Esc. Window deactivation releases every held key.
 - Acts only when the active vehicle is ArduPlane (fixed-wing or VTOL) in flight
   mode `Guided`. It never changes the flight mode.
-- W/S: `Vehicle::guidedModeChangeAltitude(±altitudeStep)`, clamped by the
-  FlyView `guidedMinimumAltitude` / `guidedMaximumAltitude` settings.
+- W/S: `Vehicle::guidedModeChangeAltitude(±altitudeStep)`, a relative offset
+  (`SET_POSITION_TARGET_LOCAL_NED`, `MAV_FRAME_LOCAL_OFFSET_NED`). ArduPlane
+  does `next_WP_loc.alt += delta` in whatever frame the guided target already
+  has and reports "Change alt to X"; no absolute altitude or frame is sent, so
+  it works GPS-denied on the barometer. The clamp against the FlyView
+  `guidedMinimumAltitude` / `guidedMaximumAltitude` settings uses the
+  autopilot's reported target (`NAV_CONTROLLER_OUTPUT.alt_error` is target
+  minus current in ArduPilot; QGC's own `altitudeTuningSetpoint` fact assumes
+  the opposite sign, do not use it), falling back to the current altitude.
 - A/D: `MAV_CMD_GUIDED_CHANGE_HEADING` (43002) every 200 ms while held.
   param1 = 1 (HEADING), param2 = target heading slewed at `turnRate` deg/s from
   the heading at key-down, param3 = g·tan(`turnBankLimit`) (ArduPlane turns it

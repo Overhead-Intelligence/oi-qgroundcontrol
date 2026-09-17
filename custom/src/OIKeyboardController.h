@@ -49,6 +49,7 @@ class OIKeyboardController : public QObject
     Q_PROPERTY(bool     headingHoldActive   READ headingHoldActive                      NOTIFY stateChanged)
     Q_PROPERTY(double   headingTarget       READ headingTarget                          NOTIFY stateChanged)
     Q_PROPERTY(int      turnDirection       READ turnDirection                          NOTIFY stateChanged)    ///< -1 left, 0 none, +1 right
+    Q_PROPERTY(QString  altitudeTargetText  READ altitudeTargetText                     NOTIFY stateChanged)    ///< autopilot's altitude target, relative to home
     Q_PROPERTY(QObject* settings            READ settingsObject                         CONSTANT)
 
 public:
@@ -70,6 +71,13 @@ public:
 
     /// Sends HEADING_TYPE_DEFAULT so ArduPlane drops the heading hold and resumes the guided loiter.
     Q_INVOKABLE void releaseHeadingHold();
+
+    /// Fed by OIPlugin from NAV_CONTROLLER_OUTPUT. ArduPilot's alt_error is target minus current
+    /// altitude (positive = climb needed), so the altitude target is current + error whatever frame
+    /// the guided target uses.
+    void setAltitudeError(Vehicle *vehicle, double altitudeErrorMeters);
+
+    QString altitudeTargetText() const;
 
     bool eventFilter(QObject *watched, QEvent *event) final;
 
@@ -122,6 +130,11 @@ private:
     // Altitude (W / S)
     QTimer _altitudeTimer;
     int _altitudeDirection = 0;
+    double _altitudeError = 0.0;        ///< metres, target minus current, from the autopilot
+    qint64 _altitudeErrorMs = 0;        ///< when _altitudeError was last received (0 = never)
+    bool _altitudeTargetValid() const;
+    double _altitudeTargetRelative() const;
+    void _setVehicleAltitudeUnknown();
 
     // Gimbal (arrow keys)
     QTimer _gimbalTimer;

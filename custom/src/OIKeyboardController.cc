@@ -12,6 +12,7 @@
 #include <cmath>
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QDateTime>
 #include <QtCore/QEvent>
 #include <QtCore/QtMath>
 #include <QtGui/QGuiApplication>
@@ -44,6 +45,8 @@ constexpr int kGimbalTickMs = 100;
 
 constexpr float kGimbalPitchMin = -90.0f;
 constexpr float kGimbalPitchMax = 90.0f;
+
+constexpr qint64 kAltitudeErrorMaxAgeMs = 3000;   // NAV_CONTROLLER_OUTPUT normally arrives several times a second
 
 constexpr double kGravity = 9.80665;
 
@@ -123,6 +126,7 @@ void OIKeyboardController::_setVehicle(Vehicle *vehicle)
 
     _releaseAllKeys();
     _headingHoldActive = false;
+    _setVehicleAltitudeUnknown();
 
     if (_vehicle) {
         (void) disconnect(_vehicle.data(), nullptr, this, nullptr);
@@ -405,6 +409,40 @@ void OIKeyboardController::_altitudeTick()
     _bumpAltitude();
 }
 
+void OIKeyboardController::setAltitudeError(Vehicle *vehicle, double altitudeErrorMeters)
+{
+    if (!vehicle || vehicle != _vehicle || qIsNaN(altitudeErrorMeters)) {
+        return;
+    }
+    _altitudeError = altitudeErrorMeters;
+    _altitudeErrorMs = QDateTime::currentMSecsSinceEpoch();
+    if (_enabled) {
+        emit stateChanged();    // refreshes altitudeTargetText in the panel
+    }
+}
+
+bool OIKeyboardController::_altitudeTargetValid() const
+{
+    return _vehicle && (_altitudeErrorMs != 0)
+        && ((QDateTime::currentMSecsSinceEpoch() - _altitudeErrorMs) < kAltitudeErrorMaxAgeMs)
+        && !qIsNaN(_vehicle->altitudeRelative()->rawValue().toDouble());
+}
+
+double OIKeyboardController::_altitudeTargetRelative() const
+{
+    // The autopilot's target expressed above home: differences are frame free, so this holds
+    // whether the guided target is relative, AMSL or terrain based.
+    return _vehicle->altitudeRelative()->rawValue().toDouble() + _altitudeError;
+}
+
+QString OIKeyboardController::altitudeTargetText() const
+{
+    if (!_altitudeTargetValid()) {
+        return QString();
+    }
+    return tr("target %1 m").arg(_altitudeTargetRelative(), 0, 'f', 0);
+}
+
 void OIKeyboardController::_bumpAltitude()
 {
     if (!_vehicleIsGuidedPlane() || _altitudeDirection == 0) {
@@ -423,15 +461,20 @@ void OIKeyboardController::_bumpAltitude()
     const double maxAlt = flyView->guidedMaximumAltitude()->rawValue().toDouble();
     const double step = _settings->altitudeStep()->rawValue().toDouble();
 
-    const double target = qBound(minAlt, current + (_altitudeDirection * step), maxAlt);
-    const double delta = target - current;
+    // ArduPlane applies the offset to its current guided target, so the clamp is done on that
+    // target when the autopilot has reported it; otherwise on the current altitude.
+    const double base = _altitudeTargetValid() ? _altitudeTargetRelative() : current;
+    const double target = qBound(minAlt, base + (_altitudeDirection * step), maxAlt);
+    const double delta = target - base;
     if (qAbs(delta) < 0.5) {
         _setStatus(tr("At the guided altitude limit (%1 .. %2 m)").arg(minAlt, 0, 'f', 0).arg(maxAlt, 0, 'f', 0), true);
         return;
     }
 
+    // Relative offset only: no absolute altitude and no frame are sent, so the guided point keeps
+    // whatever altitude frame it already has (relative, AMSL or terrain).
     _vehicle->guidedModeChangeAltitude(delta, false /* pauseVehicle */);
-    _setStatus(tr("Altitude %1%2 m").arg(delta > 0 ? QStringLiteral("+") : QString()).arg(delta, 0, 'f', 0));
+    _setStatus(tr("Altitude %1%2 m, target %3 m").arg(delta > 0 ? QStringLiteral("+") : QString()).arg(delta, 0, 'f', 0).arg(target, 0, 'f', 0));
 }
 
 /*===========================================================================*/
@@ -536,4 +579,12 @@ void OIKeyboardController::_updateState()
     } else {
         _setStatus(tr("Ready"));
     }
+}
+
+/*===========================================================================*/
+
+void OIKeyboardController::_setVehicleAltitudeUnknown()
+{
+    _altitudeErrorMs = 0;
+    _altitudeError = 0.0;
 }
