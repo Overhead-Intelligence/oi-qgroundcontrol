@@ -32,6 +32,11 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
   `res/OI-Actions.json`, creates the keyboard controller, registers the
   `OI.Controls` QML singleton), `createQmlApplicationEngine` (URL interceptor).
+  The constructor runs `_importLegacySettings`: once per settings file, if the
+  file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
+  `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from
+  `%APPDATA%\QGroundControl\QGroundControl OI Build.ini` (else `QGroundControl.ini`)
+  and records the source under `OI/importedSettingsFrom`.
 - `custom/src/OIKeyboardController.{h,cc}` — application-wide key event filter
   that turns W/S/A/D and the arrow keys into GUIDED commands.
   `custom/src/OIKeyboardSettings.{h,cc}` + `res/json/OIKeyboard.SettingsGroup.json`
@@ -61,9 +66,13 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
   Commits; PR against `development`; a `CHANGELOG.md` `[Unreleased]` entry in
   every PR; humans merge with a merge commit (the ruleset allows nothing else).
   `main` fast-forwards at release time; tags are OI versions `vX.Y.Z`, not QGC's.
-- `VERSION` + `CHANGELOG.md` drive releases; the `oi-developer-workspace`
-  tools `start-release.cmd` / `finish-release.cmd` work on this repo. CI
-  attaches the installer to the GitHub release of the tag.
+- `custom/VERSION` + `CHANGELOG.md` drive releases. The version file cannot
+  sit at the repo root: MSVC resolves `#include <version>` (C++20 standard
+  header) to a root file named `VERSION` because the root is on the include
+  path and Windows ignores case, which breaks the build. The
+  `oi-developer-workspace` release tools expect a root `VERSION`, so until
+  they learn this location (issue #9) releases are cut by hand as described
+  in the README. CI attaches the installer to the GitHub release of the tag.
 - No local toolchain is assumed. CI (about 25 min) is the compile check;
   download the artifact to test. Non-tag builds run as "QGroundControl-OI Daily"
   with separate settings; only tag builds set `QGC_STABLE_BUILD`.
@@ -89,9 +98,9 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
 - Keys are ignored while a `TextInput` / `TextEdit` has focus.
 - Aircraft watchdog: `custom/ardupilot-scripts/heading_hold_timeout.lua`
   (parameter `HHT_TIMEOUT`, default 120 s, 0 disables).
-- The GCS system ID defaults to 254 (OI convention). ArduPilot gates
-  `MANUAL_CONTROL`, RC override and the GCS failsafe on `MAV_GCS_SYSID`; guided
-  commands are not gated.
+- The GCS system ID stays at QGC's default 255 (Roger's live setting on
+  2026-09-16; the May export had 254). ArduPilot gates `MANUAL_CONTROL`, RC
+  override and the GCS failsafe on `MAV_GCS_SYSID`; guided commands are not gated.
 
 ## Upstream sync
 

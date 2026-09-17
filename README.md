@@ -3,7 +3,8 @@
 Overhead Intelligence's build of [QGroundControl](https://github.com/mavlink/qgroundcontrol), the ground station we fly the OI fleet with (ArduPlane QuadPlanes on Cube Orange). It is stock QGC plus what every OI laptop needs on day one:
 
 - **OI branding**: logo, icons, installer, and the app name `QGroundControl-OI`. It installs beside stock QGC and keeps its own settings.
-- **Fleet defaults on first launch**: metric units, the OI telemetry bar, guided-mode limits (914 m ceiling, 3048 m go-to range, 152 m forward-flight loiter radius), the trimmed ArduPlane flight-mode list, gimbal on-screen control, GCS MAVLink system ID 254.
+- **Fleet defaults on first launch**: metric units, the OI telemetry bar (8 columns, rangefinder included), guided-mode limits (50 m floor, 914 m ceiling, 3048 m go-to range, 200 m forward-flight loiter radius), the trimmed ArduPlane flight-mode list, gimbal on-screen control.
+- **Your existing settings come along**: on its first start the build imports the telemetry bar, fleet links, units, video and Fly view settings from the previous OI build (or from stock QGC). Nobody rebuilds a telemetry bar after installing.
 - **OI custom actions** in the Fly view: wingtip lights, gripper, EK3 PosXY source. Loaded automatically.
 - **Keyboard guided control**: W/S bump the target altitude, A/D fly a standard-rate turn, arrow keys move the gimbal. Off by default, behind a switch.
 
@@ -26,6 +27,7 @@ All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build
 | Branding (name, icons, installer header, toolbar logo) | `custom/cmake/CustomOverrides.cmake`, `custom/res/`, `custom/deploy/windows/`, `custom/src/qml/QGCToolBarButton.qml` |
 | Default settings on first launch | `custom/res/OI-defaults.ini` (change a value there, rebuild, done) |
 | Telemetry bar layout | `custom/src/OIPlugin.cc`, `factValueGridCreateDefaultSettings` |
+| Import of an operator's previous settings | `custom/src/OIPlugin.cc`, `_importLegacySettings` (runs once per settings file) |
 | Custom actions | `custom/res/OI-Actions.json` (copied to `Documents\QGroundControl-OI\MavlinkActions` at startup) |
 | Keyboard guided control | `custom/src/OIKeyboardController.cc`, `custom/src/qml/FlyViewCustomLayer.qml` |
 | Aircraft-side helper scripts | `custom/ardupilot-scripts/` |
@@ -52,7 +54,7 @@ Same flow as `oi-raspi-toolkit`:
 
 1. `main` is what has been released. `development` is where work lands. Nobody pushes to either directly.
 2. Branch off `development` (`feat/...`, `fix/...`, `docs/...`, `chore/...`), commit with Conventional Commits, add a line to `CHANGELOG.md` under `[Unreleased]`, open a PR against `development`. CI builds the installer (about 25 minutes) and attaches it to the run. A human reviews and merges (merge commit).
-3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) do these steps.
+3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `custom/VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
 
 No local Qt toolchain is needed to contribute: CI is the compiler. For a local build follow upstream's [developer guide](https://docs.qgroundcontrol.com/master/en/qgc-dev-guide/getting_started/index.html) (Qt 6.11, Visual Studio 2022, CMake, NSIS); CMake picks up the `custom/` directory automatically.
 
