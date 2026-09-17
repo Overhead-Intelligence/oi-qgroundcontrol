@@ -14,7 +14,7 @@ sources under `src/` are untouched. It ships a Windows x64 installer through
 GitHub Releases. Operators fly ArduPlane QuadPlanes (Cube Orange) with it; the
 SITL bench is `ardupilot-SITL-environment`.
 
-Current version: 1.0.0 (released 2026-09-17). Upstream base: QGroundControl
+Current version: 1.0.1 (released 2026-09-17). Upstream base: QGroundControl
 **v5.1.4** (`main` and `development` both started from tag `v5.1.4`).
 The QGC line is Roger's decision, not a sync: on 2026-09-17 he weighed going
 back to the 5.0 line (he dislikes parts of the 5.1 interface) and chose to

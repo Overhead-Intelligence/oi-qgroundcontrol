@@ -8,6 +8,13 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-17
+
+Built on upstream QGroundControl v5.1.4.
+
+### Added
+- Local build scripts for contributors under `custom/scripts/`: `install-qt.cmd` installs the Qt version from `.github/build-config.json` into `.qt/` once, `build-local.cmd` configures and builds with the VS 2022 Build Tools, `run-local.cmd` starts the result. A rebuild after a change in `custom/` takes about 2 minutes instead of a CI round trip.
+
 ### Changed
 - No first-run "Preferences" prompt (vehicle type, measurement units) on a fresh install: the OI defaults already answer it.
 - The hidden ArduPlane flight-mode list carries both QGC's mixed-case names and the upper-case names an ArduPilot 4.6+ aircraft reports, so the trimmed mode list holds whether or not a vehicle is connected.
