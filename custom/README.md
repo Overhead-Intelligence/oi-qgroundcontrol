@@ -19,6 +19,19 @@ version of it.
 | `src/qml/QGCToolBarButton.qml` | Stock control with the logo tinted to the theme | Rarely |
 | `ardupilot-scripts/` | Lua scripts that belong on the aircraft, kept next to the GCS feature that needs them | Changing aircraft-side behaviour |
 
+## First start: your previous settings are imported
+
+The first time a fresh settings file is used, `OIPlugin::_importLegacySettings`
+copies the telemetry bar, the link list, units, video, Fly view and map position
+from the previous OI build's file (`%APPDATA%\QGroundControl\QGroundControl OI Build.ini`),
+or from stock QGC's `QGroundControl.ini` if that is all there is. It runs once
+(the source is recorded under `OI/importedSettingsFrom` in the new file) and never
+overwrites settings that already exist. Flight-mode and gimbal settings are not
+imported because their keys changed in QGC 5.1; the OI defaults cover them.
+
+Roger's reference settings (the source of the defaults below) are backed up at
+`G:\Shared drives\OI-Engineering\Software & Firmware\QGC\settings-backups\`.
+
 ## Changing a default setting
 
 1. Find the setting name in `src/Settings/<Group>.SettingsGroup.json` (for example

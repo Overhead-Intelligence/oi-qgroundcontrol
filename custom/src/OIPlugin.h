@@ -69,6 +69,10 @@ public:
     QString stableDownloadLocation() const final;
 
 private:
+    /// One-time import of the telemetry bar, links, units, video and Fly view settings from the
+    /// previous OI build (or stock QGC) into a fresh settings file. Runs from the constructor.
+    void _importLegacySettings();
+
     /// Copies custom/res/OI-Actions.json into the MavlinkActions save folder (overwrites the OI copy only).
     void _deployBundledActions();
 

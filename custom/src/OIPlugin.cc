@@ -47,8 +47,8 @@ struct TelemetryCell {
     bool showUnits;
 };
 
-/// The OI telemetry bar: 7 columns x 2 rows, exported from the operator settings of the
-/// previous OI build. Column order left to right, top row first.
+/// The OI telemetry bar: 8 columns x 2 rows, taken from Roger's live operator settings of
+/// the previous OI build (2026-09-16). Column order left to right, top row first.
 constexpr TelemetryCell kTelemetryBar[][2] = {
     { { "Vehicle",  "AltitudeRelative",  "Alt (Rel)",           "arrow-thick-up.svg",    true  },
       { "Vehicle",  "DistanceToHome",    "Distance to Home",    "bookmark copy 3.svg",   true  } },
@@ -64,10 +64,48 @@ constexpr TelemetryCell kTelemetryBar[][2] = {
       { "Wind",     "Speed",             "Wind Spd",            "",                      true  } },
     { { "Gps",      "Mgrs",              "MGRS Position",       "",                      true  },
       { "Vehicle",  "MissionItemIndex",  "Mission Item Index",  "",                      true  } },
+    { { "DistanceSensor", "RotationPitch270", "Down",           "",                      true  },
+      { "DistanceSensor", "RotationNone",     "Forward",        "",                      true  } },
 };
 
 constexpr int kTelemetryColumns = static_cast<int>(sizeof(kTelemetryBar) / sizeof(kTelemetryBar[0]));
 constexpr int kTelemetryRows = 2;
+
+// One-time import of an operator's existing settings into a fresh settings file, so
+// nobody rebuilds their telemetry bar or fleet links after installing this build.
+// Candidates are the previous OI build and stock QGC, both under %APPDATA%\QGroundControl.
+constexpr const char *kLegacyOrgName = "QGroundControl";
+constexpr const char *kImportMarkerKey = "OI/importedSettingsFrom";
+constexpr const char *kTelemetryBarGroupPrefix = "TelemetryBarUserSettings";
+
+const QStringList kLegacyAppNames = {
+    QStringLiteral("QGroundControl OI Build"),
+    QStringLiteral("QGroundControl"),
+};
+
+/// Groups copied verbatim. Their keys are unchanged between QGC 5.0 and 5.1. Groups whose
+/// key names changed (GimbalController) or whose values are version specific (FlightMode)
+/// are left to the OI defaults instead.
+const QStringList kImportGroups = {
+    QStringLiteral("LinkConfigurations"),
+    QStringLiteral("Units"),
+    QStringLiteral("Video"),
+    QStringLiteral("FlyView"),
+    QStringLiteral("FlightMapPosition"),
+};
+
+int copySettingsGroup(QSettings &from, QSettings &to, const QString &group)
+{
+    from.beginGroup(group);
+    to.beginGroup(group);
+    const QStringList keys = from.allKeys();
+    for (const QString &key : keys) {
+        to.setValue(key, from.value(key));
+    }
+    to.endGroup();
+    from.endGroup();
+    return static_cast<int>(keys.size());
+}
 
 } // namespace
 
@@ -103,6 +141,10 @@ OIPlugin::OIPlugin(QObject *parent)
     , _defaults(new QSettings(QString::fromLatin1(kDefaultsResource), QSettings::IniFormat, this))
 {
     qCDebug(OILog) << this << "defaults:" << _defaults->allKeys().size() << "keys";
+
+    // The plugin is created by the first SettingsGroup, before any setting has been read,
+    // so imported values are picked up in this same run.
+    _importLegacySettings();
 }
 
 QGCCorePlugin *OIPlugin::instance()
@@ -194,6 +236,47 @@ void OIPlugin::factValueGridCreateDefaultSettings(FactValueGrid *factValueGrid)
             value->setShowUnits(cell.showUnits);
         }
     }
+}
+
+/*===========================================================================*/
+
+void OIPlugin::_importLegacySettings()
+{
+    QSettings settings;
+    const QString markerKey = QString::fromLatin1(kImportMarkerKey);
+    if (settings.contains(markerKey)) {
+        return;
+    }
+
+    // Only a fresh settings file is seeded; anything the operator already saved here wins.
+    const bool hasLinks = settings.contains(QStringLiteral("LinkConfigurations/count"));
+    const bool hasTelemetryBar = !settings.childGroups().filter(QString::fromLatin1(kTelemetryBarGroupPrefix)).isEmpty();
+    if (hasLinks || hasTelemetryBar) {
+        settings.setValue(markerKey, QStringLiteral("skipped, settings already present"));
+        return;
+    }
+
+    for (const QString &legacyApp : kLegacyAppNames) {
+        QSettings legacy(QSettings::IniFormat, QSettings::UserScope, QString::fromLatin1(kLegacyOrgName), legacyApp);
+        if (!QFile::exists(legacy.fileName())) {
+            continue;
+        }
+
+        int copied = 0;
+        const QStringList groups = legacy.childGroups();
+        for (const QString &group : groups) {
+            if (group.startsWith(QString::fromLatin1(kTelemetryBarGroupPrefix)) || kImportGroups.contains(group)) {
+                copied += copySettingsGroup(legacy, settings, group);
+            }
+        }
+
+        settings.setValue(markerKey, legacy.fileName());
+        settings.sync();
+        qCInfo(OILog) << "Imported" << copied << "settings from" << legacy.fileName();
+        return;
+    }
+
+    settings.setValue(markerKey, QStringLiteral("no previous settings found"));
 }
 
 /*===========================================================================*/

@@ -32,6 +32,11 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
   `res/OI-Actions.json`, creates the keyboard controller, registers the
   `OI.Controls` QML singleton), `createQmlApplicationEngine` (URL interceptor).
+  The constructor runs `_importLegacySettings`: once per settings file, if the
+  file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
+  `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from
+  `%APPDATA%\QGroundControl\QGroundControl OI Build.ini` (else `QGroundControl.ini`)
+  and records the source under `OI/importedSettingsFrom`.
 - `custom/src/OIKeyboardController.{h,cc}` — application-wide key event filter
   that turns W/S/A/D and the arrow keys into GUIDED commands.
   `custom/src/OIKeyboardSettings.{h,cc}` + `res/json/OIKeyboard.SettingsGroup.json`
@@ -89,9 +94,9 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
 - Keys are ignored while a `TextInput` / `TextEdit` has focus.
 - Aircraft watchdog: `custom/ardupilot-scripts/heading_hold_timeout.lua`
   (parameter `HHT_TIMEOUT`, default 120 s, 0 disables).
-- The GCS system ID defaults to 254 (OI convention). ArduPilot gates
-  `MANUAL_CONTROL`, RC override and the GCS failsafe on `MAV_GCS_SYSID`; guided
-  commands are not gated.
+- The GCS system ID stays at QGC's default 255 (Roger's live setting on
+  2026-09-16; the May export had 254). ArduPilot gates `MANUAL_CONTROL`, RC
+  override and the GCS failsafe on `MAV_GCS_SYSID`; guided commands are not gated.
 
 ## Upstream sync
 
