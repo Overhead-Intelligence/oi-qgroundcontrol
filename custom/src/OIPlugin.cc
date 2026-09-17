@@ -66,7 +66,7 @@ constexpr TelemetryCell kTelemetryBar[][2] = {
       { "Vehicle",  "MissionItemIndex",  "Mission Item Index",  "",                      true  } },
 };
 
-constexpr int kTelemetryColumns = sizeof(kTelemetryBar) / sizeof(kTelemetryBar[0]);
+constexpr int kTelemetryColumns = static_cast<int>(sizeof(kTelemetryBar) / sizeof(kTelemetryBar[0]));
 constexpr int kTelemetryRows = 2;
 
 } // namespace
