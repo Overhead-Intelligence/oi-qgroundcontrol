@@ -1,0 +1,50 @@
+{
+    "fileType": "MavlinkActions",
+    "version": 1,
+    "actions": [
+        {
+            "label": "Wingtip Lights ON",
+            "description": "MAV_CMD_DO_SET_SERVO: drive SERVO8 to 1900 us (SERVO8_MAX). Requires SERVO8_FUNCTION to be 0 (Disabled) or an RCINn pass-through - AP_ServoRelayEvents::do_set_servo() refuses any other function with 'Channel 8 is already in use'.",
+            "mavCmd": 183,
+            "compId": 1,
+            "param1": 8,
+            "param2": 1900
+        },
+        {
+            "label": "Wingtip Lights OFF",
+            "description": "MAV_CMD_DO_SET_SERVO: drive SERVO8 to 1100 us (SERVO8_MIN). Set SERVO8_TRIM to 1100 as well so the lights boot OFF rather than to the 1500 us midpoint.",
+            "mavCmd": 183,
+            "compId": 1,
+            "param1": 8,
+            "param2": 1100
+        },
+        {
+            "label": "Gripper Release",
+            "description": "Open the gripper (DO_GRIPPER instance 1, action RELEASE)",
+            "mavCmd": 211,
+            "param1": 1,
+            "param2": 0
+        },
+        {
+            "label": "Gripper Grab",
+            "description": "Close the gripper (DO_GRIPPER instance 1, action GRAB)",
+            "mavCmd": 211,
+            "param1": 1,
+            "param2": 1
+        },
+        {
+            "label": "PosXY GPS Enable",
+            "description": "Enable GPS as EK3 PosXY source (DO_AUX_FUNCTION Scripting4 = LOW). Needs the EK3 PosXY switch Lua script on the aircraft.",
+            "mavCmd": 218,
+            "param1": 303,
+            "param2": 0
+        },
+        {
+            "label": "PosXY GPS Disable",
+            "description": "Disable GPS as EK3 PosXY source (DO_AUX_FUNCTION Scripting4 = HIGH). Needs the EK3 PosXY switch Lua script on the aircraft.",
+            "mavCmd": 218,
+            "param1": 303,
+            "param2": 2
+        }
+    ]
+}

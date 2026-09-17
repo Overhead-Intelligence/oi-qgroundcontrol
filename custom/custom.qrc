@@ -1,0 +1,23 @@
+<RCC>
+    <!-- Stock resources replaced through the URL interceptor in OIPlugin.cc:
+         a request for qrc:/res/X is served from :/Custom/res/X when that exists. -->
+    <qresource prefix="/Custom/res">
+        <file alias="QGCLogoFull.svg">res/Images/OILogoMark.svg</file>
+        <file alias="QGCLogoWhite.svg">res/Images/OILogoMark.svg</file>
+        <file alias="qgroundcontrol.ico">res/icons/oi-qgroundcontrol.ico</file>
+    </qresource>
+
+    <!-- Stock QML files replaced the same way: qrc:/qml/QGroundControl/<Module>/<File>.qml -->
+    <qresource prefix="/Custom/qml">
+        <file alias="QGroundControl/Controls/QGCToolBarButton.qml">src/qml/QGCToolBarButton.qml</file>
+        <file alias="QGroundControl/Toolbar/SelectViewDropdown.qml">src/qml/SelectViewDropdown.qml</file>
+    </qresource>
+
+    <!-- OI-only resources, read by OIPlugin.cc -->
+    <qresource prefix="/custom">
+        <file alias="OI-defaults.ini">res/OI-defaults.ini</file>
+        <file alias="OI-Actions.json">res/OI-Actions.json</file>
+        <file alias="OILogoMark.svg">res/Images/OILogoMark.svg</file>
+        <file alias="OILogoMarkWhite.svg">res/Images/OILogoMarkWhite.svg</file>
+    </qresource>
+</RCC>
