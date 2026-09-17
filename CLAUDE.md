@@ -21,8 +21,8 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
 
 - `custom/cmake/CustomOverrides.cmake` — app name `QGroundControl-OI`, org name,
   description, icon paths. `QGC_APP_NAME` drives the exe name, the installer
-  name, the settings file and the Documents folder; changing it also means
-  updating `APP_EXE` / `INSTALLER` in `.github/workflows/oi-windows.yml`.
+  name, the settings file and the Documents folder; the CI workflow reads it
+  back from the CMake cache, so nothing else needs updating.
 - `custom/CMakeLists.txt` — registers the OI sources, resources and the plugin
   class (`CUSTOMCLASS=OIPlugin`). `custom/custom.qrc` — resources, including the
   QML overrides under `/Custom/qml/...`: QGC's URL interceptor swaps a stock
