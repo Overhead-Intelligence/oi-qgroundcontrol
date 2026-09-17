@@ -73,9 +73,13 @@ Current version: 1.0.0 (released 2026-09-17). Upstream base: QGroundControl
   `oi-developer-workspace` release tools expect a root `VERSION`, so until
   they learn this location (issue #9) releases are cut by hand as described
   in the README. CI attaches the installer to the GitHub release of the tag.
-- No local toolchain is assumed. CI (about 25 min) is the compile check;
-  download the artifact to test. Non-tag builds run as "QGroundControl-OI Daily"
-  with separate settings; only tag builds set `QGC_STABLE_BUILD`.
+- CI (about 30 min cold, less once the shared ccache is warm) is the compile
+  check for every PR; download the artifact to test. For iteration, build
+  locally: `custom/scripts/install-qt.cmd` (once), `build-local.cmd`,
+  `run-local.cmd` (VS 2022 Build Tools with the C++ workload, Python 3, Qt from
+  `.github/build-config.json` into `.qt/`). Non-tag builds run as
+  "QGroundControl-OI Daily" with separate settings; only tag builds set
+  `QGC_STABLE_BUILD`.
 - QGC's "new version available" check is disabled for custom builds; the
   download location shown in the app is the GitHub Releases page.
 
@@ -126,3 +130,14 @@ open a PR. Never merge `upstream/master` (daily builds).
 - `git describe` decides the app version: a tag build reports `X.Y.Z`; anything
   else reports the nearest tag plus a suffix and a `0.0.0` fallback. Push tags
   with the release, never by hand on a topic branch.
+- The repo deletes a PR's head branch on merge. A release PR's head is
+  `development`, so `development` has its own ruleset (no deletion, no force
+  push) to survive that; do not remove it. GitHub also closes any open PR
+  whose base branch is deleted, so retarget stacked PRs to `development`
+  before merging the PR they were stacked on.
+- Do not put a file named `VERSION` (any case) at the repo root or in any
+  include directory: MSVC resolves `#include <version>` to it.
+- Local Qt installs need the aqtinstall commit pinned in
+  `.github/workflows/oi-windows.yml` (`AQT_SOURCE`); the released aqtinstall
+  does not know the Qt 6.11 repository layout. `custom/scripts/install-qt.cmd`
+  does this.
