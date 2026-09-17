@@ -66,9 +66,13 @@ Current version: 0.0.0 (not released yet). Upstream base: QGroundControl
   Commits; PR against `development`; a `CHANGELOG.md` `[Unreleased]` entry in
   every PR; humans merge with a merge commit (the ruleset allows nothing else).
   `main` fast-forwards at release time; tags are OI versions `vX.Y.Z`, not QGC's.
-- `VERSION` + `CHANGELOG.md` drive releases; the `oi-developer-workspace`
-  tools `start-release.cmd` / `finish-release.cmd` work on this repo. CI
-  attaches the installer to the GitHub release of the tag.
+- `custom/VERSION` + `CHANGELOG.md` drive releases. The version file cannot
+  sit at the repo root: MSVC resolves `#include <version>` (C++20 standard
+  header) to a root file named `VERSION` because the root is on the include
+  path and Windows ignores case, which breaks the build. The
+  `oi-developer-workspace` release tools expect a root `VERSION`, so until
+  they learn this location (issue #9) releases are cut by hand as described
+  in the README. CI attaches the installer to the GitHub release of the tag.
 - No local toolchain is assumed. CI (about 25 min) is the compile check;
   download the artifact to test. Non-tag builds run as "QGroundControl-OI Daily"
   with separate settings; only tag builds set `QGC_STABLE_BUILD`.

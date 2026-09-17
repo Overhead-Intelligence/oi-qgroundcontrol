@@ -54,7 +54,7 @@ Same flow as `oi-raspi-toolkit`:
 
 1. `main` is what has been released. `development` is where work lands. Nobody pushes to either directly.
 2. Branch off `development` (`feat/...`, `fix/...`, `docs/...`, `chore/...`), commit with Conventional Commits, add a line to `CHANGELOG.md` under `[Unreleased]`, open a PR against `development`. CI builds the installer (about 25 minutes) and attaches it to the run. A human reviews and merges (merge commit).
-3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) do these steps.
+3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `custom/VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
 
 No local Qt toolchain is needed to contribute: CI is the compiler. For a local build follow upstream's [developer guide](https://docs.qgroundcontrol.com/master/en/qgc-dev-guide/getting_started/index.html) (Qt 6.11, Visual Studio 2022, CMake, NSIS); CMake picks up the `custom/` directory automatically.
 

@@ -18,6 +18,7 @@ version of it.
 | `src/OIPlugin.{h,cc}` | The QGC core plugin: applies the defaults, builds the telemetry bar, deploys the actions file, installs the override interceptor | Adding a new hook |
 | `src/qml/QGCToolBarButton.qml` | Stock control with the logo tinted to the theme | Rarely |
 | `ardupilot-scripts/` | Lua scripts that belong on the aircraft, kept next to the GCS feature that needs them | Changing aircraft-side behaviour |
+| `VERSION` | The OI release version (kept here, not at the repo root, because a root `VERSION` shadows the C++ `<version>` header on Windows) | Cutting a release |
 
 ## First start: your previous settings are imported
 
