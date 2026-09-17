@@ -184,6 +184,8 @@ bool OIKeyboardController::_vehicleIsGuidedPlane() const
 
 bool OIKeyboardController::eventFilter(QObject *watched, QEvent *event)
 {
+    Q_UNUSED(watched);
+
     switch (event->type()) {
     case QEvent::KeyPress:
     case QEvent::KeyRelease: {
@@ -211,8 +213,6 @@ bool OIKeyboardController::eventFilter(QObject *watched, QEvent *event)
     default:
         return false;
     }
-
-    Q_UNUSED(watched);
 }
 
 bool OIKeyboardController::_isTrackedKey(int key)
