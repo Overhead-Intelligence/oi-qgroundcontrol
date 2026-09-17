@@ -8,7 +8,7 @@ Overhead Intelligence's build of [QGroundControl](https://github.com/mavlink/qgr
 - **OI custom actions** in the Fly view: wingtip lights, gripper, EK3 PosXY source. Loaded automatically.
 - **Keyboard guided control**: W/S bump the target altitude, A/D fly a standard-rate turn, arrow keys move the gimbal. Off by default, behind a switch.
 
-Current version: 1.0.0 (2026-09-17). Built on upstream QGroundControl **v5.1.4**.
+Current version: 1.0.1 (2026-09-17). Built on upstream QGroundControl **v5.1.4**.
 
 ## Download
 
@@ -57,7 +57,7 @@ Same flow as `oi-raspi-toolkit`:
 2. Branch off `development` (`feat/...`, `fix/...`, `docs/...`, `chore/...`), commit with Conventional Commits, add a line to `CHANGELOG.md` under `[Unreleased]`, open a PR against `development`. CI builds the installer (about 25 minutes) and attaches it to the run. A human reviews and merges (merge commit).
 3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `custom/VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
 
-No local Qt toolchain is needed to contribute: CI is the compiler. For a local build follow upstream's [developer guide](https://docs.qgroundcontrol.com/master/en/qgc-dev-guide/getting_started/index.html) (Qt 6.11, Visual Studio 2022, CMake, NSIS); CMake picks up the `custom/` directory automatically.
+No local Qt toolchain is needed to contribute: CI builds every PR. To iterate faster, build on your own Windows PC with the three scripts in `custom/scripts/` (`install-qt.cmd` once, then `build-local.cmd` and `run-local.cmd`); see [custom/README.md](custom/README.md#building-on-your-own-pc-minutes-instead-of-a-ci-run). CMake picks up the `custom/` directory automatically.
 
 ### Syncing with upstream
 

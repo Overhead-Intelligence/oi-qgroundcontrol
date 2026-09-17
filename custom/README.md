@@ -23,6 +23,27 @@ version of it.
 | `ardupilot-scripts/` | Lua scripts that belong on the aircraft, kept next to the GCS feature that needs them | Changing aircraft-side behaviour |
 | `VERSION` | The OI release version (kept here, not at the repo root, because a root `VERSION` shadows the C++ `<version>` header on Windows) | Cutting a release |
 
+## Building on your own PC (minutes instead of a CI run)
+
+Three scripts in `custom/scripts/` do it. You need Windows 10/11 with Python 3
+and Visual Studio 2022 Build Tools with the "Desktop development with C++"
+workload (that brings the compiler, CMake and Ninja). About 15 GB of disk.
+
+1. `custom\scripts\install-qt.cmd` once: downloads the Qt version and modules
+   CI uses (from `.github/build-config.json`) into the git-ignored `.qt\` folder,
+   about 4 GB.
+2. `custom\scripts\build-local.cmd`: configures on the first run (downloads
+   GStreamer and the other dependencies) and builds into `build\`. The first
+   build takes 10 to 15 minutes on an 8-core laptop; after that only what
+   changed is rebuilt, usually a minute or two.
+3. `custom\scripts\run-local.cmd`: starts the build. It runs as
+   "QGroundControl-OI Daily" with its own settings, so an installed release is
+   not disturbed.
+
+Extra CMake options go to the first `build-local.cmd` call, for example
+`custom\scripts\build-local.cmd -DQGC_ENABLE_GST_VIDEOSTREAMING=OFF` for a
+build without video. To start over, delete `build\`.
+
 ## First start: your previous settings are imported
 
 The first time a fresh settings file is used, `OIPlugin::_importLegacySettings`
