@@ -27,7 +27,11 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/cmake/CustomOverrides.cmake` — app name `QGroundControl-OI`, org name,
   description, icon paths. `QGC_APP_NAME` drives the exe name, the installer
   name, the settings file and the Documents folder; the CI workflow reads it
-  back from the CMake cache, so nothing else needs updating.
+  back from the CMake cache, so nothing else needs updating. Also sets
+  `QGC_DISABLE_PX4_PLUGIN_FACTORY ON`: PX4 is dropped from
+  `FirmwarePluginManager::supportedFirmwareClasses()` so the PX4-only UI hides
+  itself through `QGroundControl.px4ProFirmwareSupported`. The APM factory must
+  stay on. This does not remove `src/AutoPilotPlugins/PX4/` from the build.
 - `custom/CMakeLists.txt` — registers the OI sources, resources and the plugin
   class (`CUSTOMCLASS=OIPlugin`). `custom/custom.qrc` — resources, including the
   QML overrides under `/Custom/qml/...`: QGC's URL interceptor swaps a stock
