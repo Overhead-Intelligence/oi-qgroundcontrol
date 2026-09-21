@@ -8,6 +8,9 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Added
+- "Onboard Files" page in the Analyze view: a MAVLink FTP browser for the vehicle's onboard storage. Navigate folders, upload a file into the folder you are looking at, download or delete a selected file, and cancel a transfer in progress. Useful for checking Lua scripts, terrain data and the log folder without a second tool. The page requires a connected vehicle and says so when there is none. All transfer work is upstream's `FTPController`; the OI part is the browser UI and its registration through `QGCCorePlugin::analyzePages()`.
+
 ### Changed
 - PX4 is no longer offered as a firmware choice. `QGC_DISABLE_PX4_PLUGIN_FACTORY` drops PX4 from the firmware set QGC advertises, which hides the PX4 log transfer settings page, the PX4 entries in the firmware upgrade picker and the PX4 options in MockLink. The fleet is ArduPilot only, so this is UI clutter removal; the PX4 setup pages under `src/AutoPilotPlugins/PX4/` still compile in but were already unreachable without a PX4 vehicle.
 

@@ -24,6 +24,7 @@
 #include "FactValueGrid.h"
 #include "InstrumentValueData.h"
 #include "QGCLoggingCategory.h"
+#include "QmlComponentInfo.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
 
@@ -161,6 +162,26 @@ void OIPlugin::init()
 QString OIPlugin::stableDownloadLocation() const
 {
     return QStringLiteral("github.com/Overhead-Intelligence/oi-qgroundcontrol/releases");
+}
+
+const QVariantList &OIPlugin::analyzePages()
+{
+    if (_analyzePages.isEmpty()) {
+        // Start from the stock list so upstream additions keep showing up, then
+        // append the OI page. requiresVehicle = true makes AnalyzeView show
+        // "Requires a connected vehicle" instead of the browser until one is
+        // connected, and unload it again on disconnect; FTPController has no
+        // vehicle to talk to otherwise.
+        _analyzePages = QGCCorePlugin::analyzePages();
+        _analyzePages.append(QVariant::fromValue(new QmlComponentInfo(
+            tr("Onboard Files"),
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIOnboardFilesPage.qml")),
+            QUrl::fromUserInput(QStringLiteral("qrc:/InstrumentValueIcons/folder.svg")),
+            nullptr,
+            true /* requiresVehicle */)));
+    }
+
+    return _analyzePages;
 }
 
 /*===========================================================================*/

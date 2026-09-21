@@ -13,6 +13,14 @@
         <file alias="QGroundControl/Toolbar/SelectViewDropdown.qml">src/qml/SelectViewDropdown.qml</file>
     </qresource>
 
+    <!-- OI-only QML that adds to QGC rather than replacing a stock file. Loaded by
+         its own qrc:/custom/qml/<File>.qml URL, so the interceptor never rewrites it
+         (it only prefixes /Custom, and :/Custom/custom/... does not exist). These
+         files are outside every QML module, so they must import what they use. -->
+    <qresource prefix="/custom/qml">
+        <file alias="OIOnboardFilesPage.qml">src/qml/OIOnboardFilesPage.qml</file>
+    </qresource>
+
     <!-- OI-only resources, read by OIPlugin.cc -->
     <qresource prefix="/custom">
         <file alias="OI-defaults.ini">res/OI-defaults.ini</file>

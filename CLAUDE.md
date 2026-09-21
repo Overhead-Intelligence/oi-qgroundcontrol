@@ -41,13 +41,21 @@ overrides as he names things. A complete 5.0 port is parked on branch
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
   `res/OI-Actions.json`), `createQmlApplicationEngine` (URL interceptor),
   `showInitialSetupVehiclePreferences` / `showInitialSetupMeasurementUnits`
-  (both false: no first-run Preferences prompt).
+  (both false: no first-run Preferences prompt), `analyzePages` (stock list
+  plus the OI "Onboard Files" page).
   The constructor runs `_importLegacySettings`: once per settings file, if the
   file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
   `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from
   `%APPDATA%\QGroundControl\QGroundControl OI Build.ini` (else `QGroundControl.ini`)
   and records the source under `OI/importedSettingsFrom`.
-- `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
+- `custom/src/qml/OIOnboardFilesPage.qml` — MAVLink FTP browser, registered as an
+  Analyze page by `OIPlugin::analyzePages()`. This one *adds* a page rather than
+  replacing a stock file, so it lives under the `/custom/qml` qrc prefix and is
+  loaded by its own `qrc:/custom/qml/...` URL; the interceptor only ever prefixes
+  `/Custom`, so it never rewrites it. Being outside every QML module it must
+  import what it uses (`QGroundControl.AnalyzeView` for `AnalyzePage`). The
+  transfer work is upstream `FTPController`; do not reimplement it here.
+  `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
   to the theme so the monochrome OI mark works in light and dark palettes.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
   `custom/deploy/windows/` — installer icon and header.
