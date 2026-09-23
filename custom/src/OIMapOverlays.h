@@ -43,6 +43,7 @@
 #include "QmlComponentInfo.h"
 
 class QIODevice;
+class QTimer;
 class QmlObjectListModel;
 
 /// One hazard marker. QGCCorePlugin::customMapItems() documents that entries derive
@@ -182,6 +183,12 @@ public:
     /// rather than an arbitrary subset - see the note at the top of this file.
     static constexpr int kMaxMarkers = 2000;
 
+    /// How often the anchor is re-checked, and how far it must move before the
+    /// markers are rebuilt. 1 km is well inside the default 25 km radius, so the
+    /// drawn set stays honest without rebuilding for every small pan.
+    static constexpr int kReferenceWatchMs = 2000;
+    static constexpr double kReferenceMoveM = 1000.0;
+
     explicit OIMapOverlayManager(QObject *parent = nullptr);
 
     QmlObjectListModel *layers() const { return _layers; }
@@ -219,6 +226,14 @@ private:
     void _save() const;
     void _connectLayer(OIMapOverlayLayer *layer);
 
+    /// Rebuilds if the anchor has drifted far enough to change which obstacles are
+    /// near. Polled rather than signal-driven on purpose: with no vehicle the
+    /// anchor is QGroundControlQmlGlobal::flightMapPosition(), which is a *static*
+    /// with no C++-reachable instance to connect flightMapPositionChanged to, and
+    /// which changes on every pan anyway. A cheap coordinate compare on a timer is
+    /// both simpler and naturally debounced.
+    void _checkReferenceMoved();
+
     /// The active vehicle's home when there is one, otherwise the map position QGC
     /// persists between runs. Either way the operator gets obstacles near where
     /// they are working rather than a whole state.
@@ -226,6 +241,8 @@ private:
 
     QmlObjectListModel *_layers = nullptr;
     QmlObjectListModel *_markers = nullptr;
+    QTimer *_referenceWatchTimer = nullptr;
+    QGeoCoordinate _lastReference;                  ///< anchor used by the last rebuild
     QString _lastError;
     QString _referenceDescription;
     int _selectedCount = 0;

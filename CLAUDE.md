@@ -71,6 +71,10 @@ overrides as he names things. A complete 5.0 port is parked on branch
   carries a minimum AGL height and a radius. The radius is anchored on the active
   vehicle's home, falling back to `QGroundControlQmlGlobal::flightMapPosition()`,
   and the manager rebuilds on `activeVehicleChanged` and `homePositionChanged`.
+  The map-position fallback has no signal to hook - it is a *static* on a
+  `QML_SINGLETON` with no C++-reachable instance - so a 2 s timer re-checks the
+  anchor and rebuilds once it has drifted more than `kReferenceMoveM`. Without
+  that the overlay froze at whatever the map showed when the app started.
   Height alone does **not** work — Florida still has 4,972 obstacles over 60 m,
   far past `kMaxMarkers`. The filter is in metres (OI plans in metres); the DOF's
   native feet are converted at parse time, and a value saved by a pre-metres build

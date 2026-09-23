@@ -15,6 +15,7 @@
 #include <QtCore/QSettings>
 #include <QtCore/QStringList>
 #include <QtCore/QTextStream>
+#include <QtCore/QTimer>
 #include <QtCore/QXmlStreamReader>
 
 #include "MultiVehicleManager.h"
@@ -346,6 +347,31 @@ OIMapOverlayManager::OIMapOverlayManager(QObject *parent)
         _rebuildMarkers();
     });
 
+    // With no vehicle the anchor is the map position, which nothing signals to us.
+    // See _checkReferenceMoved().
+    _referenceWatchTimer = new QTimer(this);
+    _referenceWatchTimer->setInterval(kReferenceWatchMs);
+    (void) connect(_referenceWatchTimer, &QTimer::timeout, this, &OIMapOverlayManager::_checkReferenceMoved);
+    _referenceWatchTimer->start();
+
+    _rebuildMarkers();
+}
+
+void OIMapOverlayManager::_checkReferenceMoved()
+{
+    if (_layers->count() == 0) {
+        return;
+    }
+
+    const QGeoCoordinate reference = _referenceCoordinate();
+    if (!reference.isValid()) {
+        return;
+    }
+
+    if (_lastReference.isValid() && (reference.distanceTo(_lastReference) < kReferenceMoveM)) {
+        return;
+    }
+
     _rebuildMarkers();
 }
 
@@ -453,6 +479,7 @@ void OIMapOverlayManager::_rebuildMarkers()
     _markers->clearAndDeleteContents();
 
     const QGeoCoordinate reference = _referenceCoordinate();
+    _lastReference = reference;
 
     // Count first. Past the cap nothing is drawn at all: a partial hazard overlay
     // is more dangerous than an absent one, because it looks complete.
