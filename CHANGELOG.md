@@ -8,6 +8,10 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Fixed
+- The Flight Modes page shows a switch option for every RC channel the firmware carries one for, starting at RC5, instead of a hardcoded RC6-RC16. A controller with a switch on RC5 could not be configured in QGC at all, which meant reaching for Mission Planner. The channel currently set as `FLTMODE_CH` is labelled as such rather than hidden. Touches `src/` (`APMFlightModesComponent.qml` and its controller): this is a stock QGC setup page with no plugin hook, and the change is worth sending upstream.
+- `APMFlightModesComponentController` no longer reads past the end of the RC channel vector. It indexed `channelValues[i + 5]` up to element 15 unconditionally, but that vector is sized to however many channels the vehicle actually reports - commonly 8 or 12 - so on those vehicles it read unallocated memory and the "in use" highlight was meaningless. The enabled flags are now indexed by channel and guarded by the reported count.
+
 ### Removed
 - Keyboard guided control, in full: the Fly view panel and its `FlyViewCustomLayer.qml` override, `OIKeyboardController`, `OIKeyboardSettings`, the `OIKeyboard` settings group, the `OI.Controls` QML singleton, the `mavlinkMessage` hook that fed it `NAV_CONTROLLER_OUTPUT`, and the aircraft-side watchdog `custom/ardupilot-scripts/heading_hold_timeout.lua`. The feature was never flown or run against SITL (issue #5), and its panel rendered mid-screen the moment any vehicle connected, because it positioned itself from `bottomEdgeCenterInset`, which upstream aliases to the bottom-*right* inset — the full height of the Large Vertical instrument panel that the OI defaults select. That made the build inadvisable for flight operations and blocked further Fly view work. Shipped in 1.0.0 and 1.0.1; the history is kept on `development` so the feature can be reworked and brought back deliberately.
 
