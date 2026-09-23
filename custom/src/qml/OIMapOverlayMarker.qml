@@ -50,14 +50,27 @@ MapQuickItem {
             color:                      qgcPal.colorOrange
         }
 
+        // A DOF obstacle gets its height appended in the operator's own units; a
+        // KML point has none and shows just its Placemark name.
         QGCLabel {
             anchors.horizontalCenter:   parent.horizontalCenter
-            text:                       customMapObject ? customMapObject.title : ""
             visible:                    text !== ""
             font.pointSize:             ScreenTools.smallFontPointSize
             color:                      qgcPal.colorOrange
             style:                      Text.Outline
             styleColor:                 qgcPal.window
+            text: {
+                if (!customMapObject) {
+                    return ""
+                }
+                var name = customMapObject.title
+                var agl = customMapObject.heightAglMeters
+                if (isNaN(agl)) {
+                    return name
+                }
+                var height = QGroundControl.unitsConversion.metersToAppSettingsVerticalDistanceUnitsString(agl, 0)
+                return name === "" ? height : name + " " + height
+            }
         }
     }
 }

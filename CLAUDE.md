@@ -46,6 +46,35 @@ overrides as he names things. A complete 5.0 port is parked on branch
   and records the source under `OI/importedSettingsFrom`.
 - `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
   to the theme so the monochrome OI mark works in light and dark palettes.
+- `custom/src/OIMapOverlays.{h,cc}` — hazard overlays in two formats.
+  `OIMapOverlayLayer` is one imported file; the format is **sniffed, not taken from
+  the extension** (`<kml` / `<?xml` in the first 4 KB means KML, otherwise FAA DOF),
+  because a DOF arrives as `.Dat`, `.DAT` or `.dat`. KML is parsed with
+  `QXmlStreamReader` rather than `KMLHelper`, which drops the Placemark `<name>`
+  and errors out on a KML holding no `<Point>`. The DOF reader is fixed-width,
+  latin-1, CRLF; the column slices are the `kDof*` constants, verified against
+  `12-FL.Dat`. `OIMapOverlayItem` is one marker (a `QmlComponentInfo`, as
+  `customMapItems()` documents). `OIMapOverlayManager` owns both models, the
+  QSettings persistence under `OI/MapOverlays`, and is the `OIMapOverlays`
+  singleton in `OI.Controls`. Markers render **Fly view only**: `CustomMapItems.qml`
+  is instantiated once, in `FlyViewMap.qml`.
+- `custom/src/qml/OIMapOverlayMarker.qml` — the marker, loaded by URL from
+  `custom.qrc`, modelled on `ADSBVehicleMapItem.qml`.
+  `custom/src/qml/OIMapOverlaySettings.qml` — the Settings → Maps section. It has
+  to be a *type* in a QML module, because the generated settings page names its
+  section components by bare type name; hence `custom/src/qml/CMakeLists.txt` and
+  the `"imports": ["OI.Settings"]` key in `src/AppSettings/pages/Maps.SettingsUI.json`
+  — the only `src/` change the overlay feature makes.
+- **Why the overlay filters exist, and why the cap refuses rather than truncates.**
+  One DOF is a whole state: Florida is 43,893 obstacles, 13,725 of them utility
+  poles, and every marker costs a QObject plus a QML `MapQuickItem`. Each layer
+  carries a minimum AGL height and a radius. The radius is anchored on the active
+  vehicle's home, falling back to `QGroundControlQmlGlobal::flightMapPosition()`,
+  and the manager rebuilds on `activeVehicleChanged` and `homePositionChanged`.
+  Height alone does **not** work — Florida still has 4,734 obstacles over 200 ft,
+  far past `kMaxMarkers`. Over that cap the manager draws **nothing** and says so.
+  Do not "fix" that by truncating to the first N: a partial hazard overlay looks
+  complete, which is more dangerous than an absent one.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
   `custom/deploy/windows/` — installer icon and header.
 - `.github/workflows/oi-windows.yml` — the only workflow. `.github/actions/*`,

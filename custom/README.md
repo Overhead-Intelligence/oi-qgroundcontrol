@@ -16,7 +16,7 @@ version of it.
 | `res/Images/OILogoMark.svg` | The OI logo mark as a vector, used for the toolbar logo and menus | Rebranding |
 | `res/icons/`, `deploy/windows/` | App icon, installer icon and installer header | Rebranding |
 | `src/OIPlugin.{h,cc}` | The QGC core plugin: applies the defaults, builds the telemetry bar, deploys the actions file, installs the override interceptor | Adding a new hook |
-| `src/OIMapOverlays.{h,cc}` | KML hazard overlays: import, parse, persistence, and the markers drawn on the Fly view map | Changing overlay behaviour |
+| `src/OIMapOverlays.{h,cc}` | Hazard overlays: FAA DOF and KML import, parsing, the height/radius filters, persistence, and the markers drawn on the Fly view map | Changing overlay behaviour or a filter default |
 | `src/qml/OIMapOverlayMarker.qml`, `src/qml/OIMapOverlaySettings.qml`, `src/qml/CMakeLists.txt` | The marker, the Settings -> Maps section, and the `OI.Settings` QML module the section must live in | Changing how a hazard looks or the import UI |
 | `src/qml/QGCToolBarButton.qml`, `src/qml/SelectViewDropdown.qml` | Stock controls with the logo swapped for the OI mark and tinted to the theme | Rarely |
 | `VERSION` | The OI release version (kept here, not at the repo root, because a root `VERSION` shadows the C++ `<version>` header on Windows) | Cutting a release |
