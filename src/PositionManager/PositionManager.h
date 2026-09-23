@@ -19,6 +19,7 @@ class QGCPositionManager : public QObject
     Q_PROPERTY(QGeoCoordinate gcsPosition                   READ gcsPosition                    NOTIFY gcsPositionChanged)
     Q_PROPERTY(qreal          gcsHeading                    READ gcsHeading                     NOTIFY gcsHeadingChanged)
     Q_PROPERTY(qreal          gcsPositionHorizontalAccuracy READ gcsPositionHorizontalAccuracy  NOTIFY gcsPositionHorizontalAccuracyChanged)
+    Q_PROPERTY(bool           gcsPositionManual             READ gcsPositionManual              NOTIFY gcsPositionManualChanged)
 
 public:
     explicit QGCPositionManager(QObject *parent = nullptr);
@@ -44,6 +45,20 @@ public:
 
     int updateInterval() const { return _updateInterval; }
 
+    /// True while the operator has pinned the GCS position by hand. A manual
+    /// position wins over every position source: a GCS on a laptop with no GPS,
+    /// or with a GPS that reports the wrong place, is the normal case for OI, and
+    /// anything keyed off gcsPosition (the map marker, Remote ID, hazard overlays)
+    /// is only as good as that coordinate.
+    bool gcsPositionManual() const { return _gcsPositionManual; }
+
+    /// Pins the GCS position. Persisted, so it survives a restart - an operator who
+    /// set it at a site should not silently lose it on the next launch.
+    Q_INVOKABLE void setManualGCSPosition(const QGeoCoordinate &coordinate);
+
+    /// Releases the pin and hands control back to the active position source.
+    Q_INVOKABLE void clearManualGCSPosition();
+
     void setNmeaSourceDevice(QIODevice *device);
     /// Tears down any active NMEA source and falls back to the platform's default
     /// position source (e.g. the integrated Android GPS).
@@ -54,6 +69,7 @@ signals:
     void gcsHeadingChanged(qreal gcsHeading);
     void positionInfoUpdated(QGeoPositionInfo update);
     void gcsPositionHorizontalAccuracyChanged(qreal gcsPositionHorizontalAccuracy);
+    void gcsPositionManualChanged(bool gcsPositionManual);
 
 private slots:
     void _positionUpdated(const QGeoPositionInfo &update);
@@ -74,8 +90,11 @@ private:
     void _checkPermission();
     void _setGCSHeading(qreal newGCSHeading);
     void _setGCSPosition(const QGeoCoordinate &newGCSPosition);
+    void _loadManualGCSPosition();
+    void _saveManualGCSPosition() const;
 
     bool _usingPluginSource = false;
+    bool _gcsPositionManual = false;
     int _updateInterval = 0;
 
     QGeoPositionInfo _geoPositionInfo;
@@ -95,6 +114,11 @@ private:
     QGeoPositionInfoSource *_simulatedSource = nullptr;
 
     QGCCompass *_compass = nullptr;
+
+    static constexpr const char *kManualPositionGroup = "GCSManualPosition";
+    static constexpr const char *kManualPositionSetKey = "Set";
+    static constexpr const char *kManualPositionLatKey = "Latitude";
+    static constexpr const char *kManualPositionLonKey = "Longitude";
 
     static constexpr qreal kMinHorizonalAccuracyMeters = 100.;
     static constexpr qreal kMinVerticalAccuracyMeters = 10.;

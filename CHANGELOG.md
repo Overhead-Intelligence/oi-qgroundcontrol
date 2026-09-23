@@ -8,6 +8,10 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Added
+- Set the GCS location by clicking the map. The guided-actions popup gains "Set GCS location here", which pins where QGC thinks the ground station is. It overrides any position source on the machine, persists across restarts, and drives everything keyed off `gcsPosition` - the GCS map marker, the centre-on-GCS button, Remote ID and the hazard overlay anchor. A laptop with no GPS, or one reporting the wrong site, previously had no way to say where it was: Remote ID's FIXED location only populates the Remote ID broadcast and never reaches `QGCPositionManager`. Clear it under Application Settings > Remote ID > GCS Position, which also now shows whether the position is manual or from a source. Touches `src/` (`QGCPositionManager`, the Fly view map and the GCS position panel): no plugin hook reaches any of it, and the change is worth sending upstream.
+- Note: the popup this button lives in only opens when a guided action is available, so it currently needs a connected vehicle. Accepted for now; a vehicle-free entry point can follow.
+
 ### Removed
 - Keyboard guided control, in full: the Fly view panel and its `FlyViewCustomLayer.qml` override, `OIKeyboardController`, `OIKeyboardSettings`, the `OIKeyboard` settings group, the `OI.Controls` QML singleton, the `mavlinkMessage` hook that fed it `NAV_CONTROLLER_OUTPUT`, and the aircraft-side watchdog `custom/ardupilot-scripts/heading_hold_timeout.lua`. The feature was never flown or run against SITL (issue #5), and its panel rendered mid-screen the moment any vehicle connected, because it positioned itself from `bottomEdgeCenterInset`, which upstream aliases to the bottom-*right* inset — the full height of the Large Vertical instrument panel that the OI defaults select. That made the build inadvisable for flight operations and blocked further Fly view work. Shipped in 1.0.0 and 1.0.1; the history is kept on `development` so the feature can be reworked and brought back deliberately.
 
