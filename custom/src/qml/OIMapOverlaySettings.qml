@@ -16,6 +16,12 @@ import OI.Controls
 ///
 /// Layers are imported here and drawn on the Fly view map only. Toggling is
 /// deliberately not available in flight: it is a pre-flight decision.
+///
+/// Layout note: SettingsGroupLayout gives its content a fixed width, and a
+/// RowLayout will not shrink a child below that child's implicit width - it
+/// overflows the group border instead. So every row here stays short, anything
+/// long (paths, the reference description) is fillWidth with minimumWidth 0 so it
+/// can actually shrink, and the two filters sit on their own lines.
 Item {
     id:             root
     implicitHeight: mainLayout.implicitHeight
@@ -27,15 +33,16 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Map Overlays")
-            headingDescription: qsTr("KML and FAA obstacle (DOF) layers drawn on the Fly view map. Files are read where they are, not copied.")
+            headingDescription: qsTr("FAA obstacle (.Dat) and KML layers drawn on the Fly view map. Files are read where they are, not copied.")
 
             Repeater {
                 model: OIMapOverlays.layers
 
                 ColumnLayout {
                     Layout.fillWidth:   true
-                    spacing:            0
+                    spacing:            ScreenTools.defaultFontPixelHeight * 0.25
 
+                    // Line 1: on/off, name, remove.
                     RowLayout {
                         Layout.fillWidth:   true
                         spacing:            ScreenTools.defaultFontPixelWidth
@@ -45,32 +52,11 @@ Item {
                             onClicked:  object.enabled = checked
                         }
 
-                        ColumnLayout {
-                            Layout.fillWidth:   true
-                            spacing:            0
-
-                            QGCLabel {
-                                Layout.fillWidth:   true
-                                text:               qsTr("%1  (%2)").arg(object.name).arg(object.formatName)
-                                elide:              Text.ElideMiddle
-                            }
-
-                            QGCLabel {
-                                Layout.fillWidth:   true
-                                font.pointSize:     ScreenTools.smallFontPointSize
-                                elide:              Text.ElideMiddle
-                                color:              object.errorString !== "" ? qgcPal.warningText : qgcPal.text
-                                text: {
-                                    if (object.errorString !== "") {
-                                        return object.errorString
-                                    }
-                                    if (object.supportsHeightFilter) {
-                                        return qsTr("%1 of %2 obstacles shown  -  %3")
-                                                .arg(object.pointCount).arg(object.totalPointCount).arg(object.filePath)
-                                    }
-                                    return qsTr("%1 point(s)  -  %2").arg(object.pointCount).arg(object.filePath)
-                                }
-                            }
+                        QGCLabel {
+                            Layout.fillWidth:       true
+                            Layout.minimumWidth:    0
+                            elide:                  Text.ElideMiddle
+                            text:                   qsTr("%1  (%2)").arg(object.name).arg(object.formatName)
                         }
 
                         QGCButton {
@@ -79,53 +65,79 @@ Item {
                         }
                     }
 
-                    // A whole state file is tens of thousands of obstacles. Height
-                    // alone does not tame it - Florida still has 4,734 above 200 ft
-                    // - so the radius is what actually makes it drawable. Both
-                    // controls are per layer.
-                    RowLayout {
+                    // Line 2: counts and path, on their own line so a long path
+                    // cannot push the controls out of the group.
+                    QGCLabel {
                         Layout.fillWidth:       true
-                        Layout.leftMargin:      ScreenTools.defaultFontPixelWidth * 3
-                        Layout.bottomMargin:    ScreenTools.defaultFontPixelHeight * 0.4
-                        spacing:                ScreenTools.defaultFontPixelWidth
+                        Layout.minimumWidth:    0
+                        wrapMode:               Text.WordWrap
+                        font.pointSize:         ScreenTools.smallFontPointSize
+                        color:                  object.errorString !== "" ? qgcPal.warningText : qgcPal.text
+                        text: {
+                            if (object.errorString !== "") {
+                                return object.errorString
+                            }
+                            if (object.supportsHeightFilter) {
+                                return qsTr("%1 of %2 obstacles shown\n%3")
+                                        .arg(object.pointCount).arg(object.totalPointCount).arg(object.filePath)
+                            }
+                            return qsTr("%1 point(s)\n%2").arg(object.pointCount).arg(object.filePath)
+                        }
+                    }
+
+                    // Line 3: height filter. Only a DOF carries obstacle heights.
+                    RowLayout {
+                        Layout.fillWidth:   true
+                        Layout.leftMargin:  ScreenTools.defaultFontPixelWidth * 2
+                        spacing:            ScreenTools.defaultFontPixelWidth
+                        visible:            object.supportsHeightFilter
 
                         QGCLabel {
                             text:           qsTr("Hide below")
                             font.pointSize: ScreenTools.smallFontPointSize
-                            visible:        object.supportsHeightFilter
                         }
 
                         QGCTextField {
-                            text:                   object.minHeightFt
-                            visible:                object.supportsHeightFilter
-                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
-                            onEditingFinished:      object.minHeightFt = parseInt(text)
+                            text:                   object.minHeightM
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 7
+                            onEditingFinished:      object.minHeightM = parseInt(text)
                         }
 
                         QGCLabel {
-                            text:           qsTr("ft AGL")
+                            Layout.fillWidth:       true
+                            Layout.minimumWidth:    0
+                            elide:                  Text.ElideRight
+                            text:                   qsTr("m AGL")
+                            font.pointSize:         ScreenTools.smallFontPointSize
+                        }
+                    }
+
+                    // Line 4: radius filter. This is the one that makes a whole
+                    // state file drawable at all.
+                    RowLayout {
+                        Layout.fillWidth:       true
+                        Layout.leftMargin:      ScreenTools.defaultFontPixelWidth * 2
+                        Layout.bottomMargin:    ScreenTools.defaultFontPixelHeight * 0.3
+                        spacing:                ScreenTools.defaultFontPixelWidth
+
+                        QGCLabel {
+                            text:           qsTr("Show within")
                             font.pointSize: ScreenTools.smallFontPointSize
-                            visible:        object.supportsHeightFilter
-                        }
-
-                        QGCLabel {
-                            text:               qsTr("within")
-                            font.pointSize:     ScreenTools.smallFontPointSize
-                            Layout.leftMargin:  object.supportsHeightFilter ? ScreenTools.defaultFontPixelWidth : 0
                         }
 
                         QGCTextField {
                             text:                   object.radiusKm
-                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
+                            Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 7
                             onEditingFinished:      object.radiusKm = parseFloat(text)
                         }
 
                         QGCLabel {
-                            text:           qsTr("km of %1  (0 = no limit)").arg(OIMapOverlays.referenceDescription)
-                            font.pointSize: ScreenTools.smallFontPointSize
+                            Layout.fillWidth:       true
+                            Layout.minimumWidth:    0
+                            elide:                  Text.ElideRight
+                            font.pointSize:         ScreenTools.smallFontPointSize
+                            text:                   qsTr("km of %1  (0 = no limit)").arg(OIMapOverlays.referenceDescription)
                         }
-
-                        Item { Layout.fillWidth: true }
                     }
                 }
             }
@@ -140,23 +152,26 @@ Item {
             // hazard overlay that silently omits obstacles looks complete and is
             // more dangerous than no overlay at all.
             QGCLabel {
-                Layout.fillWidth:   true
-                wrapMode:           Text.WordWrap
-                color:              qgcPal.warningText
-                visible:            OIMapOverlays.overCap
-                text:               qsTr("%1 obstacles selected, over the %2 limit - nothing is being drawn. Raise the height filter or disable a layer.")
-                                        .arg(OIMapOverlays.selectedCount).arg(OIMapOverlays.maxMarkers)
+                Layout.fillWidth:       true
+                Layout.minimumWidth:    0
+                wrapMode:               Text.WordWrap
+                color:                  qgcPal.warningText
+                visible:                OIMapOverlays.overCap
+                text:                   qsTr("%1 obstacles selected, over the %2 limit - nothing is being drawn. Raise the height filter or shrink the radius.")
+                                            .arg(OIMapOverlays.selectedCount).arg(OIMapOverlays.maxMarkers)
             }
 
             QGCLabel {
-                Layout.fillWidth:   true
-                font.pointSize:     ScreenTools.smallFontPointSize
-                visible:            OIMapOverlays.layers.count > 0 && !OIMapOverlays.overCap
-                text:               qsTr("%1 marker(s) on the Fly view map.").arg(OIMapOverlays.markerCount)
+                Layout.fillWidth:       true
+                Layout.minimumWidth:    0
+                wrapMode:               Text.WordWrap
+                font.pointSize:         ScreenTools.smallFontPointSize
+                visible:                OIMapOverlays.layers.count > 0 && !OIMapOverlays.overCap
+                text:                   qsTr("%1 marker(s) on the Fly view map.").arg(OIMapOverlays.markerCount)
             }
 
             LabelledButton {
-                label:      qsTr("Import a KML or FAA obstacle layer")
+                label:      qsTr("Import an FAA obstacle or KML layer")
                 buttonText: qsTr("Import")
                 onClicked:  importDialog.openForLoad()
             }
@@ -174,9 +189,11 @@ Item {
 
     QGCFileDialog {
         id:             importDialog
-        title:          qsTr("Select a KML or FAA obstacle file")
-        nameFilters:    [ qsTr("Overlay files (*.kml *.dat *.Dat *.DAT)"), qsTr("KML files (*.kml)"),
-                          qsTr("FAA obstacle files (*.dat *.Dat *.DAT)"), qsTr("All Files (*)") ]
+        title:          qsTr("Select an FAA obstacle or KML file")
+        nameFilters:    [ qsTr("Overlay files (*.dat *.Dat *.DAT *.kml)"),
+                          qsTr("FAA obstacle files (*.dat *.Dat *.DAT)"),
+                          qsTr("KML files (*.kml)"),
+                          qsTr("All Files (*)") ]
 
         onAcceptedForLoad: (file) => {
             close()

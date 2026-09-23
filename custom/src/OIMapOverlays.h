@@ -81,23 +81,24 @@ class OIMapOverlayLayer : public QObject
     Q_PROPERTY(int pointCount READ pointCount NOTIFY shownCountChanged)      ///< after both filters
     Q_PROPERTY(int totalPointCount READ totalPointCount NOTIFY loadedChanged) ///< as read from the file
     Q_PROPERTY(bool supportsHeightFilter READ supportsHeightFilter NOTIFY loadedChanged)
-    Q_PROPERTY(int minHeightFt READ minHeightFt WRITE setMinHeightFt NOTIFY filterChanged)
+    Q_PROPERTY(int minHeightM READ minHeightM WRITE setMinHeightM NOTIFY filterChanged)
     Q_PROPERTY(double radiusKm READ radiusKm WRITE setRadiusKm NOTIFY filterChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY loadedChanged)
 
 public:
-    /// A DOF holds a whole state. 200 ft is deliberate: OI's guided floor is 50 m
-    /// (164 ft), so nothing shorter can be struck at the lowest altitude the fleet
-    /// flies, and it is what clears the ~25,000 poles out of a state file.
-    static constexpr int kDefaultMinHeightFt = 200;
+    /// A DOF holds a whole state. 60 m is deliberate: OI's guided floor is 50 m,
+    /// so nothing shorter can be struck at the lowest altitude the fleet flies,
+    /// and it is what clears the ~25,000 poles out of a state file. Metres, not
+    /// the DOF's native feet - OI plans in metres.
+    static constexpr int kDefaultMinHeightM = 60;
 
     /// Height alone is not enough. Measured on 12-FL.Dat: 43,893 obstacles total,
-    /// still 4,734 at 200 ft - well past kMaxMarkers, so a whole state would draw
+    /// still 4,972 at 60 m - well past kMaxMarkers, so a whole state would draw
     /// nothing. Obstacles only matter near where the aircraft actually is, so a
     /// layer is also clipped to a radius around the reference point. 0 = no limit.
     static constexpr double kDefaultRadiusKm = 25.0;
 
-    OIMapOverlayLayer(const QString &filePath, bool enabled, int minHeightFt, double radiusKm,
+    OIMapOverlayLayer(const QString &filePath, bool enabled, int minHeightM, double radiusKm,
                       QObject *parent = nullptr);
 
     QString filePath() const { return _filePath; }
@@ -108,8 +109,8 @@ public:
 
     /// Only a DOF carries obstacle heights; the filter is inert on a KML layer.
     bool supportsHeightFilter() const { return _supportsHeightFilter; }
-    int minHeightFt() const { return _minHeightFt; }
-    void setMinHeightFt(int minHeightFt);
+    int minHeightM() const { return _minHeightM; }
+    void setMinHeightM(int minHeightM);
 
     double radiusKm() const { return _radiusKm; }
     void setRadiusKm(double radiusKm);
@@ -126,8 +127,9 @@ public:
     struct Point {
         QGeoCoordinate coordinate;
         QString label;
-        double heightAglMeters = qQNaN();   ///< NaN when the format carries no height
-        int heightAglFt = -1;               ///< -1 when unknown; what the filter compares
+        double heightAglMeters = qQNaN();   ///< NaN when the format carries no height,
+                                            ///< which the filter treats as "keep"
+
     };
 
     const QList<Point> &points() const { return _points; }
@@ -152,7 +154,7 @@ private:
 
     const QString _filePath;
     bool _enabled;
-    int _minHeightFt;
+    int _minHeightM;
     double _radiusKm;
     int _shownCount = 0;
     bool _supportsHeightFilter = false;

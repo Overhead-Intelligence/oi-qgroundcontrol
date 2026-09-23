@@ -28,7 +28,9 @@ constexpr const char *kMarkerQml = "qrc:/custom/qml/OIMapOverlayMarker.qml";
 constexpr const char *kSettingsArray = "OI/MapOverlays";
 constexpr const char *kKeyPath = "path";
 constexpr const char *kKeyEnabled = "enabled";
-constexpr const char *kKeyMinHeightFt = "minHeightFt";
+constexpr const char *kKeyMinHeightM = "minHeightM";
+/// Pre-metres key, read once so an existing layer keeps its filter.
+constexpr const char *kKeyLegacyMinHeightFt = "minHeightFt";
 constexpr const char *kKeyRadiusKm = "radiusKm";
 
 constexpr double kFeetToMeters = 0.3048;
@@ -114,12 +116,12 @@ OIMapOverlayItem::OIMapOverlayItem(const QGeoCoordinate &coordinate, const QStri
 
 /*===========================================================================*/
 
-OIMapOverlayLayer::OIMapOverlayLayer(const QString &filePath, bool enabled, int minHeightFt, double radiusKm,
+OIMapOverlayLayer::OIMapOverlayLayer(const QString &filePath, bool enabled, int minHeightM, double radiusKm,
                                      QObject *parent)
     : QObject(parent)
     , _filePath(filePath)
     , _enabled(enabled)
-    , _minHeightFt(minHeightFt)
+    , _minHeightM(minHeightM)
     , _radiusKm(radiusKm)
 {
     reload();
@@ -140,14 +142,14 @@ void OIMapOverlayLayer::setEnabled(bool enabled)
     emit enabledChanged();
 }
 
-void OIMapOverlayLayer::setMinHeightFt(int minHeightFt)
+void OIMapOverlayLayer::setMinHeightM(int minHeightM)
 {
-    const int clamped = qMax(0, minHeightFt);
-    if (_minHeightFt == clamped) {
+    const int clamped = qMax(0, minHeightM);
+    if (_minHeightM == clamped) {
         return;
     }
 
-    _minHeightFt = clamped;
+    _minHeightM = clamped;
     emit filterChanged();
 }
 
@@ -176,7 +178,8 @@ bool OIMapOverlayLayer::passesFilter(const Point &point, const QGeoCoordinate &r
 {
     // An obstacle with no readable height is kept: unknown is not the same as
     // short, and dropping it would hide a hazard.
-    if (_supportsHeightFilter && (point.heightAglFt >= 0) && (point.heightAglFt < _minHeightFt)) {
+    if (_supportsHeightFilter && !qIsNaN(point.heightAglMeters) &&
+        (point.heightAglMeters < static_cast<double>(_minHeightM))) {
         return false;
     }
 
@@ -242,7 +245,7 @@ bool OIMapOverlayLayer::_readKml(QIODevice &file)
             } else if (inPoint && (element == QLatin1String("coordinates"))) {
                 const QGeoCoordinate coordinate = firstCoordinate(xml.readElementText());
                 if (coordinate.isValid()) {
-                    _points.append({coordinate, placemarkName, qQNaN(), -1});
+                    _points.append({coordinate, placemarkName, qQNaN()});
                 }
             }
         } else if (token == QXmlStreamReader::EndElement) {
@@ -299,15 +302,13 @@ bool OIMapOverlayLayer::_readDof(QIODevice &file)
             continue;
         }
 
+        // The DOF is in feet; everything past this point is metres.
         bool aglOk = false;
         const int aglFt = line.mid(kDofAglStart, kDofAglLen).trimmed().toInt(&aglOk);
 
-        const QString type = line.mid(kDofTypeStart, kDofTypeLen).trimmed();
-
         Point point;
         point.coordinate = coordinate;
-        point.label = type;
-        point.heightAglFt = aglOk ? aglFt : -1;
+        point.label = line.mid(kDofTypeStart, kDofTypeLen).trimmed();
         point.heightAglMeters = aglOk ? (aglFt * kFeetToMeters) : qQNaN();
         _points.append(point);
     }
@@ -379,7 +380,7 @@ bool OIMapOverlayManager::addLayer(const QString &fileUrlOrPath)
     }
 
     OIMapOverlayLayer *layer = new OIMapOverlayLayer(
-        path, true, OIMapOverlayLayer::kDefaultMinHeightFt, OIMapOverlayLayer::kDefaultRadiusKm, this);
+        path, true, OIMapOverlayLayer::kDefaultMinHeightM, OIMapOverlayLayer::kDefaultRadiusKm, this);
     if (layer->totalPointCount() == 0) {
         _lastError = layer->errorString().isEmpty() ? tr("No points found in %1").arg(QFileInfo(path).fileName())
                                                     : layer->errorString();
@@ -523,12 +524,22 @@ void OIMapOverlayManager::_load()
             continue;
         }
 
+        // The filter moved from feet to metres. Convert a value saved by an older
+        // build rather than silently resetting it to the default - this filter
+        // decides which hazards are drawn.
+        int minHeightM = OIMapOverlayLayer::kDefaultMinHeightM;
+        if (settings.contains(QString::fromLatin1(kKeyMinHeightM))) {
+            minHeightM = settings.value(QString::fromLatin1(kKeyMinHeightM)).toInt();
+        } else if (settings.contains(QString::fromLatin1(kKeyLegacyMinHeightFt))) {
+            minHeightM = qRound(settings.value(QString::fromLatin1(kKeyLegacyMinHeightFt)).toInt() * kFeetToMeters);
+        }
+
         // A layer whose file has gone missing is kept rather than dropped: the
         // operator sees why it stopped drawing instead of the row vanishing.
         OIMapOverlayLayer *layer = new OIMapOverlayLayer(
             path,
             settings.value(QString::fromLatin1(kKeyEnabled), true).toBool(),
-            settings.value(QString::fromLatin1(kKeyMinHeightFt), OIMapOverlayLayer::kDefaultMinHeightFt).toInt(),
+            minHeightM,
             settings.value(QString::fromLatin1(kKeyRadiusKm), OIMapOverlayLayer::kDefaultRadiusKm).toDouble(),
             this);
         _connectLayer(layer);
@@ -540,6 +551,11 @@ void OIMapOverlayManager::_load()
 void OIMapOverlayManager::_save() const
 {
     QSettings settings;
+
+    // beginWriteArray() writes the new "size" but does not delete the indices
+    // above it, so removing a layer used to leave its keys behind forever. Clear
+    // the subtree first and write it fresh.
+    settings.remove(QString::fromLatin1(kSettingsArray));
     settings.beginWriteArray(QString::fromLatin1(kSettingsArray), _layers->count());
     for (int i = 0; i < _layers->count(); i++) {
         const OIMapOverlayLayer *layer = qobject_cast<OIMapOverlayLayer *>((*_layers)[i]);
@@ -549,7 +565,7 @@ void OIMapOverlayManager::_save() const
         settings.setArrayIndex(i);
         settings.setValue(QString::fromLatin1(kKeyPath), layer->filePath());
         settings.setValue(QString::fromLatin1(kKeyEnabled), layer->enabled());
-        settings.setValue(QString::fromLatin1(kKeyMinHeightFt), layer->minHeightFt());
+        settings.setValue(QString::fromLatin1(kKeyMinHeightM), layer->minHeightM());
         settings.setValue(QString::fromLatin1(kKeyRadiusKm), layer->radiusKm());
     }
     settings.endArray();

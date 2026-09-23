@@ -71,8 +71,10 @@ overrides as he names things. A complete 5.0 port is parked on branch
   carries a minimum AGL height and a radius. The radius is anchored on the active
   vehicle's home, falling back to `QGroundControlQmlGlobal::flightMapPosition()`,
   and the manager rebuilds on `activeVehicleChanged` and `homePositionChanged`.
-  Height alone does **not** work — Florida still has 4,734 obstacles over 200 ft,
-  far past `kMaxMarkers`. Over that cap the manager draws **nothing** and says so.
+  Height alone does **not** work — Florida still has 4,972 obstacles over 60 m,
+  far past `kMaxMarkers`. The filter is in metres (OI plans in metres); the DOF's
+  native feet are converted at parse time, and a value saved by a pre-metres build
+  is migrated rather than reset. Over that cap the manager draws **nothing** and says so.
   Do not "fix" that by truncating to the first N: a partial hazard overlay looks
   complete, which is more dangerous than an absent one.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
