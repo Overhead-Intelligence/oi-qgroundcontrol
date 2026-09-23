@@ -8,6 +8,12 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Removed
+- Keyboard guided control, in full: the Fly view panel and its `FlyViewCustomLayer.qml` override, `OIKeyboardController`, `OIKeyboardSettings`, the `OIKeyboard` settings group, the `OI.Controls` QML singleton, the `mavlinkMessage` hook that fed it `NAV_CONTROLLER_OUTPUT`, and the aircraft-side watchdog `custom/ardupilot-scripts/heading_hold_timeout.lua`. The feature was never flown or run against SITL (issue #5), and its panel rendered mid-screen the moment any vehicle connected, because it positioned itself from `bottomEdgeCenterInset`, which upstream aliases to the bottom-*right* inset — the full height of the Large Vertical instrument panel that the OI defaults select. That made the build inadvisable for flight operations and blocked further Fly view work. Shipped in 1.0.0 and 1.0.1; the history is kept on `development` so the feature can be reworked and brought back deliberately.
+
+### Notes
+- Removing the watchdog from this repo does not uninstall it from aircraft that already have it. It is harmless there: it only arms on receiving `MAV_CMD_GUIDED_CHANGE_HEADING` (43002), which this build no longer sends. Delete it from `APM/scripts/` at the next bird maintenance. Its Lua parameter table key 107 is retired and must not be reused.
+
 ## [1.0.1] - 2026-09-17
 
 Built on upstream QGroundControl v5.1.4.
