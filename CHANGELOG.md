@@ -8,6 +8,9 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Fixed
+- Cancelling an onboard file download no longer reports a failure while the file is still arriving, and no longer breaks every FTP operation after it. ArduPilot answers a BurstReadFile from one blocking loop (`GCS_FTP.cpp`) and does not read incoming FTP requests until it ends, so the TerminateSession QGC sent on cancel was never seen: it burned its retries, declared "Download failed" four seconds in, and left the vehicle streaming - a log capture showed 4 terminate attempts, 0 acks and 112 further burst packets. `FTPManager` now stops saving immediately, waits for the burst to go quiet (or for its EOF), and only then terminates the session, so the cancel is acknowledged and reported as a cancel. Requests made during the drain are cleanly refused as "another operation in progress" instead of timing out. Touches `src/`: no plugin hook reaches `FTPManager`, and this is worth sending upstream.
+
 ### Added
 - "Onboard Files" page in the Analyze view: a MAVLink FTP browser for the vehicle's onboard storage. Navigate folders, upload a file into the folder you are looking at, download or delete a selected file, and cancel a transfer in progress. Useful for checking Lua scripts, terrain data and the log folder without a second tool. The page requires a connected vehicle and says so when there is none. All transfer work is upstream's `FTPController`; the OI part is the browser UI and its registration through `QGCCorePlugin::analyzePages()`.
 - The Onboard Files page asks before starting a download of 1 MB or more, naming the size and warning that cancelling will not stop the vehicle sending. Over a telemetry link MAVLink FTP moves a few KB/s, so a 2 MB log is a ten-minute transfer.

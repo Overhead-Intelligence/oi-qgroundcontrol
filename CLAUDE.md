@@ -62,8 +62,12 @@ overrides as he names things. A complete 5.0 port is parked on branch
   up after 4 retries and reports "Download failed" while the file is still
   arriving, and every FTP request in the meantime times out. The page therefore
   confirms downloads over 1 MB and reports a cancel as a cancel, not a failure.
-  Fixing this properly means teaching `FTPManager` to wait for the burst to
-  drain before terminating; that is still outstanding.
+  `FTPManager::cancelDownload()` therefore closes the file, then runs a drain
+  state that waits for the stream to go quiet (reusing the ack timeout as the
+  quiet detector) before sending TerminateSession. Do not "simplify" it back
+  into sending the terminate straight away - that is the bug. The drain also
+  keeps the operation busy, so a Refresh during it is refused cleanly rather
+  than timing out.
   `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
   to the theme so the monochrome OI mark works in light and dark palettes.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.

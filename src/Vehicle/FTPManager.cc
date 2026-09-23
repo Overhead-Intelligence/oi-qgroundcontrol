@@ -221,17 +221,78 @@ void FTPManager::cancelDownload()
         return;
     }
 
+    // Stop saving at once - that part the GCS does control - but do not send
+    // TerminateSession yet. The vehicle is inside its burst loop and will not read
+    // it. See the note on _drainBurstBegin(); wait for the stream to stop first.
+    _downloadState.cancelled        = true;
+    _downloadState.drainPacketCount = 0;
+    _downloadState.retryCount       = 0;
+    if (_downloadState.file.isOpen()) {
+        _downloadState.file.close();
+        (void) _downloadState.file.remove();
+    }
+
     _ackOrNakTimeoutTimer.stop();
     _rgStateMachine.clear();
-    static const StateFunctions_t rgTerminateStateMachine[] = {
+    static const StateFunctions_t rgCancelStateMachine[] = {
+        { &FTPManager::_drainBurstBegin,        &FTPManager::_drainBurstAckOrNak,           &FTPManager::_drainBurstTimeout },
         { &FTPManager::_terminateSessionBegin,  &FTPManager::_terminateSessionAckOrNak,     &FTPManager::_terminateSessionTimeout },
         { &FTPManager::_terminateComplete,      nullptr,                                    nullptr },
     };
-    for (size_t i=0; i<sizeof(rgTerminateStateMachine)/sizeof(rgTerminateStateMachine[0]); i++) {
-        _rgStateMachine.append(rgTerminateStateMachine[i]);
+    for (size_t i=0; i<sizeof(rgCancelStateMachine)/sizeof(rgCancelStateMachine[0]); i++) {
+        _rgStateMachine.append(rgCancelStateMachine[i]);
     }
-    _downloadState.retryCount = 0;
     _startStateMachine();
+}
+
+void FTPManager::_drainBurstBegin(void)
+{
+    qCDebug(FTPManagerLog) << "_drainBurstBegin: waiting for the burst to stop before terminating";
+    // Nothing is sent. The timer is the quiet detector: each burst packet restarts
+    // it, so it only fires once the vehicle has gone silent.
+    _ackOrNakTimeoutTimer.start();
+}
+
+void FTPManager::_drainBurstAckOrNak(const MavlinkFTP::Request *ackOrNak)
+{
+    const MavlinkFTP::OpCode_t requestOpCode = static_cast<MavlinkFTP::OpCode_t>(ackOrNak->hdr.req_opcode);
+    if (requestOpCode != MavlinkFTP::kCmdBurstReadFile) {
+        // Left over from before the cancel. Ignore it, keep waiting.
+        return;
+    }
+
+    if (ackOrNak->hdr.opcode == MavlinkFTP::kRspNak) {
+        const MavlinkFTP::ErrorCode_t errorCode = static_cast<MavlinkFTP::ErrorCode_t>(ackOrNak->data[0]);
+        if (errorCode == MavlinkFTP::kErrEOF) {
+            // The vehicle ended the burst itself; no need to wait the timer out.
+            qCDebug(FTPManagerLog) << "_drainBurstAckOrNak: burst ended, terminating session";
+            _ackOrNakTimeoutTimer.stop();
+            _expectedIncomingSeqNumber = ackOrNak->hdr.seqNumber;
+            _advanceStateMachine();
+            return;
+        }
+    }
+
+    // Still streaming. Track the vehicle's sequence so the terminate sent next lines
+    // up with it, discard the payload, and keep waiting for quiet.
+    _expectedIncomingSeqNumber = ackOrNak->hdr.seqNumber + 1;
+
+    if (++_downloadState.drainPacketCount > _maxDrainPackets) {
+        qCWarning(FTPManagerLog) << "_drainBurstAckOrNak: still sending after"
+                                 << _maxDrainPackets << "packets, terminating anyway";
+        _ackOrNakTimeoutTimer.stop();
+        _advanceStateMachine();
+        return;
+    }
+
+    _ackOrNakTimeoutTimer.start();
+}
+
+void FTPManager::_drainBurstTimeout(void)
+{
+    qCDebug(FTPManagerLog) << "_drainBurstTimeout: quiet after"
+                           << _downloadState.drainPacketCount << "discarded packet(s), terminating session";
+    _advanceStateMachine();
 }
 
 void FTPManager::cancelListDirectory()
@@ -320,7 +381,8 @@ void FTPManager::_terminateSessionTimeout(void)
 
 void FTPManager::_terminateComplete(void)
 {
-    _downloadComplete("Aborted");
+    // A cancel is not a failure. The page distinguishes this from a real error.
+    _downloadComplete(tr("Download cancelled"));
 }
 
 /// Closes out a download session by writing the file and doing cleanup.
