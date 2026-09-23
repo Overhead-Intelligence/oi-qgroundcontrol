@@ -35,26 +35,18 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/src/OIPlugin.{h,cc}` — the `QGCCorePlugin` subclass. Hooks used:
   `adjustSettingMetaData` (defaults read from `res/OI-defaults.ini`),
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
-  `res/OI-Actions.json`, creates the keyboard controller, registers the
-  `OI.Controls` QML singleton), `createQmlApplicationEngine` (URL interceptor),
+  `res/OI-Actions.json`), `createQmlApplicationEngine` (URL interceptor),
   `showInitialSetupVehiclePreferences` / `showInitialSetupMeasurementUnits`
-  (both false: no first-run Preferences prompt), `mavlinkMessage` (altitude
-  error for the keyboard panel).
+  (both false: no first-run Preferences prompt).
   The constructor runs `_importLegacySettings`: once per settings file, if the
   file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
   `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from
   `%APPDATA%\QGroundControl\QGroundControl OI Build.ini` (else `QGroundControl.ini`)
   and records the source under `OI/importedSettingsFrom`.
-- `custom/src/OIKeyboardController.{h,cc}` — application-wide key event filter
-  that turns W/S/A/D and the arrow keys into GUIDED commands.
-  `custom/src/OIKeyboardSettings.{h,cc}` + `res/json/OIKeyboard.SettingsGroup.json`
-  — its tunables (altitude step, turn rate, bank limit, gimbal rate).
-- `custom/src/qml/FlyViewCustomLayer.qml` — Fly view overlay (keyboard panel).
-  `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
+- `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
   to the theme so the monochrome OI mark works in light and dark palettes.
-- `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`,
-  settings JSON. `custom/deploy/windows/` — installer icon and header.
-  `custom/ardupilot-scripts/` — Lua that belongs on the aircraft, not the GCS.
+- `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
+  `custom/deploy/windows/` — installer icon and header.
 - `.github/workflows/oi-windows.yml` — the only workflow. `.github/actions/*`,
   `.github/scripts/*` and `.github/build-config.json` are upstream's, reused
   unchanged (Qt version, GStreamer version, build steps).
@@ -91,36 +83,6 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - QGC's "new version available" check is disabled for custom builds; the
   download location shown in the app is the GitHub Releases page.
 
-## Keyboard guided control (safety contract)
-
-- Off at every start. Turns itself off when the active vehicle changes or
-  disconnects and on Esc. Window deactivation releases every held key.
-- Acts only when the active vehicle is ArduPlane (fixed-wing or VTOL) in flight
-  mode `Guided`. It never changes the flight mode.
-- W/S: `Vehicle::guidedModeChangeAltitude(±altitudeStep)`, a relative offset
-  (`SET_POSITION_TARGET_LOCAL_NED`, `MAV_FRAME_LOCAL_OFFSET_NED`). ArduPlane
-  does `next_WP_loc.alt += delta` in whatever frame the guided target already
-  has and reports "Change alt to X"; no absolute altitude or frame is sent, so
-  it works GPS-denied on the barometer. The clamp against the FlyView
-  `guidedMinimumAltitude` / `guidedMaximumAltitude` settings uses the
-  autopilot's reported target (`NAV_CONTROLLER_OUTPUT.alt_error` is target
-  minus current in ArduPilot; QGC's own `altitudeTuningSetpoint` fact assumes
-  the opposite sign, do not use it), falling back to the current altitude.
-- A/D: `MAV_CMD_GUIDED_CHANGE_HEADING` (43002) every 200 ms while held.
-  param1 = 1 (HEADING), param2 = target heading slewed at `turnRate` deg/s from
-  the heading at key-down, param3 = g·tan(`turnBankLimit`) (ArduPlane turns it
-  into a bank ceiling). Releasing the key stops sending; the aircraft holds the
-  last target. "Release" sends param1 = 2 (`HEADING_TYPE_DEFAULT`), which clears
-  the hold on ArduPlane 4.5 and later.
-- Arrow keys: `GimbalController::sendPitchBodyYaw`, integrating at `gimbalRate`
-  deg/s from the gimbal's reported angles at key-down.
-- Keys are ignored while a `TextInput` / `TextEdit` has focus.
-- Aircraft watchdog: `custom/ardupilot-scripts/heading_hold_timeout.lua`
-  (parameter `HHT_TIMEOUT`, default 120 s, 0 disables).
-- The GCS system ID stays at QGC's default 255 (Roger's live setting on
-  2026-09-16; the May export had 254). ArduPilot gates `MANUAL_CONTROL`, RC
-  override and the GCS failsafe on `MAV_GCS_SYSID`; guided commands are not gated.
-
 ## Upstream sync
 
 `git remote add upstream https://github.com/mavlink/qgroundcontrol.git`,
@@ -130,6 +92,9 @@ open a PR. Never merge `upstream/master` (daily builds).
 
 ## Gotchas
 
+- The GCS system ID stays at QGC's default 255 (Roger's live setting on
+  2026-09-16; the May export had 254). ArduPilot gates `MANUAL_CONTROL`, RC
+  override and the GCS failsafe on `MAV_GCS_SYSID`; guided commands are not gated.
 - `QGC_APP_NAME` with spaces breaks the NSIS `/D` defines; keep it hyphenated.
 - The org ruleset protects the repository's *default* branch; `main` also has a
   repo-level ruleset (PR required, merge commits only, no deletion, no force
