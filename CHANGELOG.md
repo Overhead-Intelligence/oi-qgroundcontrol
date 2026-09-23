@@ -8,6 +8,9 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Added
+- **Map overlays.** Settings -> Maps -> "Map Overlays" imports a KML hazard layer (cell towers, obstacles) and draws its points on the Fly view map: an orange hazard icon with the Placemark's own name underneath. Layers are listed with their point count and can be toggled on and off individually, removed, or re-read from disk after a file changes. Files are referenced where they are, not copied, because hazard sets are per mission; a layer whose file has gone missing says so rather than silently disappearing. Toggling is deliberately settings-only, not a Fly view control: which hazards are shown is a pre-flight decision.
+
 ### Removed
 - Keyboard guided control, in full: the Fly view panel and its `FlyViewCustomLayer.qml` override, `OIKeyboardController`, `OIKeyboardSettings`, the `OIKeyboard` settings group, the `OI.Controls` QML singleton, the `mavlinkMessage` hook that fed it `NAV_CONTROLLER_OUTPUT`, and the aircraft-side watchdog `custom/ardupilot-scripts/heading_hold_timeout.lua`. The feature was never flown or run against SITL (issue #5), and its panel rendered mid-screen the moment any vehicle connected, because it positioned itself from `bottomEdgeCenterInset`, which upstream aliases to the bottom-*right* inset — the full height of the Large Vertical instrument panel that the OI defaults select. That made the build inadvisable for flight operations and blocked further Fly view work. Shipped in 1.0.0 and 1.0.1; the history is kept on `development` so the feature can be reworked and brought back deliberately.
 

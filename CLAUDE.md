@@ -37,7 +37,8 @@ overrides as he names things. A complete 5.0 port is parked on branch
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
   `res/OI-Actions.json`), `createQmlApplicationEngine` (URL interceptor),
   `showInitialSetupVehiclePreferences` / `showInitialSetupMeasurementUnits`
-  (both false: no first-run Preferences prompt).
+  (both false: no first-run Preferences prompt), `customMapItems`
+  (hazard overlay markers).
   The constructor runs `_importLegacySettings`: once per settings file, if the
   file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
   `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from
@@ -109,7 +110,13 @@ open a PR. Never merge `upstream/master` (daily builds).
   whose base branch is deleted, so retarget stacked PRs to `development`
   before merging the PR they were stacked on.
 - Do not put a file named `VERSION` (any case) at the repo root or in any
-  include directory: MSVC resolves `#include <version>` to it.
+  include directory: MSVC resolves `#include <version>` to it. This also means
+  **no CMake target may be declared in `custom/`** — the root calls
+  `qt_standard_project_setup()`, which turns on `CMAKE_INCLUDE_CURRENT_DIR`, so a
+  target there puts `custom/VERSION` on its own include path. Declare QML modules
+  in a subdirectory (see `custom/src/qml/CMakeLists.txt`) and register them
+  through `CUSTOM_LIBRARIES`, which `src/CMakeLists.txt` links once the main
+  target exists.
 - Local Qt installs need the aqtinstall commit pinned in
   `.github/workflows/oi-windows.yml` (`AQT_SOURCE`); the released aqtinstall
   does not know the Qt 6.11 repository layout. `custom/scripts/install-qt.cmd`

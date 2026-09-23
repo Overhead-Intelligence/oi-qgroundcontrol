@@ -24,6 +24,7 @@
 
 class FactMetaData;
 class FactValueGrid;
+class OIMapOverlayManager;
 class QQmlApplicationEngine;
 class QSettings;
 
@@ -68,6 +69,9 @@ public:
     /// Shown to the operator as the place to get builds (the update check itself is off in custom builds).
     QString stableDownloadLocation() const final;
 
+    /// The imported hazard markers. CustomMapItems.qml draws these, Fly view only.
+    const QmlObjectListModel *customMapItems() final;
+
     /// No first-run "Preferences" prompt: the OI defaults already answer the vehicle and units
     /// questions (both false makes firstRunPromptStdIds() empty).
     bool showInitialSetupVehiclePreferences() const final { return false; }
@@ -82,6 +86,7 @@ private:
     void _deployBundledActions();
 
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
+    OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers
     QQmlApplicationEngine *_qmlEngine = nullptr;
     OIUrlInterceptor *_urlInterceptor = nullptr;
 };
