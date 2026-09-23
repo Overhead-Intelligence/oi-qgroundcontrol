@@ -36,7 +36,14 @@ AnalyzePage {
             property string browsePath:     rootPath
             property string selectedName:   ""
             property bool   selectedIsDir:  false
+            property string selectedSize:   ""
             property string statusMessage:  ""
+            property bool   cancelRequested: false
+
+            /// Anything past this prompts first. MAVLink FTP over a telemetry link
+            /// runs at a few KB/s, so a megabyte is already minutes of transfer that
+            /// cannot be called off - see the note on the confirmation below.
+            readonly property int largeDownloadBytes: 1024 * 1024
 
             // MAVLink FTP list entries arrive as "D<name>" for a directory and
             // "F<name>\t<size>" for a file ("S" marks a skipped entry). Directories
@@ -79,6 +86,7 @@ AnalyzePage {
 
             function openDirectory(path) {
                 root.selectedName = ""
+                root.selectedSize = ""
                 root.statusMessage = ""
                 root.browsePath = path.endsWith("/") ? path : path + "/"
                 ftpController.listDirectory(root.browsePath)
@@ -102,6 +110,12 @@ AnalyzePage {
                 return qsTr("%1 MiB").arg((value / (1024 * 1024)).toFixed(1))
             }
 
+            function startDownload() {
+                downloadDialog.title = qsTr("Download %1").arg(root.selectedName)
+                downloadDialog.folder = QGroundControl.settingsManager.appSettings.missionSavePath
+                downloadDialog.openForLoad()
+            }
+
             function reportFailure(title, fallback) {
                 var detail = ftpController.errorString.length > 0 ? ftpController.errorString : fallback
                 QGroundControl.showMessageDialog(onboardFilesPage, title, detail)
@@ -115,6 +129,7 @@ AnalyzePage {
                 id: ftpController
 
                 onUploadComplete: (remotePath, error) => {
+                    root.cancelRequested = false
                     if (error.length > 0) {
                         QGroundControl.showMessageDialog(onboardFilesPage, qsTr("Upload"), error)
                     } else {
@@ -123,6 +138,7 @@ AnalyzePage {
                 }
 
                 onDeleteComplete: (remotePath, error) => {
+                    root.cancelRequested = false
                     if (error.length > 0) {
                         QGroundControl.showMessageDialog(onboardFilesPage, qsTr("Delete"), error)
                     } else {
@@ -131,6 +147,14 @@ AnalyzePage {
                 }
 
                 onDownloadComplete: (filePath, error) => {
+                    var wasCancelled = root.cancelRequested
+                    root.cancelRequested = false
+                    if (wasCancelled) {
+                        // Not a failure - the operator asked for this. The vehicle may
+                        // still be draining its burst for a few seconds.
+                        root.statusMessage = qsTr("Download cancelled. The vehicle may keep sending briefly; wait before the next action.")
+                        return
+                    }
                     if (error.length > 0) {
                         QGroundControl.showMessageDialog(onboardFilesPage, qsTr("Download"), error)
                     } else {
@@ -236,6 +260,7 @@ AnalyzePage {
                                 onClicked: {
                                     root.selectedName = modelData.name
                                     root.selectedIsDir = modelData.isDir
+                                    root.selectedSize = modelData.size
                                 }
                                 onDoubleClicked: {
                                     if (modelData.isDir) {
@@ -274,9 +299,24 @@ AnalyzePage {
                     visible:    root.selectedName !== "" && !root.selectedIsDir
                     enabled:    !ftpController.busy
                     onClicked: {
-                        downloadDialog.title = qsTr("Download %1").arg(root.selectedName)
-                        downloadDialog.folder = QGroundControl.settingsManager.appSettings.missionSavePath
-                        downloadDialog.openForLoad()
+                        var bytes = parseInt(root.selectedSize, 10)
+                        if (!isNaN(bytes) && bytes >= root.largeDownloadBytes) {
+                            // Cancelling a burst does not stop the vehicle sending: ArduPilot
+                            // streams a burst read from a blocking loop and will not service a
+                            // TerminateSession until it finishes. Say so before they commit.
+                            QGroundControl.showMessageDialog(
+                                onboardFilesPage,
+                                qsTr("Large Download"),
+                                qsTr("%1 is %2.\n\n").arg(root.selectedName).arg(root.sizeText(root.selectedSize)) +
+                                qsTr("Over a telemetry link MAVLink FTP moves a few KB per second, so this can take many minutes.\n\n") +
+                                qsTr("Cancelling will stop saving the file but will NOT stop the vehicle sending it, ") +
+                                qsTr("and the file list stays unusable until the transfer drains.\n\n") +
+                                qsTr("Download anyway?"),
+                                Dialog.Ok | Dialog.Cancel,
+                                function() { root.startDownload() })
+                            return
+                        }
+                        root.startDownload()
                     }
                 }
 
@@ -296,24 +336,58 @@ AnalyzePage {
                 }
 
                 QGCButton {
-                    text:       qsTr("Cancel Operation")
+                    text:       qsTr("Cancel")
                     visible:    ftpController.busy
-                    onClicked:  ftpController.cancelActiveOperation()
+                    enabled:    !root.cancelRequested
+                    onClicked: {
+                        root.cancelRequested = true
+                        ftpController.cancelActiveOperation()
+                    }
                 }
 
                 Item { Layout.fillWidth: true }
 
+                // The panel disables itself while an operation runs, so it has to say
+                // why or it reads as a hang. The cancelling case is the important one:
+                // ArduPilot streams a burst read from a blocking loop and will not
+                // service a TerminateSession until that loop ends, so a cancelled
+                // download keeps arriving for several seconds after the click.
                 QGCLabel {
-                    text:       qsTr("Transferring... %1%").arg(Math.round(ftpController.progress * 100))
-                    visible:    ftpController.busy && (ftpController.downloadInProgress || ftpController.uploadInProgress)
+                    Layout.fillWidth:       true
+                    Layout.minimumWidth:    0
+                    elide:                  Text.ElideRight
+                    visible:                text !== ""
+                    color:                  root.cancelRequested ? qgcPal.warningText : qgcPal.text
+                    text: {
+                        if (root.cancelRequested) {
+                            return qsTr("Cancelling - the vehicle is still sending, waiting for it to stop...")
+                        }
+                        if (ftpController.downloadInProgress) {
+                            return qsTr("Downloading... %1%").arg(Math.round(ftpController.progress * 100))
+                        }
+                        if (ftpController.uploadInProgress) {
+                            return qsTr("Uploading... %1%").arg(Math.round(ftpController.progress * 100))
+                        }
+                        if (ftpController.listInProgress) {
+                            return qsTr("Listing %1 ...").arg(root.browsePath)
+                        }
+                        if (ftpController.deleteInProgress) {
+                            return qsTr("Deleting...")
+                        }
+                        return ""
+                    }
                 }
 
                 // An operation's error wins over the last success message; openDirectory()
                 // clears the success message so it never outlives the folder it belongs to.
                 QGCLabel {
-                    text:       ftpController.errorString.length > 0 ? ftpController.errorString : root.statusMessage
-                    color:      ftpController.errorString.length > 0 ? qgcPal.warningText : qgcPal.text
-                    elide:      Text.ElideMiddle
+                    Layout.fillWidth:       true
+                    Layout.minimumWidth:    0
+                    elide:                  Text.ElideMiddle
+                    text:                   (ftpController.errorString.length > 0 && !root.cancelRequested)
+                                                ? ftpController.errorString : root.statusMessage
+                    color:                  (ftpController.errorString.length > 0 && !root.cancelRequested)
+                                                ? qgcPal.warningText : qgcPal.text
                 }
             }
 

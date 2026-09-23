@@ -55,6 +55,15 @@ overrides as he names things. A complete 5.0 port is parked on branch
   `/Custom`, so it never rewrites it. Being outside every QML module it must
   import what it uses (`QGroundControl.AnalyzeView` for `AnalyzePage`). The
   transfer work is upstream `FTPController`; do not reimplement it here.
+  **A download cannot be cancelled mid-burst.** ArduPilot answers a BurstReadFile
+  by sending up to 2000 packets from one blocking loop with a bandwidth-pacing
+  `delay()` between them (`GCS_FTP.cpp`), and never reads incoming FTP requests
+  inside it - so TerminateSession goes unanswered until the loop ends. QGC gives
+  up after 4 retries and reports "Download failed" while the file is still
+  arriving, and every FTP request in the meantime times out. The page therefore
+  confirms downloads over 1 MB and reports a cancel as a cancel, not a failure.
+  Fixing this properly means teaching `FTPManager` to wait for the burst to
+  drain before terminating; that is still outstanding.
   `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
   to the theme so the monochrome OI mark works in light and dark palettes.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
