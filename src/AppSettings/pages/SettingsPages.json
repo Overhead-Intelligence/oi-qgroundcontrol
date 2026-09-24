@@ -15,6 +15,12 @@
             "pageDefinition": "FlyView.SettingsUI.json"
         },
         {
+            "name": "Keyboard",
+            "qml": "KeyboardSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/gear.svg",
+            "pageDefinition": "Keyboard.SettingsUI.json"
+        },
+        {
             "name": "3D View",
             "qml": "Viewer3DSettings.qml",
             "icon": "qrc:/qml/QGroundControl/Viewer3D/City3DMapIcon.svg",

@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "fileType": "SettingsUI",
+    "imports": [
+        "OI.Settings"
+    ],
+    "groups": [
+        {
+            "component": "OIKeyboardSettingsPage",
+            "sectionName": "Keyboard Control",
+            "keywords": [
+                "keyboard",
+                "hotkey",
+                "guided",
+                "heading",
+                "altitude",
+                "gimbal",
+                "flight mode"
+            ]
+        }
+    ]
+}

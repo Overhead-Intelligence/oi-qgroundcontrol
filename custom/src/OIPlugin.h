@@ -25,6 +25,7 @@
 
 class FactMetaData;
 class FactValueGrid;
+class OIKeyboardController;
 class OIMapOverlayManager;
 class QQmlApplicationEngine;
 class QSettings;
@@ -96,6 +97,7 @@ private:
 
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
     OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers
+    OIKeyboardController *_keyboard = nullptr;      ///< keyboard guided control
     QVariantList _analyzePages;                     ///< built once on the first analyzePages() call
     QQmlApplicationEngine *_qmlEngine = nullptr;
     OIUrlInterceptor *_urlInterceptor = nullptr;

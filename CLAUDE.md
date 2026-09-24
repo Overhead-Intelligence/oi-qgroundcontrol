@@ -106,6 +106,28 @@ overrides as he names things. A complete 5.0 port is parked on branch
   is migrated rather than reset. Over that cap the manager draws **nothing** and says so.
   Do not "fix" that by truncating to the first N: a partial hazard overlay looks
   complete, which is more dangerous than an absent one.
+- `custom/src/OIKeyboardController.{h,cc}` — keyboard guided control, the
+  `OIKeyboard` singleton in `OI.Controls`. An application-wide event filter, so it
+  is constructed in `OIPlugin::init()` before the QML engine. **Every control is a
+  discrete absolute step, and that is a measurement, not a style choice** (SITL,
+  ArduPlane 4.6.3, quadplane): `SET_POSITION_TARGET_LOCAL_NED` offsets - what QGC
+  sends for an altitude change - accumulate in `next_WP_loc.alt` with no bound, so
+  20 presses reach the ground from 60 m and a min-alt fence only reacts (16 m
+  reached against a 40 m floor). `GUIDED_CHANGE_ALTITUDE` is unusable: its param3
+  rate limit delivers ~2% of what is asked, and using it once latches
+  `ModeGuided::update_target_altitude()` into its slew branch for the rest of the
+  GUIDED session, which would silently disable QGC's altitude slider.
+  `GUIDED_CHANGE_HEADING` works in forward flight (param3 *is* a real rate limit)
+  but is acked and ignored in a VTOL hover, so heading is gated on
+  `vtolInFwdFlight` in the GCS - **do not gate it on the ack**. Four of the six
+  command/regime combinations tested are accepted no-ops.
+  The altitude target is tracked in the controller and double-clamped: to the Fly
+  View guided min/max, and to `altitudeLead` ahead of measured altitude so a held
+  key cannot queue a descent the aircraft has not started.
+  `custom/src/qml/OIKeyboardSettingsPage.qml` is the Settings → Keyboard section;
+  it lives in Application Settings rather than beside the Joystick tab because no
+  `QGCCorePlugin` hook adds a Vehicle Setup component, and binding keys should not
+  need a connected aircraft.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
   actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.

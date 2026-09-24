@@ -22,6 +22,11 @@
         <file alias="OIOnboardFilesPage.qml">src/qml/OIOnboardFilesPage.qml</file>
     </qresource>
 
+    <!-- Settings groups: SettingsGroup loads :/json/<Name>.SettingsGroup.json -->
+    <qresource prefix="/json">
+        <file alias="OIKeyboard.SettingsGroup.json">res/json/OIKeyboard.SettingsGroup.json</file>
+    </qresource>
+
     <!-- OI-only resources, read by OIPlugin.cc -->
     <qresource prefix="/custom">
         <file alias="OI-defaults.ini">res/OI-defaults.ini</file>
