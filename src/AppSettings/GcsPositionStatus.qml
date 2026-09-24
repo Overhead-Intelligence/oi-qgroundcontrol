@@ -10,6 +10,13 @@ SettingsGroupLayout {
 
     property var  _gcsPosition: QGroundControl.qgcPositionManger.gcsPosition
     property real _gcsHDOP:     QGroundControl.qgcPositionManger.gcsPositionHorizontalAccuracy
+    property bool _manual:      QGroundControl.qgcPositionManger.gcsPositionManual
+
+    LabelledLabel {
+        Layout.fillWidth: true
+        label:     qsTr("Source")
+        labelText: _manual ? qsTr("Set by hand on the map") : qsTr("Position source")
+    }
 
     LabelledLabel {
         Layout.fillWidth: true
@@ -26,6 +33,15 @@ SettingsGroupLayout {
     LabelledLabel {
         Layout.fillWidth: true
         label:     qsTr("HDOP")
-        labelText: _gcsHDOP > 0 ? _gcsHDOP.toFixed(1) + " m" : qsTr("N/A")
+        // A hand-placed point has no meaningful accuracy figure to report.
+        labelText: _manual ? qsTr("n/a (manual)") : (_gcsHDOP > 0 ? _gcsHDOP.toFixed(1) + " m" : qsTr("N/A"))
+    }
+
+    LabelledButton {
+        Layout.fillWidth: true
+        visible:    _manual
+        label:      qsTr("Hand back to this machine's position source")
+        buttonText: qsTr("Clear")
+        onClicked:  QGroundControl.qgcPositionManger.clearManualGCSPosition()
     }
 }
