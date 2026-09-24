@@ -27,6 +27,11 @@ public:
     /// Deletes the file specified by the fully qualified file name
     Q_INVOKABLE static void deleteFile(const QString &filename);
 
+    /// Copies a file, replacing the destination if it already exists. Both names must be
+    /// fully qualified. Returns false if the source cannot be read or the destination
+    /// cannot be written.
+    Q_INVOKABLE static bool copyFile(const QString &source, const QString &destination);
+
     Q_INVOKABLE static QString urlToLocalFile(QUrl url);
 
     /// Converts a local file path to a properly formed file:// url.

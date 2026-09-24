@@ -108,6 +108,17 @@ overrides as he names things. A complete 5.0 port is parked on branch
   complete, which is more dangerous than an absent one.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
   `custom/deploy/windows/` — installer icon and header.
+- **MAVLink actions are a list, not a file.** `flyViewActionsFile` and
+  `joystickActionsFile` hold `;`-separated file names, and `MavlinkActionManager`
+  loads every one of them into a single action model. `;` rather than `,` because
+  QSettings' INI backend splits an unquoted comma-separated value into a
+  QStringList, which `convertAndValidateRaw` then flattens to an empty string for
+  a string fact — a hand-edited comma list in `OI-defaults.ini` silently loads
+  nothing unless it is quoted. Both separators are accepted on read.
+  `OIPlugin::init()` still deploys `res/OI-Actions.json` and the default names it,
+  so nothing changed for an existing operator; a platform-specific set of actions
+  goes in its own file and is ticked on only for the aircraft it suits. Touches
+  `src/` — there is no plugin hook for actions files.
 - `.github/workflows/oi-windows.yml` — the only workflow. `.github/actions/*`,
   `.github/scripts/*` and `.github/build-config.json` are upstream's, reused
   unchanged (Qt version, GStreamer version, build steps).
