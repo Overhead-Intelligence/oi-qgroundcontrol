@@ -42,7 +42,8 @@ overrides as he names things. A complete 5.0 port is parked on branch
   `res/OI-Actions.json`), `createQmlApplicationEngine` (URL interceptor),
   `showInitialSetupVehiclePreferences` / `showInitialSetupMeasurementUnits`
   (both false: no first-run Preferences prompt), `analyzePages` (stock list
-  plus the OI "Onboard Files" page).
+  plus the OI "Onboard Files" page), `customMapItems` (hazard overlay
+  markers).
   The constructor runs `_importLegacySettings`: once per settings file, if the
   file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
   `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from
@@ -70,6 +71,41 @@ overrides as he names things. A complete 5.0 port is parked on branch
   than timing out.
   `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
   to the theme so the monochrome OI mark works in light and dark palettes.
+- `custom/src/OIMapOverlays.{h,cc}` — hazard overlays in two formats.
+  `OIMapOverlayLayer` is one imported file; the format is **sniffed, not taken from
+  the extension** (`<kml` / `<?xml` in the first 4 KB means KML, otherwise FAA DOF),
+  because a DOF arrives as `.Dat`, `.DAT` or `.dat`. KML is parsed with
+  `QXmlStreamReader` rather than `KMLHelper`, which drops the Placemark `<name>`
+  and errors out on a KML holding no `<Point>`. The DOF reader is fixed-width,
+  latin-1, CRLF; the column slices are the `kDof*` constants, verified against
+  `12-FL.Dat`. `OIMapOverlayItem` is one marker (a `QmlComponentInfo`, as
+  `customMapItems()` documents). `OIMapOverlayManager` owns both models, the
+  QSettings persistence under `OI/MapOverlays`, and is the `OIMapOverlays`
+  singleton in `OI.Controls`. Markers render **Fly view only**: `CustomMapItems.qml`
+  is instantiated once, in `FlyViewMap.qml`.
+- `custom/src/qml/OIMapOverlayMarker.qml` — the marker, loaded by URL from
+  `custom.qrc`, modelled on `ADSBVehicleMapItem.qml`.
+  `custom/src/qml/OIMapOverlaySettings.qml` — the Settings → Maps section. It has
+  to be a *type* in a QML module, because the generated settings page names its
+  section components by bare type name; hence `custom/src/qml/CMakeLists.txt` and
+  the `"imports": ["OI.Settings"]` key in `src/AppSettings/pages/Maps.SettingsUI.json`
+  — the only `src/` change the overlay feature makes.
+- **Why the overlay filters exist, and why the cap refuses rather than truncates.**
+  One DOF is a whole state: Florida is 43,893 obstacles, 13,725 of them utility
+  poles, and every marker costs a QObject plus a QML `MapQuickItem`. Each layer
+  carries a minimum AGL height and a radius. The radius is anchored on the active
+  vehicle's home, falling back to `QGroundControlQmlGlobal::flightMapPosition()`,
+  and the manager rebuilds on `activeVehicleChanged` and `homePositionChanged`.
+  The map-position fallback has no signal to hook - it is a *static* on a
+  `QML_SINGLETON` with no C++-reachable instance - so a 2 s timer re-checks the
+  anchor and rebuilds once it has drifted more than `kReferenceMoveM`. Without
+  that the overlay froze at whatever the map showed when the app started.
+  Height alone does **not** work — Florida still has 4,972 obstacles over 60 m,
+  far past `kMaxMarkers`. The filter is in metres (OI plans in metres); the DOF's
+  native feet are converted at parse time, and a value saved by a pre-metres build
+  is migrated rather than reset. Over that cap the manager draws **nothing** and says so.
+  Do not "fix" that by truncating to the first N: a partial hazard overlay looks
+  complete, which is more dangerous than an absent one.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
   `custom/deploy/windows/` — installer icon and header.
 - `.github/workflows/oi-windows.yml` — the only workflow. `.github/actions/*`,
@@ -134,7 +170,13 @@ open a PR. Never merge `upstream/master` (daily builds).
   whose base branch is deleted, so retarget stacked PRs to `development`
   before merging the PR they were stacked on.
 - Do not put a file named `VERSION` (any case) at the repo root or in any
-  include directory: MSVC resolves `#include <version>` to it.
+  include directory: MSVC resolves `#include <version>` to it. This also means
+  **no CMake target may be declared in `custom/`** — the root calls
+  `qt_standard_project_setup()`, which turns on `CMAKE_INCLUDE_CURRENT_DIR`, so a
+  target there puts `custom/VERSION` on its own include path. Declare QML modules
+  in a subdirectory (see `custom/src/qml/CMakeLists.txt`) and register them
+  through `CUSTOM_LIBRARIES`, which `src/CMakeLists.txt` links once the main
+  target exists.
 - Local Qt installs need the aqtinstall commit pinned in
   `.github/workflows/oi-windows.yml` (`AQT_SOURCE`); the released aqtinstall
   does not know the Qt 6.11 repository layout. `custom/scripts/install-qt.cmd`

@@ -18,6 +18,7 @@
          (it only prefixes /Custom, and :/Custom/custom/... does not exist). These
          files are outside every QML module, so they must import what they use. -->
     <qresource prefix="/custom/qml">
+        <file alias="OIMapOverlayMarker.qml">src/qml/OIMapOverlayMarker.qml</file>
         <file alias="OIOnboardFilesPage.qml">src/qml/OIOnboardFilesPage.qml</file>
     </qresource>
 

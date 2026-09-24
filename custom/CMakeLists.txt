@@ -22,11 +22,15 @@ set(QGC_RESOURCES ${QGC_RESOURCES} ${CUSTOM_RESOURCES} CACHE STRING "Paths to .q
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.h
     CACHE INTERNAL "" FORCE
 )
 
+# src/CMakeLists.txt links these into the main target once it exists; custom/ is
+# added as a subdirectory before that, so linking directly here would fail.
 set(CUSTOM_LIBRARIES
-    ""
+    OISettingsModule
     CACHE INTERNAL "" FORCE
 )
 
@@ -47,3 +51,8 @@ set(CUSTOM_QT_COMPONENTS
     Core
     CACHE INTERNAL "" FORCE
 )
+
+# The OI.Settings QML module is declared in its own subdirectory: a target defined
+# here would put custom/ (and so custom/VERSION) on its include path, which breaks
+# MSVC's #include <version>. See custom/src/qml/CMakeLists.txt.
+add_subdirectory(src/qml)

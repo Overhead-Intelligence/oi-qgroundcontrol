@@ -18,11 +18,13 @@
 #include <QtCore/QStringList>
 #include <QtCore/QVariant>
 #include <QtQml/QQmlApplicationEngine>
+#include <QtQml/qqml.h>
 
 #include "AppSettings.h"
 #include "FactMetaData.h"
 #include "FactValueGrid.h"
 #include "InstrumentValueData.h"
+#include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
 #include "QmlComponentInfo.h"
 #include "QmlObjectListModel.h"
@@ -157,12 +159,27 @@ void OIPlugin::init()
 {
     QGCCorePlugin::init();
     _deployBundledActions();
+
+    // Created after SettingsManager::init() because it reads QSettings, and
+    // registered before the QML engine exists so the Maps settings section can
+    // "import OI.Controls" and reach the manager.
+    _mapOverlays = new OIMapOverlayManager(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIMapOverlays", _mapOverlays);
 }
 
 QString OIPlugin::stableDownloadLocation() const
 {
     return QStringLiteral("github.com/Overhead-Intelligence/oi-qgroundcontrol/releases");
 }
+
+const QmlObjectListModel *OIPlugin::customMapItems()
+{
+    // init() has always run by the time the Fly view map asks for these. Fall back
+    // to the stock empty model if that ever stops being true.
+    return _mapOverlays ? _mapOverlays->markers() : QGCCorePlugin::customMapItems();
+}
+
+/*===========================================================================*/
 
 const QVariantList &OIPlugin::analyzePages()
 {

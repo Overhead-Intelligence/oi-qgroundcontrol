@@ -6,6 +6,7 @@ Overhead Intelligence's build of [QGroundControl](https://github.com/mavlink/qgr
 - **Fleet defaults on first launch**: metric units, the OI telemetry bar (8 columns, rangefinder included), guided-mode limits (50 m floor, 914 m ceiling, 3048 m go-to range, 200 m forward-flight loiter radius), the trimmed ArduPlane flight-mode list, gimbal on-screen control.
 - **Your existing settings come along**: on its first start the build imports the telemetry bar, fleet links, units, video and Fly view settings from the previous OI build (or from stock QGC). Nobody rebuilds a telemetry bar after installing.
 - **OI custom actions** in the Fly view: wingtip lights, gripper, EK3 PosXY source. Loaded automatically.
+- **Hazard overlays**: import an FAA obstacle file (`.Dat`) or a KML and see the obstacles on the Fly view map, filtered by height and by distance from where you are flying. Settings -> Maps -> Map Overlays.
 
 Current version: 1.0.1 (2026-09-17). Built on upstream QGroundControl **v5.1.4**.
 
@@ -19,7 +20,7 @@ Every pull request and every push to `development` also produces an installer: o
 
 ## What is in this fork
 
-All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build overlay, so upstream releases merge cleanly. Nothing under `src/` is modified.
+All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build overlay, so upstream releases merge cleanly. The single exception is 15 lines of declarative JSON in `src/AppSettings/pages/Maps.SettingsUI.json`, which registers the Map Overlays settings section; QGC generates its settings pages from those files and gives a custom build no other way in.
 
 | Area | Where to look |
 |---|---|
@@ -28,6 +29,7 @@ All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build
 | Telemetry bar layout | `custom/src/OIPlugin.cc`, `factValueGridCreateDefaultSettings` |
 | Import of an operator's previous settings | `custom/src/OIPlugin.cc`, `_importLegacySettings` (runs once per settings file) |
 | Custom actions | `custom/res/OI-Actions.json` (copied to `Documents\QGroundControl-OI\MavlinkActions` at startup) |
+| Hazard overlays (FAA DOF + KML import, filters, map markers) | `custom/src/OIMapOverlays.{h,cc}`, `custom/src/qml/OIMapOverlay*.qml` |
 | CI and releases | `.github/workflows/oi-windows.yml` |
 
 Defaults are only defaults: an operator can still change any setting in the app, and "Reset to defaults" comes back to the OI values.
