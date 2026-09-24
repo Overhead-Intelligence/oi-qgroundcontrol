@@ -20,8 +20,25 @@ SetupPage {
     property bool   _fltmodeChExists:           controller.parameterExists(-1, _modeChannelParam)
     property Fact   _fltmodeCh:                 _fltmodeChExists ? controller.getParameterFact(-1, _modeChannelParam) : _nullFact
     property bool   _ch7OptAvailable:           controller.parameterExists(-1, "CH7_OPT")
-    property int    _rcOptionStart:             _ch7OptAvailable ? 7 : 6
-    property int    _rcOptionStop:              _ch7OptAvailable ? 12 : 16
+
+    // Legacy Copter-3.x firmware exposes CH7_OPT..CH12_OPT. Everything current uses
+    // RCn_OPTION, and how far n goes is a firmware question - so ask the parameter
+    // set instead of hardcoding it. The start is RC5 rather than RC6 because RC5 is
+    // only conventionally the mode switch: FLTMODE_CH can be anywhere, and a
+    // controller with a switch on RC5 could not be configured here at all.
+    // RC1-RC4 are left out as the primary stick axes; lower _rcOptionStart if a
+    // future airframe genuinely needs them.
+    property int    _rcOptionStart:             _ch7OptAvailable ? 7 : 5
+    property int    _rcOptionStop:              _ch7OptAvailable ? 12 : _highestRcOptionChannel
+    property int    _modeChannel:               _fltmodeChExists ? _fltmodeCh.rawValue : 0
+
+    property int _highestRcOptionChannel: {
+        var channel = _rcOptionStart
+        while (controller.parameterExists(-1, "RC" + (channel + 1) + "_OPTION")) {
+            channel++
+        }
+        return channel
+    }
     property bool   _customSimpleMode:          controller.simpleMode === APMFlightModesComponentController.SimpleModeCustom
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
@@ -167,8 +184,11 @@ SetupPage {
 
                                 QGCLabel {
                                     anchors.baseline:   optCombo.baseline
-                                    text:               qsTr("Channel option %1 :").arg(index)
-                                    color:              controller.channelOptionEnabled[modelData + (_ch7OptAvailable ? 1 : 0)] ? "yellow" : qgcPal.text
+                                    // channelOptionEnabled is indexed by channel - 1.
+                                    color:              controller.channelOptionEnabled[index - 1] ? "yellow" : qgcPal.text
+                                    text:               index === _modeChannel
+                                                            ? qsTr("Channel option %1 (flight mode switch):").arg(index)
+                                                            : qsTr("Channel option %1 :").arg(index)
                                 }
 
                                 FactComboBox {
