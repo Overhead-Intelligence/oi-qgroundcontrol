@@ -13,6 +13,8 @@ DECLARE_SETTINGGROUP(OIKeyboard, "OIKeyboard")
 {
 }
 
+DECLARE_SETTINGSFACT(OIKeyboardSettings, enabled)
+
 DECLARE_SETTINGSFACT(OIKeyboardSettings, headingLeftKey)
 DECLARE_SETTINGSFACT(OIKeyboardSettings, headingRightKey)
 DECLARE_SETTINGSFACT(OIKeyboardSettings, headingStep)

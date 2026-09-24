@@ -3,6 +3,13 @@
     "fileType": "FactMetaData",
     "QGC.MetaData.Facts": [
         {
+            "name": "enabled",
+            "shortDesc": "Let the keyboard send guided commands. Stays as you leave it across flights and restarts; only this switch turns it off. Keys still do nothing unless the vehicle is flying in Guided.",
+            "type": "bool",
+            "default": false,
+            "label": "Keyboard control"
+        },
+        {
             "name": "headingLeftKey",
             "shortDesc": "Key that turns the aircraft left by one heading step.",
             "type": "string",
@@ -38,7 +45,6 @@
             "default": 20,
             "label": "Turn bank limit"
         },
-
         {
             "name": "altitudeUpKey",
             "shortDesc": "Key that raises the target altitude by one step.",
@@ -75,7 +81,6 @@
             "default": 30,
             "label": "Maximum target lead"
         },
-
         {
             "name": "gimbalPitchUpKey",
             "shortDesc": "Key that tilts the gimbal up by one step.",
@@ -140,7 +145,6 @@
             "default": "PgDown",
             "label": "Previous gimbal mode"
         },
-
         {
             "name": "modeHotkeysEnabled",
             "shortDesc": "Allow single keys to change flight mode. Each press opens a confirmation that a second press of the same key accepts and Esc cancels.",

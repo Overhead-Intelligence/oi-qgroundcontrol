@@ -17,7 +17,7 @@
         {
             "name": "Keyboard",
             "qml": "KeyboardSettings.qml",
-            "icon": "qrc:/InstrumentValueIcons/gear.svg",
+            "icon": "qrc:/InstrumentValueIcons/keyboard.svg",
             "pageDefinition": "Keyboard.SettingsUI.json"
         },
         {

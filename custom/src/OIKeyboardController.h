@@ -22,10 +22,18 @@
  *     DO_GIMBAL_MANAGER_PITCHYAW did, precisely. Steps also mean a missed key-up
  *     cannot leave a rate latched.
  *
+ * ENABLED vs CAN-ACT
+ * Two different things, deliberately kept apart. `enabled` is the operator's
+ * standing preference, persisted in settings and changed only from the Keyboard
+ * page - a pilot decides between flights whether they want it. `canAct` is derived
+ * and moment-to-moment: enabled AND a vehicle that is armed, flying and in Guided.
+ * Keys do nothing unless canAct, but losing Guided (or the vehicle, or window
+ * focus) does NOT switch the feature off. An earlier version disarmed on every one
+ * of those, which meant a fat-fingered mode change silently cost the operator the
+ * whole feature until they went back to the settings page.
+ *
  * SAFETY CONTRACT
- *   - Disarmed at startup; never persisted. Arming is an explicit operator action.
- *   - Disarms on: Esc, active vehicle change, flight mode change, loss of window
- *     focus, and vehicle disconnect.
+ *   - Keys only ever act when canAct: armed, flying, in Guided.
  *   - Keys are ignored entirely while a text input has focus.
  *   - Acts only on an armed, flying ArduPlane vehicle already in GUIDED. It never
  *     changes flight mode to get there - QGC's guidedModeChangeAltitude() would
@@ -36,7 +44,8 @@
  *     measured altitude, because the firmware accumulates offsets with no bound of
  *     its own (ArduPlane GCS_Mavlink.cpp: next_WP_loc.alt += -packet.z*100).
  *   - Flight mode hotkeys need two presses: the first opens a confirmation, the
- *     second within modeConfirmTimeout sends it, Esc cancels.
+ *     second within modeConfirmTimeout sends it, Esc cancels. Esc cancels only the
+ *     confirmation; it does not turn the feature off.
  *
  * QGroundControl is licensed according to the terms in the file COPYING.md
  * in the root of the source code directory.
@@ -89,8 +98,8 @@ class OIKeyboardController : public QObject
     Q_OBJECT
     Q_MOC_INCLUDE("QmlObjectListModel.h")
 
-    Q_PROPERTY(bool     armed           READ armed          WRITE setArmed  NOTIFY armedChanged)
-    Q_PROPERTY(bool     available       READ available                      NOTIFY stateChanged)
+    Q_PROPERTY(bool     enabled         READ enabled        WRITE setEnabled NOTIFY enabledChanged)
+    Q_PROPERTY(bool     canAct          READ canAct                         NOTIFY stateChanged)
     Q_PROPERTY(QString  statusText      READ statusText                     NOTIFY stateChanged)
     Q_PROPERTY(bool     headingUsable   READ headingUsable                  NOTIFY stateChanged)
     Q_PROPERTY(double   altitudeTarget  READ altitudeTarget                 NOTIFY stateChanged)
@@ -105,11 +114,13 @@ public:
     explicit OIKeyboardController(QObject *parent = nullptr);
     ~OIKeyboardController() override;
 
-    bool armed() const { return _armed; }
-    void setArmed(bool armed);
+    /// The operator's standing preference. Persisted; only the settings page changes it.
+    bool enabled() const;
+    void setEnabled(bool enabled);
 
-    /// True when an armed, flying ArduPlane vehicle is in GUIDED - i.e. keys would do something.
-    bool available() const { return _available; }
+    /// True when keys would actually do something right now: enabled, and a vehicle
+    /// that is armed, flying and in Guided.
+    bool canAct() const { return _canAct; }
 
     /// Why keys are or are not doing anything, for the operator.
     QString statusText() const { return _statusText; }
@@ -134,7 +145,7 @@ public:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 signals:
-    void armedChanged();
+    void enabledChanged();
     void stateChanged();
     void pendingModeChanged();
 
@@ -163,8 +174,7 @@ private:
     QmlObjectListModel *_modeHotkeys = nullptr;
     QPointer<Vehicle> _activeVehicle;
 
-    bool _armed = false;
-    bool _available = false;
+    bool _canAct = false;
     bool _headingUsable = false;
     QString _statusText;
 

@@ -31,6 +31,8 @@ public:
 
     DEFINE_SETTING_NAME_GROUP()
 
+    DEFINE_SETTINGFACT(enabled)
+
     DEFINE_SETTINGFACT(headingLeftKey)
     DEFINE_SETTINGFACT(headingRightKey)
     DEFINE_SETTINGFACT(headingStep)

@@ -124,10 +124,20 @@ overrides as he names things. A complete 5.0 port is parked on branch
   The altitude target is tracked in the controller and double-clamped: to the Fly
   View guided min/max, and to `altitudeLead` ahead of measured altitude so a held
   key cannot queue a descent the aircraft has not started.
+  **`enabled` and `canAct` are different things and must stay that way.** `enabled`
+  is the operator's standing preference, a persisted fact changed only from the
+  Keyboard page; `canAct` is derived per moment (enabled + armed + flying + Guided)
+  and gates the keys. An earlier version collapsed the two and switched the feature
+  off on any mode change, vehicle change or focus loss, which meant one fat-fingered
+  mode key silently disabled it until the operator went back to settings. Esc
+  cancels a pending mode confirmation only.
   `custom/src/qml/OIKeyboardSettingsPage.qml` is the Settings → Keyboard section;
   it lives in Application Settings rather than beside the Joystick tab because no
   `QGCCorePlugin` hook adds a Vehicle Setup component, and binding keys should not
-  need a connected aircraft.
+  need a connected aircraft. A generated settings page must also be listed in
+  `_generated_qml_names` in `src/AppSettings/CMakeLists.txt`: the generator writes it
+  into the build tree regardless, but without that entry it is never added to the
+  QML module and the page renders **empty** with no error anywhere.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
   actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.

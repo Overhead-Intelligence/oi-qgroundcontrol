@@ -97,6 +97,12 @@ OIKeyboardController::OIKeyboardController(QObject *parent)
 
     _loadModeHotkeys();
 
+    (void) connect(_settings->enabled(), &Fact::rawValueChanged, this, [this]() {
+        _clearPendingMode();
+        emit enabledChanged();
+        _recomputeState();
+    });
+
     MultiVehicleManager *const mvm = MultiVehicleManager::instance();
     (void) connect(mvm, &MultiVehicleManager::activeVehicleChanged,
                    this, &OIKeyboardController::_activeVehicleChanged);
@@ -125,9 +131,9 @@ void OIKeyboardController::_activeVehicleChanged(Vehicle *vehicle)
         (void) disconnect(_activeVehicle, nullptr, this, nullptr);
     }
 
-    // A new vehicle is a new aircraft with its own state; never carry an armed
-    // keyboard across to it.
-    setArmed(false);
+    // A different aircraft does not change what the operator asked for, but its
+    // state is unknown, so the tracked targets are dropped and re-seeded.
+    _clearPendingMode();
 
     _activeVehicle = vehicle;
     if (vehicle) {
@@ -145,13 +151,15 @@ void OIKeyboardController::_activeVehicleChanged(Vehicle *vehicle)
 void OIKeyboardController::_recomputeState()
 {
     Vehicle *const vehicle = _vehicle();
-    const bool wasAvailable = _available;
+    const bool wasCanAct = _canAct;
 
     QString status;
-    bool available = false;
+    bool canAct = false;
     bool headingUsable = false;
 
-    if (!vehicle) {
+    if (!enabled()) {
+        status = tr("Keyboard control is off");
+    } else if (!vehicle) {
         status = tr("No vehicle connected");
     } else if (!vehicle->armed()) {
         status = tr("Vehicle is disarmed");
@@ -161,7 +169,7 @@ void OIKeyboardController::_recomputeState()
         // Deliberately does not offer to switch: changing mode is the operator's call.
         status = tr("Flight mode is %1, not Guided").arg(vehicle->flightMode());
     } else {
-        available = true;
+        canAct = true;
         // Heading only bites in forward flight. In a VTOL hover ArduPlane acks
         // GUIDED_CHANGE_HEADING and then never reads the target, so the control is
         // disabled here rather than letting the operator press a key that lies.
@@ -170,47 +178,37 @@ void OIKeyboardController::_recomputeState()
                                : tr("Ready - heading keys need forward flight");
     }
 
-    // Losing Guided, arming state or the vehicle entirely disarms the keyboard: the
-    // operator has to make a fresh decision rather than inherit one.
-    if (_armed && !available) {
-        qCDebug(OIKeyboardLog) << "disarming keyboard control:" << status;
-        setArmed(false);
+    // Deliberately does NOT touch `enabled`. Leaving Guided means keys stop working,
+    // not that the operator has withdrawn their preference.
+    if (!canAct) {
+        _clearPendingMode();
     }
 
-    if ((available != _available) || (headingUsable != _headingUsable) || (status != _statusText)) {
-        _available = available;
+    if ((canAct != _canAct) || (headingUsable != _headingUsable) || (status != _statusText)) {
+        _canAct = canAct;
         _headingUsable = headingUsable;
         _statusText = status;
         emit stateChanged();
     }
 
-    if (available && !wasAvailable) {
+    // Becoming actionable is the moment to re-seed: the aircraft may have moved a
+    // long way since the last time keys worked.
+    if (canAct && !wasCanAct) {
         _reseedAltitudeTarget();
+        _headingTargetValid = false;
     }
 }
 
-void OIKeyboardController::setArmed(bool armed)
+bool OIKeyboardController::enabled() const
 {
-    if (armed == _armed) {
-        return;
-    }
+    return _settings->enabled()->rawValue().toBool();
+}
 
-    if (armed && !_available) {
-        qCDebug(OIKeyboardLog) << "refusing to arm:" << _statusText;
-        return;
-    }
-
-    _armed = armed;
-    _clearPendingMode();
-    if (armed) {
-        _reseedAltitudeTarget();
-        _headingTargetValid = false;
-        qCDebug(OIKeyboardLog) << "keyboard control armed";
-    } else {
-        qCDebug(OIKeyboardLog) << "keyboard control disarmed";
-    }
-    emit armedChanged();
-    emit stateChanged();
+void OIKeyboardController::setEnabled(bool enabled)
+{
+    // Writing the fact persists it and fires the connection made in the constructor,
+    // which recomputes state and emits enabledChanged().
+    _settings->enabled()->setRawValue(enabled);
 }
 
 void OIKeyboardController::_setStatus(const QString &text)
@@ -259,8 +257,8 @@ bool OIKeyboardController::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::ApplicationDeactivate ||
         event->type() == QEvent::WindowDeactivate) {
-        // Keys released outside our window would never be seen; treat any focus
-        // loss as a full stop rather than leaving a confirmation half-open.
+        // A confirmation must not survive the operator looking away; the feature
+        // itself is untouched.
         _clearPendingMode();
         return QObject::eventFilter(watched, event);
     }
@@ -271,20 +269,17 @@ bool OIKeyboardController::eventFilter(QObject *watched, QEvent *event)
 
     QKeyEvent *const keyEvent = static_cast<QKeyEvent*>(event);
 
-    // Esc is the panic key and is honoured even when a confirmation is open.
+    // Esc cancels a pending flight mode confirmation. It deliberately does not turn
+    // the feature off: that is a settings-page decision, not a keystroke.
     if (keyEvent->key() == Qt::Key_Escape) {
         if (!_pendingModeName.isEmpty()) {
             _clearPendingMode();
             return true;
         }
-        if (_armed) {
-            setArmed(false);
-            return true;
-        }
         return QObject::eventFilter(watched, event);
     }
 
-    if (!_armed) {
+    if (!_canAct) {
         return QObject::eventFilter(watched, event);
     }
 
@@ -319,7 +314,7 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
 {
     Q_UNUSED(modifiers);
 
-    if (!_available) {
+    if (!_canAct) {
         return false;
     }
 
@@ -472,7 +467,7 @@ void OIKeyboardController::_stepAltitude(int direction)
     _sinceLastAltitudeStep.start();
 
     // Uses the stock guided path so behaviour matches the altitude slider exactly.
-    // Safe here only because _available has already established that the vehicle is
+    // Safe here only because _canAct has already established that the vehicle is
     // in Guided: guidedModeChangeAltitude() would otherwise switch it there itself.
     vehicle->guidedModeChangeAltitude(delta, false /* pauseVehicle */);
 

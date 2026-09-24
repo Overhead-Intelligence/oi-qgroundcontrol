@@ -38,26 +38,23 @@ Item {
         // ------------------------------------------------------------ status
         SettingsGroupLayout {
             Layout.fillWidth:   true
-            heading:            qsTr("Status")
-            headingDescription: qsTr("Keyboard control is always off when QGroundControl starts. It turns itself off if the vehicle leaves Guided, changes, or disconnects, and Esc turns it off at any time.")
+            heading:            qsTr("Keyboard Control")
+            headingDescription: qsTr("This switch is the only thing that turns keyboard control on and off. It stays as you leave it across flights and restarts. Keys still do nothing unless the vehicle is armed, flying and in Guided - the line below says which of those is missing.")
 
-            RowLayout {
+            // Always available: turning the feature on or off is a decision the pilot
+            // makes between flights, not something that needs a vehicle present.
+            FactCheckBoxSlider {
                 Layout.fillWidth:   true
-                spacing:            ScreenTools.defaultFontPixelWidth
+                text:               qsTr("Keyboard control enabled")
+                fact:               _settings.enabled
+            }
 
-                QGCLabel {
-                    Layout.fillWidth:       true
-                    Layout.minimumWidth:    0
-                    wrapMode:               Text.WordWrap
-                    color:                  OIKeyboard.available ? qgcPal.text : qgcPal.warningText
-                    text:                   OIKeyboard.statusText
-                }
-
-                QGCButton {
-                    text:       OIKeyboard.armed ? qsTr("Turn off") : qsTr("Turn on")
-                    enabled:    OIKeyboard.available || OIKeyboard.armed
-                    onClicked:  OIKeyboard.armed = !OIKeyboard.armed
-                }
+            QGCLabel {
+                Layout.fillWidth:       true
+                Layout.minimumWidth:    0
+                wrapMode:               Text.WordWrap
+                color:                  OIKeyboard.canAct ? qgcPal.text : qgcPal.warningText
+                text:                   OIKeyboard.statusText
             }
 
             QGCLabel {
@@ -81,21 +78,25 @@ Item {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.headingLeftKey
+                label:                      _settings.headingLeftKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.headingRightKey
+                label:                      _settings.headingRightKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.headingStep
+                label:                      _settings.headingStep.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.headingBankLimit
+                label:                      _settings.headingBankLimit.label
             }
         }
 
@@ -111,21 +112,25 @@ Item {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.altitudeUpKey
+                label:                      _settings.altitudeUpKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.altitudeDownKey
+                label:                      _settings.altitudeDownKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.altitudeStep
+                label:                      _settings.altitudeStep.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.altitudeLead
+                label:                      _settings.altitudeLead.label
             }
 
             QGCLabel {
@@ -148,41 +153,49 @@ Item {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalPitchUpKey
+                label:                      _settings.gimbalPitchUpKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalPitchDownKey
+                label:                      _settings.gimbalPitchDownKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalPitchStep
+                label:                      _settings.gimbalPitchStep.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalYawLeftKey
+                label:                      _settings.gimbalYawLeftKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalYawRightKey
+                label:                      _settings.gimbalYawRightKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalYawStep
+                label:                      _settings.gimbalYawStep.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalNextModeKey
+                label:                      _settings.gimbalNextModeKey.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.gimbalPrevModeKey
+                label:                      _settings.gimbalPrevModeKey.label
             }
         }
 
@@ -190,7 +203,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Flight Mode Hotkeys")
-            headingDescription: qsTr("A press opens a confirmation; a second press of the same key within the timeout sends the mode change, and Esc cancels. Changing mode leaves Guided, which turns keyboard control off.")
+            headingDescription: qsTr("A press opens a confirmation; a second press of the same key within the timeout sends the mode change, and Esc cancels the confirmation. Changing mode leaves Guided, so the other keys stop working until the vehicle is back in Guided - the feature itself stays on.")
 
             FactCheckBoxSlider {
                 Layout.fillWidth:   true
@@ -202,6 +215,7 @@ Item {
                 Layout.fillWidth:           true
                 textFieldPreferredWidth:    _fieldWidth
                 fact:                       _settings.modeConfirmTimeout
+                label:                      _settings.modeConfirmTimeout.label
                 visible:                    _settings.modeHotkeysEnabled.rawValue
             }
 
