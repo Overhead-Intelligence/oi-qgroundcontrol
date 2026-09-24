@@ -54,7 +54,13 @@ bool FTPController::listDirectory(const QString &uri, int componentId)
     const uint8_t compId = _componentIdForRequest(componentId);
     if (!_ftpManager->listDirectory(compId, uri)) {
         qCWarning(FTPControllerLog) << "Failed to start list operation for" << uri;
-        _setErrorString(tr("Failed to list %1").arg(uri));
+        // A refusal because the manager is still busy is not a failure of this
+        // request - it is the vehicle finishing something else, very often the
+        // minutes-long burst drain after a cancelled download. Saying "failed"
+        // there sends the operator looking for a problem that does not exist.
+        _setErrorString(_ftpManager->inProgress()
+                            ? tr("Vehicle is still finishing a previous transfer")
+                            : tr("Failed to list %1").arg(uri));
         _currentPath = previousPath;
         emit currentPathChanged();
         _setBusy(false);
@@ -171,6 +177,11 @@ bool FTPController::deleteFile(const QString &uri, int componentId)
     }
 
     return true;
+}
+
+bool FTPController::vehicleBusy() const
+{
+    return _ftpManager && _ftpManager->inProgress();
 }
 
 void FTPController::cancelActiveOperation()

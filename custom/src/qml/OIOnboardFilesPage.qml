@@ -39,6 +39,7 @@ AnalyzePage {
             property string selectedSize:   ""
             property string statusMessage:  ""
             property bool   cancelRequested: false
+            property bool   waitingForVehicle: false
 
             /// Anything past this prompts first. MAVLink FTP over a telemetry link
             /// runs at a few KB/s, so a megabyte is already minutes of transfer that
@@ -89,7 +90,25 @@ AnalyzePage {
                 root.selectedSize = ""
                 root.statusMessage = ""
                 root.browsePath = path.endsWith("/") ? path : path + "/"
-                ftpController.listDirectory(root.browsePath)
+                root.requestListing()
+            }
+
+            /// Lists browsePath, and if the vehicle refuses because it is still busy,
+            /// keeps retrying until it frees up. Leaving this page and returning during
+            /// the drain after a cancelled download used to land here and show a bare
+            /// "Failed to list /" on an empty page: the page is destroyed and rebuilt,
+            /// so its FTPController is brand new and has no idea an operation is still
+            /// running on the vehicle.
+            function requestListing() {
+                if (ftpController.listDirectory(root.browsePath)) {
+                    root.waitingForVehicle = false
+                    vehicleBusyRetryTimer.stop()
+                    return
+                }
+                if (ftpController.vehicleBusy()) {
+                    root.waitingForVehicle = true
+                    vehicleBusyRetryTimer.restart()
+                }
             }
 
             function refresh() {
@@ -125,6 +144,13 @@ AnalyzePage {
 
             QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
+            Timer {
+                id:             vehicleBusyRetryTimer
+                interval:       3000
+                repeat:         false
+                onTriggered:    root.requestListing()
+            }
+
             FTPController {
                 id: ftpController
 
@@ -149,6 +175,7 @@ AnalyzePage {
                 onDownloadComplete: (filePath, error) => {
                     var wasCancelled = root.cancelRequested
                     root.cancelRequested = false
+                    root.waitingForVehicle = false
                     if (wasCancelled) {
                         // Not a failure - the operator asked for this. The vehicle may
                         // still be draining its burst for a few seconds.
@@ -275,8 +302,11 @@ AnalyzePage {
                         Layout.fillWidth:       true
                         Layout.topMargin:       ScreenTools.defaultFontPixelHeight
                         horizontalAlignment:    Text.AlignHCenter
-                        text:                   qsTr("Empty folder")
+                        wrapMode:               Text.WordWrap
                         visible:                root.entries.length === 0 && !ftpController.busy
+                        text:                   root.waitingForVehicle
+                                                    ? qsTr("Waiting for the vehicle to finish a previous transfer. This can take a few minutes after cancelling a large download.")
+                                                    : qsTr("Empty folder")
                     }
                 }
             }
@@ -309,8 +339,9 @@ AnalyzePage {
                                 qsTr("Large Download"),
                                 qsTr("%1 is %2.\n\n").arg(root.selectedName).arg(root.sizeText(root.selectedSize)) +
                                 qsTr("Over a telemetry link MAVLink FTP moves a few KB per second, so this can take many minutes.\n\n") +
-                                qsTr("Cancelling will stop saving the file but will NOT stop the vehicle sending it, ") +
-                                qsTr("and the file list stays unusable until the transfer drains.\n\n") +
+                                qsTr("Cancelling stops saving the file but does NOT stop the vehicle sending it: ") +
+                                qsTr("the aircraft finishes its burst first, measured at over two minutes for a 2 MB file. ") +
+                                qsTr("The file list stays unavailable until it drains.\n\n") +
                                 qsTr("Download anyway?"),
                                 Dialog.Ok | Dialog.Cancel,
                                 function() { root.startDownload() })
@@ -357,10 +388,13 @@ AnalyzePage {
                     Layout.minimumWidth:    0
                     elide:                  Text.ElideRight
                     visible:                text !== ""
-                    color:                  root.cancelRequested ? qgcPal.warningText : qgcPal.text
+                    color:                  (root.cancelRequested || root.waitingForVehicle) ? qgcPal.warningText : qgcPal.text
                     text: {
                         if (root.cancelRequested) {
                             return qsTr("Cancelling - the vehicle is still sending, waiting for it to stop...")
+                        }
+                        if (root.waitingForVehicle) {
+                            return qsTr("Vehicle is still finishing a previous transfer - retrying...")
                         }
                         if (ftpController.downloadInProgress) {
                             return qsTr("Downloading... %1%").arg(Math.round(ftpController.progress * 100))

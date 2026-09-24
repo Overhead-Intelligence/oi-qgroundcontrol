@@ -17,6 +17,13 @@ class FTPManager : public QObject
 public:
     FTPManager(Vehicle* vehicle);
 
+    /// True while an operation still owns the manager - including the burst drain
+    /// after a cancelled download, which can run for minutes on a slow link. No
+    /// second operation can start until this clears, because the vehicle is not
+    /// reading new FTP requests while its burst loop runs. Callers use this to tell
+    /// "the vehicle is busy, try again" apart from a genuine failure.
+    bool inProgress() const { return !_rgStateMachine.isEmpty(); }
+
 	/// Downloads the specified file.
     ///     @param fromCompId Component id of the component to download from. If fromCompId is MAV_COMP_ID_ALL, then MAV_COMP_ID_AUTOPILOT1 is used.
     ///     @param fromURI    File to download from component, fully qualified path. May be in the format "mftp://[;comp=<id>]..." where the component id
