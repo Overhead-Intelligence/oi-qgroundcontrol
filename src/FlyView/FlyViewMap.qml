@@ -694,6 +694,28 @@ FlightMap {
                         }
                     }
 
+                    // Not a guided action: this moves where QGC thinks the *ground
+                    // station* is, which drives the GCS map marker, Remote ID and
+                    // anything else keyed off gcsPosition. A laptop with no GPS, or
+                    // one reporting the wrong site, otherwise has no way to say so.
+                    QGCButton {
+                        Layout.fillWidth:   true
+                        text:               QGroundControl.qgcPositionManger.gcsPositionManual
+                                                ? qsTr("Move GCS location here")
+                                                : qsTr("Set GCS location here")
+                        onClicked: {
+                            mapClickDropPanel.close()
+                            QGroundControl.showMessageDialog(
+                                _root,
+                                qsTr("Set GCS Location"),
+                                qsTr("Pin the ground station to this point?\n\n") +
+                                qsTr("It overrides any GPS on this machine and is remembered between runs. ") +
+                                qsTr("Clear it under Application Settings > Remote ID > GCS Position."),
+                                Dialog.Ok | Dialog.Cancel,
+                                function() { QGroundControl.qgcPositionManger.setManualGCSPosition(mapClickCoord) })
+                        }
+                    }
+
                     QGCButton {
                         Layout.fillWidth:   true
                         text:               qsTr("Orbit at location")

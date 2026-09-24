@@ -6,6 +6,7 @@
 #include "QGCLoggingCategory.h"
 
 #include <QtCore/QApplicationStatic>
+#include <QtCore/QSettings>
 #include <QtCore/QPermissions>
 #include <QtPositioning/QNmeaPositionInfoSource>
 
@@ -36,6 +37,9 @@ void QGCPositionManager::init()
         _setPositionSource(QGCPositionSource::Simulated);
     } else {
         _checkPermission();
+        // After the sources are set up, so a restored manual pin wins over whatever
+        // the platform GPS reports first.
+        _loadManualGCSPosition();
     }
 }
 
@@ -126,6 +130,14 @@ void QGCPositionManager::_positionUpdated(const QGeoPositionInfo &update)
     _geoPositionInfo = update;
     _gcsPositioningError = QGeoPositionInfoSource::NoError;
 
+    // A manual position outranks the source. The source is left running so that
+    // clearing the pin picks straight back up, and so accuracy reporting stays
+    // live, but it must not move gcsPosition out from under the operator.
+    if (_gcsPositionManual) {
+        emit positionInfoUpdated(update);
+        return;
+    }
+
     QGeoCoordinate newGCSPosition(_gcsPosition);
 
     if (update.hasAttribute(QGeoPositionInfo::HorizontalAccuracy)) {
@@ -186,6 +198,73 @@ void QGCPositionManager::_setGCSPosition(const QGeoCoordinate& newGCSPosition)
         _gcsPosition = newGCSPosition;
         emit gcsPositionChanged(_gcsPosition);
     }
+}
+
+void QGCPositionManager::setManualGCSPosition(const QGeoCoordinate &coordinate)
+{
+    if (!coordinate.isValid()) {
+        return;
+    }
+
+    _gcsPositionManual = true;
+    // A hand-placed point is exact by definition; leaving a stale source accuracy
+    // in place would have consumers gate on a number that no longer describes
+    // anything. Same for the timestamp: this is fresh now.
+    _gcsPositionHorizontalAccuracy = 0.0;
+    _gcsPositionTimestamp = QDateTime::currentDateTimeUtc();
+
+    _setGCSPosition(coordinate);
+    _saveManualGCSPosition();
+
+    emit gcsPositionHorizontalAccuracyChanged(_gcsPositionHorizontalAccuracy);
+    emit gcsPositionManualChanged(_gcsPositionManual);
+}
+
+void QGCPositionManager::clearManualGCSPosition()
+{
+    if (!_gcsPositionManual) {
+        return;
+    }
+
+    _gcsPositionManual = false;
+    _gcsPositionHorizontalAccuracy = std::numeric_limits<qreal>::infinity();
+    _saveManualGCSPosition();
+
+    emit gcsPositionHorizontalAccuracyChanged(_gcsPositionHorizontalAccuracy);
+    emit gcsPositionManualChanged(_gcsPositionManual);
+    // gcsPosition itself is left where it was until the source produces a fix;
+    // blanking it would make the marker disappear rather than simply go stale.
+}
+
+void QGCPositionManager::_loadManualGCSPosition()
+{
+    QSettings settings;
+    settings.beginGroup(QString::fromLatin1(kManualPositionGroup));
+    const bool wasSet = settings.value(QString::fromLatin1(kManualPositionSetKey), false).toBool();
+    const double latitude = settings.value(QString::fromLatin1(kManualPositionLatKey)).toDouble();
+    const double longitude = settings.value(QString::fromLatin1(kManualPositionLonKey)).toDouble();
+    settings.endGroup();
+
+    if (!wasSet) {
+        return;
+    }
+
+    const QGeoCoordinate coordinate(latitude, longitude);
+    if (coordinate.isValid()) {
+        setManualGCSPosition(coordinate);
+    }
+}
+
+void QGCPositionManager::_saveManualGCSPosition() const
+{
+    QSettings settings;
+    settings.beginGroup(QString::fromLatin1(kManualPositionGroup));
+    settings.setValue(QString::fromLatin1(kManualPositionSetKey), _gcsPositionManual);
+    if (_gcsPositionManual) {
+        settings.setValue(QString::fromLatin1(kManualPositionLatKey), _gcsPosition.latitude());
+        settings.setValue(QString::fromLatin1(kManualPositionLonKey), _gcsPosition.longitude());
+    }
+    settings.endGroup();
 }
 
 void QGCPositionManager::_setPositionSource(QGCPositionSource source)
