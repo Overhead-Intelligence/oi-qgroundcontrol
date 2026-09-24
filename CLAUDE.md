@@ -27,7 +27,11 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/cmake/CustomOverrides.cmake` — app name `QGroundControl-OI`, org name,
   description, icon paths. `QGC_APP_NAME` drives the exe name, the installer
   name, the settings file and the Documents folder; the CI workflow reads it
-  back from the CMake cache, so nothing else needs updating.
+  back from the CMake cache, so nothing else needs updating. Also sets
+  `QGC_DISABLE_PX4_PLUGIN_FACTORY ON`: PX4 is dropped from
+  `FirmwarePluginManager::supportedFirmwareClasses()` so the PX4-only UI hides
+  itself through `QGroundControl.px4ProFirmwareSupported`. The APM factory must
+  stay on. This does not remove `src/AutoPilotPlugins/PX4/` from the build.
 - `custom/CMakeLists.txt` — registers the OI sources, resources and the plugin
   class (`CUSTOMCLASS=OIPlugin`). `custom/custom.qrc` — resources, including the
   QML overrides under `/Custom/qml/...`: QGC's URL interceptor swaps a stock
@@ -37,13 +41,34 @@ overrides as he names things. A complete 5.0 port is parked on branch
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
   `res/OI-Actions.json`), `createQmlApplicationEngine` (URL interceptor),
   `showInitialSetupVehiclePreferences` / `showInitialSetupMeasurementUnits`
-  (both false: no first-run Preferences prompt).
+  (both false: no first-run Preferences prompt), `analyzePages` (stock list
+  plus the OI "Onboard Files" page).
   The constructor runs `_importLegacySettings`: once per settings file, if the
   file is fresh, it copies the `TelemetryBarUserSettings-*`, `LinkConfigurations`,
   `Units`, `Video`, `FlyView` and `FlightMapPosition` groups from
   `%APPDATA%\QGroundControl\QGroundControl OI Build.ini` (else `QGroundControl.ini`)
   and records the source under `OI/importedSettingsFrom`.
-- `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
+- `custom/src/qml/OIOnboardFilesPage.qml` — MAVLink FTP browser, registered as an
+  Analyze page by `OIPlugin::analyzePages()`. This one *adds* a page rather than
+  replacing a stock file, so it lives under the `/custom/qml` qrc prefix and is
+  loaded by its own `qrc:/custom/qml/...` URL; the interceptor only ever prefixes
+  `/Custom`, so it never rewrites it. Being outside every QML module it must
+  import what it uses (`QGroundControl.AnalyzeView` for `AnalyzePage`). The
+  transfer work is upstream `FTPController`; do not reimplement it here.
+  **A download cannot be cancelled mid-burst.** ArduPilot answers a BurstReadFile
+  by sending up to 2000 packets from one blocking loop with a bandwidth-pacing
+  `delay()` between them (`GCS_FTP.cpp`), and never reads incoming FTP requests
+  inside it - so TerminateSession goes unanswered until the loop ends. QGC gives
+  up after 4 retries and reports "Download failed" while the file is still
+  arriving, and every FTP request in the meantime times out. The page therefore
+  confirms downloads over 1 MB and reports a cancel as a cancel, not a failure.
+  `FTPManager::cancelDownload()` therefore closes the file, then runs a drain
+  state that waits for the stream to go quiet (reusing the ack timeout as the
+  quiet detector) before sending TerminateSession. Do not "simplify" it back
+  into sending the terminate straight away - that is the bug. The drain also
+  keeps the operation busy, so a Refresh during it is refused cleanly rather
+  than timing out.
+  `custom/src/qml/QGCToolBarButton.qml` — the stock control with the logo tinted
   to the theme so the monochrome OI mark works in light and dark palettes.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
   `custom/deploy/windows/` — installer icon and header.
