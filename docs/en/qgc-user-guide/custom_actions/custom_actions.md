@@ -39,6 +39,14 @@ Fields:
 * compId (options) - The component id for where you want to send the command to. If not specified `MAV_COMP_ID_AUTOPILOT1` is used.
 * param1 thru param7 (optional) - The parameters for the command. Parameters which are not specified will default to 0.0
 
-Mavlink action files should be located in the MavlinkActions directory of the QGC save location. For example on Linux that would be `~/Documents/QGroundControl/MavlinkActions` or `~/Documents/QGroundControl Daily/MavlinkActions`. The Fly View and Joysticks can each have there own custom actions file.
+## Choosing which files are active
 
-When you start up QGC it will load these files if they exist and make the commands available for use.
+Mavlink action files should be located in the MavlinkActions directory of the QGC save location. For example on Linux that would be `~/Documents/QGroundControl/MavlinkActions` or `~/Documents/QGroundControl Daily/MavlinkActions`.
+
+Fly View Settings > MAVLink Actions lists every JSON file in that directory, with a tick box for the Fly View action list and one for joystick button assignment. **More than one file can be active at a time**, and the two lists are independent. `Import` copies a file into the directory for you; `Remove` deletes it.
+
+Ticking or unticking a file takes effect immediately - the Fly View action list and the joystick button dropdown both update without restarting QGC.
+
+Keeping actions in several files is worth doing when some of them only apply to some aircraft: a command that drives a servo the airframe does not have, or that relies on a Lua script it is not running, can sit in its own file and be switched on only for the vehicles it suits, instead of being merged into one list that is then wrong everywhere else.
+
+A file which is named in the settings but has since been deleted is skipped silently. A file which is malformed is reported by name, and the other files still load.

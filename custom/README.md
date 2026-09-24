@@ -10,9 +10,9 @@ version of it.
 |---|---|---|
 | `cmake/CustomOverrides.cmake` | App name (`QGroundControl-OI`), org name, description, icon paths | Renaming the app or swapping icons |
 | `CMakeLists.txt` | Lists the OI C++ sources and resources | Adding a C++ file |
-| `custom.qrc` | Resources compiled into the exe: images, `OI-defaults.ini`, `OI-Actions.json`, QML overrides | Adding an image, a data file or a QML override |
+| `custom.qrc` | Resources compiled into the exe: images, `OI-defaults.ini`, the `OI-*.json` actions files, QML overrides | Adding an image, a data file or a QML override |
 | `res/OI-defaults.ini` | Default settings for a fresh install | Changing a default (units, guided limits, hidden modes, ...) |
-| `res/OI-Actions.json` | Fly view custom action buttons | Adding or changing a MAVLink action |
+| `res/OI-*.json` | Fly view / joystick custom action buttons, one file per capability | Adding or changing a MAVLink action |
 | `res/Images/OILogoMark.svg` | The OI logo mark as a vector, used for the toolbar logo and menus | Rebranding |
 | `res/icons/`, `deploy/windows/` | App icon, installer icon and installer header | Rebranding |
 | `src/OIPlugin.{h,cc}` | The QGC core plugin: applies the defaults, builds the telemetry bar, deploys the actions file, installs the override interceptor | Adding a new hook |
@@ -71,12 +71,19 @@ shown in the app.
 
 ## Adding a custom action
 
-Edit `res/OI-Actions.json`. The format is QGC's MavlinkActions file: `label`,
-`description`, `mavCmd`, optional `compId` and `param1` to `param7`. At every
-start the plugin copies the file to `Documents\QGroundControl-OI\MavlinkActions\OI-Actions.json`
-and overwrites the copy, so local edits to that copy are lost; keep local
-experiments in a file with a different name and select it under
-Application Settings > Fly View > Custom actions.
+Edit the `res/OI-*.json` file for the capability it belongs to, or add a new
+one and list it in `custom.qrc` and in `kActionsFileNames` in `OIPlugin.cc`.
+The format is QGC's MavlinkActions file: `label`, `description`, `mavCmd`,
+optional `compId` and `param1` to `param7`.
+
+There is one file per capability rather than one combined list, because almost
+every OI action needs hardware or an aircraft-side script that only some
+airframes have. At every start the plugin copies each file to
+`Documents\QGroundControl-OI\MavlinkActions\` and overwrites its own copy, so
+local edits to those copies are lost; keep local experiments in a file with a
+different name. None is enabled by default - tick the ones a bird has under
+Application Settings > Fly View > MAVLink Actions, which accepts any number of
+files for the Fly view menu and for joystick buttons independently.
 
 ## Overriding a stock QML file
 

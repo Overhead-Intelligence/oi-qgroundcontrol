@@ -1,0 +1,22 @@
+{
+    "fileType": "MavlinkActions",
+    "version": 1,
+    "actions": [
+        {
+            "label": "Starnav ON",
+            "description": "STARNAV_ENABLE=1 - hand EK3_SRC1_*/GPS_PRIMARY/Q_RTL_MODE back to the Starnav switches and flight events. Sends MAV_CMD_DO_AUX_FUNCTION for SCRIPTING_6 (305) at switch position HIGH.",
+            "mavCmd": 218,
+            "compId": 1,
+            "param1": 305,
+            "param2": 2
+        },
+        {
+            "label": "Starnav OFF",
+            "description": "STARNAV_ENABLE=0 - restore the normal QuadPlane set (EK3_SRC1_POSXY/VELXY/VELZ=3, GPS_PRIMARY=0, Q_RTL_MODE=2) and go idle. Sends MAV_CMD_DO_AUX_FUNCTION for SCRIPTING_6 (305) at switch position LOW.",
+            "mavCmd": 218,
+            "compId": 1,
+            "param1": 305,
+            "param2": 0
+        }
+    ]
+}

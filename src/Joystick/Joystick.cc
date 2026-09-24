@@ -157,6 +157,14 @@ Joystick::Joystick(const QString &name, int axisCount, int buttonCount, int hatC
     _resetButtonActionData();
     _resetButtonEventStates();
 
+    // The assignable action list is a snapshot, so it has to be rebuilt when the set of
+    // MAVLink actions changes - otherwise enabling an actions file leaves its actions
+    // missing from the button dropdown until the joystick is reconnected, even though
+    // _executeButtonAction() would already dispatch them.
+    connect(_mavlinkActionManager, &MavlinkActionManager::actionsChanged, this, [this]() {
+        _buildAvailableButtonsActionList(_pollingVehicle);
+    });
+
     _buildAvailableButtonsActionList(MultiVehicleManager::instance()->activeVehicle());
 
     _loadFromSettingsIntoCalibrationData();
