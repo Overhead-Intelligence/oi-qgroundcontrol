@@ -69,7 +69,11 @@ private:
     QVariantList _superSimpleModeEnabled;
 
     static constexpr uint8_t _allSimpleBits = 0x3F;
-    static constexpr int _cChannelOptions = 11;
+    /// channelOptionEnabled is indexed by RC channel - 1, covering every channel
+    /// ArduPilot can carry an RCn_OPTION for. It used to start at RC6 and be
+    /// indexed by an offset the QML had to reproduce; indexing by channel keeps
+    /// the two from drifting apart when the displayed range changes.
+    static constexpr int _cRcChannels = 16;
     static constexpr int _cSimpleModeBits = 8;
     static constexpr int _cFltModes = 6;
 

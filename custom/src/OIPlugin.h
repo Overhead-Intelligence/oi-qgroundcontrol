@@ -18,6 +18,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QUrl>
+#include <QtCore/QVariantList>
 #include <QtQml/QQmlAbstractUrlInterceptor>
 
 #include "QGCCorePlugin.h"
@@ -72,6 +73,9 @@ public:
     /// The imported hazard markers. CustomMapItems.qml draws these, Fly view only.
     const QmlObjectListModel *customMapItems() final;
 
+    /// Stock Analyze pages plus the OI "Onboard Files" MAVLink FTP browser.
+    const QVariantList &analyzePages() final;
+
     /// No first-run "Preferences" prompt: the OI defaults already answer the vehicle and units
     /// questions (both false makes firstRunPromptStdIds() empty).
     bool showInitialSetupVehiclePreferences() const final { return false; }
@@ -87,6 +91,7 @@ private:
 
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
     OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers
+    QVariantList _analyzePages;                     ///< built once on the first analyzePages() call
     QQmlApplicationEngine *_qmlEngine = nullptr;
     OIUrlInterceptor *_urlInterceptor = nullptr;
 };
