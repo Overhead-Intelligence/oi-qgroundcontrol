@@ -28,7 +28,7 @@ All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build
 | Default settings on first launch | `custom/res/OI-defaults.ini` (change a value there, rebuild, done) |
 | Telemetry bar layout | `custom/src/OIPlugin.cc`, `factValueGridCreateDefaultSettings` |
 | Import of an operator's previous settings | `custom/src/OIPlugin.cc`, `_importLegacySettings` (runs once per settings file) |
-| Custom actions | `custom/res/OI-Actions.json` (copied to `Documents\QGroundControl-OI\MavlinkActions` at startup) |
+| Custom actions | `custom/res/OI-*.json`, one file per capability (copied to `Documents\QGroundControl-OI\MavlinkActions` at startup; tick the ones a bird has under Fly View Settings) |
 | Hazard overlays (FAA DOF + KML import, filters, map markers) | `custom/src/OIMapOverlays.{h,cc}`, `custom/src/qml/OIMapOverlay*.qml` |
 | CI and releases | `.github/workflows/oi-windows.yml` |
 

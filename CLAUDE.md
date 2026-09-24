@@ -39,7 +39,7 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/src/OIPlugin.{h,cc}` — the `QGCCorePlugin` subclass. Hooks used:
   `adjustSettingMetaData` (defaults read from `res/OI-defaults.ini`),
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys
-  `res/OI-Actions.json`), `createQmlApplicationEngine` (URL interceptor),
+  `res/OI-*.json` actions), `createQmlApplicationEngine` (URL interceptor),
   `showInitialSetupVehiclePreferences` / `showInitialSetupMeasurementUnits`
   (both false: no first-run Preferences prompt), `analyzePages` (stock list
   plus the OI "Onboard Files" page), `customMapItems` (hazard overlay
@@ -106,19 +106,37 @@ overrides as he names things. A complete 5.0 port is parked on branch
   is migrated rather than reset. Over that cap the manager draws **nothing** and says so.
   Do not "fix" that by truncating to the first N: a partial hazard overlay looks
   complete, which is more dangerous than an absent one.
-- `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, `OI-Actions.json`.
+- `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
+  actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.
 - **MAVLink actions are a list, not a file.** `flyViewActionsFile` and
   `joystickActionsFile` hold `;`-separated file names, and `MavlinkActionManager`
   loads every one of them into a single action model. `;` rather than `,` because
   QSettings' INI backend splits an unquoted comma-separated value into a
-  QStringList, which `convertAndValidateRaw` then flattens to an empty string for
-  a string fact — a hand-edited comma list in `OI-defaults.ini` silently loads
-  nothing unless it is quoted. Both separators are accepted on read.
-  `OIPlugin::init()` still deploys `res/OI-Actions.json` and the default names it,
-  so nothing changed for an existing operator; a platform-specific set of actions
-  goes in its own file and is ticked on only for the aircraft it suits. Touches
-  `src/` — there is no plugin hook for actions files.
+  QStringList, which `convertAndValidateRaw` flattens to an empty string for a
+  string fact — that bites a value saved in the operator's own settings file.
+  (`OI-defaults.ini` is safe either way: `adjustSettingMetaData` rejoins a split
+  list before using it.) Both separators are accepted on read. Touches `src/` —
+  there is no plugin hook for actions files.
+- **One actions file per capability, none on by default.** `OIPlugin::init()`
+  deploys `res/OI-Gripper.json`, `res/OI-Starnav.json` and
+  `res/OI-WingtipLights.json`, and `[MavlinkActions]` in `OI-defaults.ini` enables
+  none of them: each needs hardware or an aircraft-side script that only some
+  airframes have, so a kit is configured by ticking what it has. Up to 1.0.1 these
+  shipped as one combined `OI-Actions.json`, which `_retireLegacyActionsFile()`
+  deletes on first run **only** when it is byte-identical to what we shipped
+  (SHA-256 with CR stripped, since the resource is embedded CRLF on Windows and LF
+  elsewhere) — an edited copy is kept and the operator is left alone.
+  That file also carried a `PosXY GPS Enable`/`Disable` pair which is **not**
+  carried forward. It drove `SCRIPTING_4` (RC option 303) directly, which is
+  `starnav.lua`'s own PosXY switch, and it was written against a much older
+  version of that script: against the current one the two are inverted — "Enable"
+  sends LOW, which selects `EK3_SRC1_POSXY/VELXY = 0/0`, the no-aiding set, not
+  GPS. The switch is also edge-triggered on an aux cache the automated flight
+  events never touch and has no neutral position (unlike the landing switch on
+  304), so a GCS press can be silently dropped, and with `STARNAV_ENABLE = 0` it
+  is swallowed entirely. `OI-Starnav.json` drives `STARNAV_ENABLE` through
+  `SCRIPTING_6` instead, which is the control the current script supports.
 - `.github/workflows/oi-windows.yml` — the only workflow. `.github/actions/*`,
   `.github/scripts/*` and `.github/build-config.json` are upstream's, reused
   unchanged (Qt version, GStreamer version, build steps).

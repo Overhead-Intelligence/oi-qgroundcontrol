@@ -86,8 +86,13 @@ private:
     /// previous OI build (or stock QGC) into a fresh settings file. Runs from the constructor.
     void _importLegacySettings();
 
-    /// Copies custom/res/OI-Actions.json into the MavlinkActions save folder (overwrites the OI copy only).
+    /// Copies the bundled per-capability actions files into the MavlinkActions save folder
+    /// (overwrites the OI copies only). None is enabled by default; a kit ticks what it has.
     void _deployBundledActions();
+
+    /// Removes the combined OI-Actions.json shipped up to 1.0.1, but only if the operator has
+    /// not edited it, and drops its name from both actions settings. Runs once per settings file.
+    void _retireLegacyActionsFile();
 
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
     OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers

@@ -25,7 +25,9 @@
     <!-- OI-only resources, read by OIPlugin.cc -->
     <qresource prefix="/custom">
         <file alias="OI-defaults.ini">res/OI-defaults.ini</file>
-        <file alias="OI-Actions.json">res/OI-Actions.json</file>
+        <file alias="OI-Gripper.json">res/OI-Gripper.json</file>
+        <file alias="OI-Starnav.json">res/OI-Starnav.json</file>
+        <file alias="OI-WingtipLights.json">res/OI-WingtipLights.json</file>
         <file alias="OILogoMark.svg">res/Images/OILogoMark.svg</file>
         <file alias="OILogoMarkWhite.svg">res/Images/OILogoMarkWhite.svg</file>
     </qresource>
