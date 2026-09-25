@@ -24,6 +24,10 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardController.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardController.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardSettings.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardSettings.h
     CACHE INTERNAL "" FORCE
 )
 

@@ -25,6 +25,7 @@ set(_generated_qml_names
     CommLinksSettings.qml
     FlyViewSettings.qml
     GeneralSettings.qml
+    KeyboardSettings.qml
     LoggingSettings.qml
     MapsSettings.qml
     NTRIPSettings.qml

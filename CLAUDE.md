@@ -106,6 +106,55 @@ overrides as he names things. A complete 5.0 port is parked on branch
   is migrated rather than reset. Over that cap the manager draws **nothing** and says so.
   Do not "fix" that by truncating to the first N: a partial hazard overlay looks
   complete, which is more dangerous than an absent one.
+- `custom/src/OIKeyboardController.{h,cc}` — keyboard guided control, the
+  `OIKeyboard` singleton in `OI.Controls`. An application-wide event filter, so it
+  is constructed in `OIPlugin::init()` before the QML engine. **Every control is a
+  discrete absolute step, and that is a measurement, not a style choice** (SITL,
+  ArduPlane 4.6.3, quadplane): `SET_POSITION_TARGET_LOCAL_NED` offsets - what QGC
+  sends for an altitude change - accumulate in `next_WP_loc.alt` with no bound, so
+  20 presses reach the ground from 60 m and a min-alt fence only reacts (16 m
+  reached against a 40 m floor). `GUIDED_CHANGE_ALTITUDE` is unusable: its param3
+  rate limit delivers ~2% of what is asked, and using it once latches
+  `ModeGuided::update_target_altitude()` into its slew branch for the rest of the
+  GUIDED session, which would silently disable QGC's altitude slider.
+  `GUIDED_CHANGE_HEADING` works in forward flight (param3 *is* a real rate limit)
+  but is acked and ignored in a VTOL hover, so heading is gated on
+  `vtolInFwdFlight` in the GCS - **do not gate it on the ack**. Four of the six
+  command/regime combinations tested are accepted no-ops.
+  The altitude target is tracked in the controller and double-clamped: to the Fly
+  View guided min/max, and to `altitudeLead` ahead of measured altitude so a held
+  key cannot queue a descent the aircraft has not started.
+  **`enabled` and `canAct` are different things and must stay that way.** `enabled`
+  is the operator's standing preference, a persisted fact changed only from the
+  Keyboard page; `canAct` is derived per moment (enabled + armed + flying + Guided)
+  and gates the keys. An earlier version collapsed the two and switched the feature
+  off on any mode change, vehicle change or focus loss, which meant one fat-fingered
+  mode key silently disabled it until the operator went back to settings. Esc
+  cancels a pending mode confirmation only.
+  **Only heading and altitude are gated on `canAct`.** Gimbal and flight mode
+  hotkeys are deliberately unrestricted - a gimbal cannot move the aircraft, and
+  the mode hotkey's two-press confirmation is its guard. Restricting those only
+  blocked legitimate pre-flight use.
+  `custom/src/qml/OIKeyboardIndicator.qml` is the Fly view readout, registered
+  through `QGCCorePlugin::toolBarIndicators()` - a supported hook, so no stock QML
+  is overridden. The flight mode confirmation lives there rather than in a dialog:
+  `showMessageDialog` would take focus and swallow the second key press it asks for.
+  Key conflicts are compared by resolved key code, so "a" and "A" collide.
+  **Steps snap to a grid, and the snap is taken from the tracked target, never
+  from the live heading or altitude.** Snapping from the live value would make a
+  second press before the aircraft reached the first target compute the same grid
+  line and do nothing. Heading steps are restricted to factors of 360 so the grid
+  survives the wrap; a non-factor leaves the grid permanently offset after a lap.
+  The altitude path sends the autopilot a *relative* offset that it accumulates,
+  so the GCS target and `next_WP_loc.alt` must not drift apart - verified in SITL
+  over a 16-press sequence including both clamps (`res_snap.txt`), 0 mismatches.
+  `custom/src/qml/OIKeyboardSettingsPage.qml` is the Settings → Keyboard section;
+  it lives in Application Settings rather than beside the Joystick tab because no
+  `QGCCorePlugin` hook adds a Vehicle Setup component, and binding keys should not
+  need a connected aircraft. A generated settings page must also be listed in
+  `_generated_qml_names` in `src/AppSettings/CMakeLists.txt`: the generator writes it
+  into the build tree regardless, but without that entry it is never added to the
+  QML module and the page renders **empty** with no error anywhere.
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
   actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.

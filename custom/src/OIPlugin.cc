@@ -28,6 +28,7 @@
 #include "InstrumentValueData.h"
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
+#include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
 #include "QmlComponentInfo.h"
@@ -193,6 +194,11 @@ void OIPlugin::init()
     // "import OI.Controls" and reach the manager.
     _mapOverlays = new OIMapOverlayManager(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIMapOverlays", _mapOverlays);
+
+    // Installs an application-wide key filter, so it must exist before the QML
+    // engine does. It stays disarmed until an operator arms it.
+    _keyboard = new OIKeyboardController(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
 }
 
 QString OIPlugin::stableDownloadLocation() const
@@ -227,6 +233,21 @@ const QVariantList &OIPlugin::analyzePages()
     }
 
     return _analyzePages;
+}
+
+/*===========================================================================*/
+
+const QVariantList &OIPlugin::toolBarIndicators()
+{
+    if (_toolBarIndicators.isEmpty()) {
+        // Start from the stock list so upstream additions keep appearing, then add
+        // the keyboard readout. It hides itself unless keyboard control is enabled.
+        _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
+    }
+
+    return _toolBarIndicators;
 }
 
 /*===========================================================================*/
