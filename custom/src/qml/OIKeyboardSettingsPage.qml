@@ -39,7 +39,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Keyboard Control")
-            headingDescription: qsTr("This switch is the only thing that turns keyboard control on and off. It stays as you leave it across flights and restarts. Keys still do nothing unless the vehicle is armed, flying and in Guided - the line below says which of those is missing.")
+            headingDescription: qsTr("Enable/disable the use of the hotkeys below. The line below this toggle indicates if there any missing conditions for use of the Heading and Altitude keys.")
 
             // Always available: turning the feature on or off is a decision the pilot
             // makes between flights, not something that needs a vehicle present.
@@ -72,7 +72,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Heading")
-            headingDescription: qsTr("Each press turns the aircraft by one step. Heading control needs forward flight: in a VTOL hover ArduPlane accepts the command and then ignores it, so the keys do nothing there and the status line says so.")
+            headingDescription: qsTr("Each press shifts the heading target by one step, respecting the set turn bank limit. However, ROLL_LIMIT_DEG still determines the maximum bank these commands can force.")
 
             LabelledFactTextField {
                 Layout.fillWidth:           true
@@ -104,7 +104,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Altitude")
-            headingDescription: qsTr("Each press moves the target altitude by one step. The target is held here and clamped to the Fly View guided minimum and maximum (currently %1 to %2 m above home), because the autopilot applies no limit of its own.")
+            headingDescription: qsTr("Each press shifts the altitude target by one step. The maximum target lead determines how large of an altitude shift can be commanded before altitude commands are blocked until the drone reaches its target. The target can never exceed your Fly View's configured Minimum & Maximum altitudes (currently %1m and %2m).")
                                     .arg(QGroundControl.settingsManager.flyViewSettings.guidedMinimumAltitude.value)
                                     .arg(QGroundControl.settingsManager.flyViewSettings.guidedMaximumAltitude.value)
 
@@ -133,21 +133,13 @@ Item {
                 label:                      _settings.altitudeLead.label
             }
 
-            QGCLabel {
-                Layout.fillWidth:       true
-                Layout.minimumWidth:    0
-                wrapMode:               Text.WordWrap
-                font.pointSize:         ScreenTools.smallFontPointSize
-                text:                   qsTr("Those limits are measured above the point the aircraft armed, not above the ground beneath it. Over rising terrain the floor can sit below the surface.")
-                color:                  qgcPal.warningText
-            }
         }
 
         // ------------------------------------------------------------ gimbal
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Gimbal")
-            headingDescription: qsTr("Each press moves the gimbal by one step, sent as an absolute angle. Mode cycles through Follow, Lock, Retract and Neutral.")
+            headingDescription: qsTr("Each press moves the gimbal by one step, sent as an absolute angle. Mode cycles through Follow, Lock, Retract and Neutral. Gimbal keys work in any flight mode, including on the ground.")
 
             LabelledFactTextField {
                 Layout.fillWidth:           true
@@ -203,7 +195,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Flight Mode Hotkeys")
-            headingDescription: qsTr("A press opens a confirmation; a second press of the same key within the timeout sends the mode change, and Esc cancels the confirmation. Changing mode leaves Guided, so the other keys stop working until the vehicle is back in Guided - the feature itself stays on.")
+            headingDescription: qsTr("For each configured hotkey in the list below, a confirmation will appear upon the first press for the configured timeout duration. Press again to confirm, or press ESC to cancel.")
 
             FactCheckBoxSlider {
                 Layout.fillWidth:   true
@@ -293,6 +285,25 @@ Item {
                 visible:                _settings.modeHotkeysEnabled.rawValue &&
                                         OIKeyboard.availableModes().length === 0
                 text:                   qsTr("Connect a vehicle to see its flight modes.")
+            }
+        }
+
+        // ------------------------------------------------------ key conflicts
+        SettingsGroupLayout {
+            Layout.fillWidth:   true
+            visible:            OIKeyboard.keyConflicts.length > 0
+            heading:            qsTr("Key Conflicts")
+
+            Repeater {
+                model: OIKeyboard.keyConflicts
+
+                QGCLabel {
+                    Layout.fillWidth:       true
+                    Layout.minimumWidth:    0
+                    wrapMode:               Text.WordWrap
+                    color:                  qgcPal.warningText
+                    text:                   modelData
+                }
             }
         }
     }

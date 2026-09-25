@@ -131,6 +131,15 @@ overrides as he names things. A complete 5.0 port is parked on branch
   off on any mode change, vehicle change or focus loss, which meant one fat-fingered
   mode key silently disabled it until the operator went back to settings. Esc
   cancels a pending mode confirmation only.
+  **Only heading and altitude are gated on `canAct`.** Gimbal and flight mode
+  hotkeys are deliberately unrestricted - a gimbal cannot move the aircraft, and
+  the mode hotkey's two-press confirmation is its guard. Restricting those only
+  blocked legitimate pre-flight use.
+  `custom/src/qml/OIKeyboardIndicator.qml` is the Fly view readout, registered
+  through `QGCCorePlugin::toolBarIndicators()` - a supported hook, so no stock QML
+  is overridden. The flight mode confirmation lives there rather than in a dialog:
+  `showMessageDialog` would take focus and swallow the second key press it asks for.
+  Key conflicts are compared by resolved key code, so "a" and "A" collide.
   `custom/src/qml/OIKeyboardSettingsPage.qml` is the Settings → Keyboard section;
   it lives in Application Settings rather than beside the Joystick tab because no
   `QGCCorePlugin` hook adds a Vehicle Setup component, and binding keys should not

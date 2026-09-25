@@ -237,6 +237,21 @@ const QVariantList &OIPlugin::analyzePages()
 
 /*===========================================================================*/
 
+const QVariantList &OIPlugin::toolBarIndicators()
+{
+    if (_toolBarIndicators.isEmpty()) {
+        // Start from the stock list so upstream additions keep appearing, then add
+        // the keyboard readout. It hides itself unless keyboard control is enabled.
+        _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
+    }
+
+    return _toolBarIndicators;
+}
+
+/*===========================================================================*/
+
 void OIPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData &metaData, bool &userVisible)
 {
     QGCCorePlugin::adjustSettingMetaData(settingsGroup, metaData, userVisible);

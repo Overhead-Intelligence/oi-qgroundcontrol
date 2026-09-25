@@ -58,8 +58,11 @@
 #include <QtCore/QLoggingCategory>
 #include <QtCore/QObject>
 #include <QtCore/QPointer>
+#include <QtCore/QPair>
 #include <QtCore/QString>
+#include <QtCore/QStringList>
 #include <QtCore/QTimer>
+#include <QtCore/QVariantList>
 
 class QEvent;
 class Vehicle;
@@ -104,7 +107,15 @@ class OIKeyboardController : public QObject
     Q_PROPERTY(bool     headingUsable   READ headingUsable                  NOTIFY stateChanged)
     Q_PROPERTY(double   altitudeTarget  READ altitudeTarget                 NOTIFY stateChanged)
     Q_PROPERTY(bool     altitudeTargetValid READ altitudeTargetValid        NOTIFY stateChanged)
+    Q_PROPERTY(double   headingTarget   READ headingTarget                  NOTIFY stateChanged)
+    Q_PROPERTY(bool     headingTargetValid READ headingTargetValid           NOTIFY stateChanged)
+    /// Transient, operator-facing reason a key press did nothing. Clears itself.
+    Q_PROPERTY(QString  warningText     READ warningText                    NOTIFY warningChanged)
     Q_PROPERTY(QString  pendingModeName READ pendingModeName                NOTIFY pendingModeChanged)
+    Q_PROPERTY(int      pendingSeconds  READ pendingSeconds                 NOTIFY pendingModeChanged)
+    /// Human-readable descriptions of keys bound to more than one action. While a
+    /// key is in conflict every action using it is disabled.
+    Q_PROPERTY(QStringList keyConflicts READ keyConflicts                   NOTIFY keyConflictsChanged)
     Q_PROPERTY(QmlObjectListModel* modeHotkeys READ modeHotkeys             CONSTANT)
     /// The OIKeyboard settings group. Owned here rather than by SettingsManager,
     /// which would be a src/ change for no gain.
@@ -131,7 +142,16 @@ public:
     double altitudeTarget() const { return _altitudeTarget; }
     bool altitudeTargetValid() const { return _altitudeTargetValid; }
 
+    double headingTarget() const { return _headingTarget; }
+    bool headingTargetValid() const { return _headingTargetValid; }
+    QString warningText() const { return _warningText; }
     QString pendingModeName() const { return _pendingModeName; }
+    int pendingSeconds() const;
+    QStringList keyConflicts() const { return _keyConflicts; }
+
+    /// One row per bound action, for the Fly view quick reference:
+    /// { "action": ..., "key": ..., "conflict": bool }.
+    Q_INVOKABLE QVariantList bindingList() const;
     QmlObjectListModel *modeHotkeys() const { return _modeHotkeys; }
     QObject *settingsObject() const;
 
@@ -148,11 +168,14 @@ signals:
     void enabledChanged();
     void stateChanged();
     void pendingModeChanged();
+    void warningChanged();
+    void keyConflictsChanged();
 
 private slots:
     void _activeVehicleChanged(Vehicle *vehicle);
     void _recomputeState();
     void _confirmTimeout();
+    void _rebuildKeyConflicts();
 
 private:
     bool _handleKey(int key, Qt::KeyboardModifiers modifiers);
@@ -168,6 +191,11 @@ private:
     void _reseedAltitudeTarget();
     void _loadModeHotkeys();
     void _setStatus(const QString &text);
+    void _setWarning(const QString &text);
+    /// Every bound action as (label, key string). The single source of truth for
+    /// both conflict detection and the quick reference, so they cannot disagree.
+    QList<QPair<QString, QString>> _bindings() const;
+    bool _keyIsConflicted(int key) const;
     Vehicle *_vehicle() const;
 
     OIKeyboardSettings *_settings = nullptr;
@@ -193,6 +221,12 @@ private:
     QString _pendingModeName;
     int _pendingModeKey = 0;
     QTimer _confirmTimer;
+
+    QString _warningText;
+    QTimer _warningTimer;
+
+    QStringList _keyConflicts;      ///< human-readable, for the settings page
+    QList<int> _conflictedKeys;     ///< resolved key codes that are disabled
 
     /// Re-seeding the altitude target from the aircraft is only safe once it has
     /// settled; this tracks when the last step was commanded.

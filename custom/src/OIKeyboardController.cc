@@ -21,6 +21,7 @@
 #include "Vehicle.h"
 
 #include <QtCore/QCoreApplication>
+#include <QtCore/QMap>
 #include <QtCore/QSettings>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QKeySequence>
@@ -96,6 +97,23 @@ OIKeyboardController::OIKeyboardController(QObject *parent)
     (void) connect(&_confirmTimer, &QTimer::timeout, this, &OIKeyboardController::_confirmTimeout);
 
     _loadModeHotkeys();
+    _rebuildKeyConflicts();
+
+    _warningTimer.setSingleShot(true);
+    _warningTimer.setInterval(6000);
+    (void) connect(&_warningTimer, &QTimer::timeout, this, [this]() {
+        _warningText.clear();
+        emit warningChanged();
+    });
+
+    // Any binding change can create or clear a conflict.
+    for (Fact *const fact : { _settings->headingLeftKey(), _settings->headingRightKey(),
+                              _settings->altitudeUpKey(), _settings->altitudeDownKey(),
+                              _settings->gimbalPitchUpKey(), _settings->gimbalPitchDownKey(),
+                              _settings->gimbalYawLeftKey(), _settings->gimbalYawRightKey(),
+                              _settings->gimbalNextModeKey(), _settings->gimbalPrevModeKey() }) {
+        (void) connect(fact, &Fact::rawValueChanged, this, &OIKeyboardController::_rebuildKeyConflicts);
+    }
 
     (void) connect(_settings->enabled(), &Fact::rawValueChanged, this, [this]() {
         _clearPendingMode();
@@ -211,6 +229,21 @@ void OIKeyboardController::setEnabled(bool enabled)
     _settings->enabled()->setRawValue(enabled);
 }
 
+void OIKeyboardController::_setWarning(const QString &text)
+{
+    // Always re-emit, even for the same text: a repeated press should visibly
+    // re-trigger rather than look like nothing happened.
+    _warningText = text;
+    _warningTimer.start();
+    emit warningChanged();
+    qCDebug(OIKeyboardLog) << "blocked:" << text;
+}
+
+int OIKeyboardController::pendingSeconds() const
+{
+    return _confirmTimer.isActive() ? ((_confirmTimer.remainingTime() + 999) / 1000) : 0;
+}
+
 void OIKeyboardController::_setStatus(const QString &text)
 {
     if (text != _statusText) {
@@ -314,8 +347,14 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
 {
     Q_UNUSED(modifiers);
 
-    if (!_canAct) {
+    if (!enabled()) {
         return false;
+    }
+
+    if (_keyIsConflicted(key)) {
+        _setWarning(tr("That key is bound to more than one action. Both are disabled "
+                       "until the conflict is resolved in Settings > Keyboard."));
+        return true;
     }
 
     // A pending mode confirmation swallows its own key as the acceptance.
@@ -328,22 +367,8 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
         _clearPendingMode();
     }
 
-    if (_matches(_settings->headingLeftKey()->rawValue().toString(), key)) {
-        _stepHeading(-1);
-        return true;
-    }
-    if (_matches(_settings->headingRightKey()->rawValue().toString(), key)) {
-        _stepHeading(1);
-        return true;
-    }
-    if (_matches(_settings->altitudeUpKey()->rawValue().toString(), key)) {
-        _stepAltitude(1);
-        return true;
-    }
-    if (_matches(_settings->altitudeDownKey()->rawValue().toString(), key)) {
-        _stepAltitude(-1);
-        return true;
-    }
+    // ---- Gimbal. No flight-state restriction at all: pointing a camera cannot move
+    // the aircraft, and being able to check the gimbal on the ground is the point.
     if (_matches(_settings->gimbalPitchUpKey()->rawValue().toString(), key)) {
         _stepGimbalPitch(1);
         return true;
@@ -369,7 +394,36 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
         return true;
     }
 
-    return _tryModeHotkey(key);
+    // ---- Flight mode hotkeys. Also unrestricted: the two-press confirmation is the
+    // guard, and a pilot who deliberately confirms a mode change on the ground meant
+    // it. Restricting these would only stop legitimate pre-flight use.
+    if (_tryModeHotkey(key)) {
+        return true;
+    }
+
+    // ---- Heading and altitude. These fly the aircraft, so they need Guided.
+    const bool headingKey =
+        _matches(_settings->headingLeftKey()->rawValue().toString(), key) ||
+        _matches(_settings->headingRightKey()->rawValue().toString(), key);
+    const bool altitudeKey =
+        _matches(_settings->altitudeUpKey()->rawValue().toString(), key) ||
+        _matches(_settings->altitudeDownKey()->rawValue().toString(), key);
+
+    if (!headingKey && !altitudeKey) {
+        return false;
+    }
+
+    if (!_canAct) {
+        _setWarning(_statusText);
+        return true;
+    }
+
+    if (headingKey) {
+        _stepHeading(_matches(_settings->headingLeftKey()->rawValue().toString(), key) ? -1 : 1);
+    } else {
+        _stepAltitude(_matches(_settings->altitudeUpKey()->rawValue().toString(), key) ? 1 : -1);
+    }
+    return true;
 }
 
 /*===========================================================================*/
@@ -381,7 +435,8 @@ void OIKeyboardController::_stepHeading(int direction)
         return;
     }
     if (!_headingUsable) {
-        _setStatus(tr("Heading keys need forward flight"));
+        _setWarning(tr("Heading keys need forward flight. ArduPlane accepts the command "
+                       "in a VTOL hover and then ignores it."));
         return;
     }
 
@@ -440,30 +495,37 @@ void OIKeyboardController::_stepAltitude(int direction)
     const double step = _settings->altitudeStep()->rawValue().toDouble();
     const double lead = _settings->altitudeLead()->rawValue().toDouble();
 
-    double wanted = _altitudeTarget + (direction * step);
+    const double wanted = _altitudeTarget + (direction * step);
 
-    // Two separate clamps, both needed. The absolute one is the operator guard:
-    // the firmware accumulates these offsets with no bound of its own, so 20 presses
-    // will fly the aircraft into the ground (measured in SITL). The lead clamp stops
-    // a held key queueing a descent the aircraft has not begun - current altitude
-    // lags the target during a descent, so clamping on current altitude alone lets
-    // each press push the target further down.
+    // Two clamps, and they behave differently on purpose.
+    //
+    // The guided min/max is a boundary: a step that would cross it lands exactly on
+    // it, so the operator can still reach the floor from 2 m above it. Only a press
+    // that cannot move at all is refused.
+    //
+    // The lead is a rate-of-commitment guard, so it refuses the WHOLE step rather
+    // than applying a sliver. The first flight showed why: pressing quickly produced
+    // steps of 0.4 m, 0.3 m, 0.1 m with no explanation, which reads as the key being
+    // broken. Refusing outright and saying why is honest and predictable.
     const double clampedToLimits = qBound(minAlt, wanted, maxAlt);
-    const double clampedToLead = qBound(current - lead, clampedToLimits, current + lead);
 
-    if (qAbs(clampedToLead - _altitudeTarget) < 0.01) {
-        if (clampedToLimits != wanted) {
-            _setStatus(direction > 0
-                           ? tr("At the guided maximum altitude (%1 m)").arg(maxAlt, 0, 'f', 0)
-                           : tr("At the guided minimum altitude (%1 m)").arg(minAlt, 0, 'f', 0));
-        } else {
-            _setStatus(tr("Waiting for the aircraft to catch up"));
-        }
+    if (qAbs(clampedToLimits - _altitudeTarget) < 0.01) {
+        _setWarning(direction > 0
+                        ? tr("Altitude target is at the Fly View maximum (%1 m). Cannot climb further.")
+                              .arg(maxAlt, 0, 'f', 0)
+                        : tr("Altitude target is at the Fly View minimum (%1 m). Cannot descend further.")
+                              .arg(minAlt, 0, 'f', 0));
         return;
     }
 
-    const double delta = clampedToLead - _altitudeTarget;
-    _altitudeTarget = clampedToLead;
+    if ((clampedToLimits > current + lead) || (clampedToLimits < current - lead)) {
+        _setWarning(tr("Altitude target is %1 m from the current altitude, the maximum lead. "
+                       "Please wait for the aircraft to catch up.").arg(lead, 0, 'f', 0));
+        return;
+    }
+
+    const double delta = clampedToLimits - _altitudeTarget;
+    _altitudeTarget = clampedToLimits;
     _sinceLastAltitudeStep.start();
 
     // Uses the stock guided path so behaviour matches the altitude slider exactly.
@@ -481,6 +543,7 @@ void OIKeyboardController::_stepGimbalPitch(int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
+        _setWarning(tr("No vehicle with a gimbal is connected"));
         return;
     }
 
@@ -496,6 +559,7 @@ void OIKeyboardController::_stepGimbalYaw(int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
+        _setWarning(tr("No vehicle with a gimbal is connected"));
         return;
     }
 
@@ -511,6 +575,7 @@ void OIKeyboardController::_cycleGimbalMode(int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
+        _setWarning(tr("No vehicle with a gimbal is connected"));
         return;
     }
 
@@ -551,17 +616,18 @@ bool OIKeyboardController::_tryModeHotkey(int key)
         return false;
     }
     Vehicle *const vehicle = _vehicle();
-    if (!vehicle) {
-        return false;
-    }
 
     for (int i = 0; i < _modeHotkeys->count(); i++) {
         const OIModeHotkey *const hotkey = _modeHotkeys->value<OIModeHotkey*>(i);
         if (!hotkey || !_matches(hotkey->key(), key)) {
             continue;
         }
+        if (!vehicle) {
+            _setWarning(tr("No vehicle connected, cannot change flight mode"));
+            return true;
+        }
         if (!vehicle->flightModes().contains(hotkey->mode())) {
-            _setStatus(tr("%1 is not available on this vehicle").arg(hotkey->mode()));
+            _setWarning(tr("%1 is not a flight mode this vehicle offers").arg(hotkey->mode()));
             return true;
         }
 
@@ -616,6 +682,85 @@ void OIKeyboardController::_confirmTimeout()
 
 /*===========================================================================*/
 
+QList<QPair<QString, QString>> OIKeyboardController::_bindings() const
+{
+    QList<QPair<QString, QString>> rows;
+    const auto add = [&rows](const QString &label, Fact *fact) {
+        const QString key = fact->rawValue().toString().trimmed();
+        if (!key.isEmpty()) {
+            rows.append(qMakePair(label, key));
+        }
+    };
+    add(tr("Turn left"),            _settings->headingLeftKey());
+    add(tr("Turn right"),           _settings->headingRightKey());
+    add(tr("Climb"),                _settings->altitudeUpKey());
+    add(tr("Descend"),              _settings->altitudeDownKey());
+    add(tr("Gimbal up"),            _settings->gimbalPitchUpKey());
+    add(tr("Gimbal down"),          _settings->gimbalPitchDownKey());
+    add(tr("Gimbal left"),          _settings->gimbalYawLeftKey());
+    add(tr("Gimbal right"),         _settings->gimbalYawRightKey());
+    add(tr("Next gimbal mode"),     _settings->gimbalNextModeKey());
+    add(tr("Previous gimbal mode"), _settings->gimbalPrevModeKey());
+
+    for (int i = 0; i < _modeHotkeys->count(); i++) {
+        const OIModeHotkey *const hotkey = _modeHotkeys->value<OIModeHotkey*>(i);
+        if (hotkey && !hotkey->key().trimmed().isEmpty()) {
+            rows.append(qMakePair(tr("Flight mode: %1").arg(hotkey->mode()), hotkey->key().trimmed()));
+        }
+    }
+    return rows;
+}
+
+void OIKeyboardController::_rebuildKeyConflicts()
+{
+    // Group by resolved key code, not by the typed string: "a" and "A" are the
+    // same key and must still be caught.
+    QMap<int, QStringList> byKey;
+    for (const auto &row : _bindings()) {
+        const QKeySequence sequence = QKeySequence::fromString(row.second, QKeySequence::PortableText);
+        if (sequence.isEmpty()) {
+            continue;
+        }
+        byKey[sequence[0].key()].append(row.first);
+    }
+
+    QStringList conflicts;
+    QList<int> conflicted;
+    for (auto it = byKey.constBegin(); it != byKey.constEnd(); ++it) {
+        if (it.value().count() > 1) {
+            conflicted.append(it.key());
+            conflicts.append(tr("%1 - all disabled until this is resolved")
+                                 .arg(it.value().join(QStringLiteral(", "))));
+        }
+    }
+
+    if ((conflicts != _keyConflicts) || (conflicted != _conflictedKeys)) {
+        _keyConflicts = conflicts;
+        _conflictedKeys = conflicted;
+        emit keyConflictsChanged();
+    }
+}
+
+bool OIKeyboardController::_keyIsConflicted(int key) const
+{
+    return _conflictedKeys.contains(key);
+}
+
+QVariantList OIKeyboardController::bindingList() const
+{
+    QVariantList rows;
+    for (const auto &row : _bindings()) {
+        const QKeySequence sequence = QKeySequence::fromString(row.second, QKeySequence::PortableText);
+        QVariantMap entry;
+        entry[QStringLiteral("action")] = row.first;
+        entry[QStringLiteral("key")] = row.second;
+        entry[QStringLiteral("conflict")] =
+            !sequence.isEmpty() && _conflictedKeys.contains(sequence[0].key());
+        rows.append(entry);
+    }
+    return rows;
+}
+
 QObject *OIKeyboardController::settingsObject() const
 {
     return _settings;
@@ -633,6 +778,7 @@ void OIKeyboardController::addModeHotkey(const QString &key, const QString &mode
     QQmlEngine::setObjectOwnership(hotkey, QQmlEngine::CppOwnership);
     (void) _modeHotkeys->append(hotkey);
     saveModeHotkeys();
+    _rebuildKeyConflicts();
 }
 
 void OIKeyboardController::removeModeHotkey(int index)
@@ -645,6 +791,7 @@ void OIKeyboardController::removeModeHotkey(int index)
         hotkey->deleteLater();
     }
     saveModeHotkeys();
+    _rebuildKeyConflicts();
 }
 
 void OIKeyboardController::saveModeHotkeys()

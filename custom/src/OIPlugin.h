@@ -77,6 +77,9 @@ public:
     /// Stock Analyze pages plus the OI "Onboard Files" MAVLink FTP browser.
     const QVariantList &analyzePages() final;
 
+    /// Stock toolbar indicators plus the keyboard control target readout.
+    const QVariantList &toolBarIndicators() final;
+
     /// No first-run "Preferences" prompt: the OI defaults already answer the vehicle and units
     /// questions (both false makes firstRunPromptStdIds() empty).
     bool showInitialSetupVehiclePreferences() const final { return false; }
@@ -99,6 +102,7 @@ private:
     OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers
     OIKeyboardController *_keyboard = nullptr;      ///< keyboard guided control
     QVariantList _analyzePages;                     ///< built once on the first analyzePages() call
+    QVariantList _toolBarIndicators;                ///< built once on the first toolBarIndicators() call
     QQmlApplicationEngine *_qmlEngine = nullptr;
     OIUrlInterceptor *_urlInterceptor = nullptr;
 };
