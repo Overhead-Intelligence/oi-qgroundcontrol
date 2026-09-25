@@ -29,6 +29,21 @@ Item {
     property var  _settings:   OIKeyboard.settings
     property real _fieldWidth: ScreenTools.defaultFontPixelWidth * 12
 
+    /// A key string is in conflict when the quick-reference list flags it. Read from
+    /// bindingList() so the page and the Fly view indicator can never disagree.
+    function _conflictedKeyText(keyText) {
+        if (keyText === "") {
+            return false
+        }
+        var rows = OIKeyboard.bindingList()
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i].key === keyText && rows[i].conflict) {
+                return true
+            }
+        }
+        return false
+    }
+
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
     ColumnLayout {
@@ -74,17 +89,21 @@ Item {
             heading:            qsTr("Heading")
             headingDescription: qsTr("Each press shifts the heading target by one step, respecting the set turn bank limit. However, ROLL_LIMIT_DEG still determines the maximum bank these commands can force.")
 
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.headingLeftKey
-                label:                      _settings.headingLeftKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.headingLeftKey.label
+                keyText:            _settings.headingLeftKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.headingLeftKey.rawValue)
+                onKeyChosen:        (key) => _settings.headingLeftKey.rawValue = key
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.headingRightKey
-                label:                      _settings.headingRightKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.headingRightKey.label
+                keyText:            _settings.headingRightKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.headingRightKey.rawValue)
+                onKeyChosen:        (key) => _settings.headingRightKey.rawValue = key
             }
             LabelledFactComboBox {
                 Layout.fillWidth:   true
@@ -107,17 +126,21 @@ Item {
                                     .arg(QGroundControl.settingsManager.flyViewSettings.guidedMinimumAltitude.value)
                                     .arg(QGroundControl.settingsManager.flyViewSettings.guidedMaximumAltitude.value)
 
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.altitudeUpKey
-                label:                      _settings.altitudeUpKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.altitudeUpKey.label
+                keyText:            _settings.altitudeUpKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.altitudeUpKey.rawValue)
+                onKeyChosen:        (key) => _settings.altitudeUpKey.rawValue = key
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.altitudeDownKey
-                label:                      _settings.altitudeDownKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.altitudeDownKey.label
+                keyText:            _settings.altitudeDownKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.altitudeDownKey.rawValue)
+                onKeyChosen:        (key) => _settings.altitudeDownKey.rawValue = key
             }
             LabelledFactComboBox {
                 Layout.fillWidth:   true
@@ -139,17 +162,21 @@ Item {
             heading:            qsTr("Gimbal")
             headingDescription: qsTr("Each press moves the gimbal by one step, sent as an absolute angle. Mode cycles through Follow, Lock, Retract and Neutral. Gimbal keys work in any flight mode, including on the ground.")
 
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.gimbalPitchUpKey
-                label:                      _settings.gimbalPitchUpKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.gimbalPitchUpKey.label
+                keyText:            _settings.gimbalPitchUpKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.gimbalPitchUpKey.rawValue)
+                onKeyChosen:        (key) => _settings.gimbalPitchUpKey.rawValue = key
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.gimbalPitchDownKey
-                label:                      _settings.gimbalPitchDownKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.gimbalPitchDownKey.label
+                keyText:            _settings.gimbalPitchDownKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.gimbalPitchDownKey.rawValue)
+                onKeyChosen:        (key) => _settings.gimbalPitchDownKey.rawValue = key
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
@@ -157,17 +184,21 @@ Item {
                 fact:                       _settings.gimbalPitchStep
                 label:                      _settings.gimbalPitchStep.label
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.gimbalYawLeftKey
-                label:                      _settings.gimbalYawLeftKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.gimbalYawLeftKey.label
+                keyText:            _settings.gimbalYawLeftKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.gimbalYawLeftKey.rawValue)
+                onKeyChosen:        (key) => _settings.gimbalYawLeftKey.rawValue = key
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.gimbalYawRightKey
-                label:                      _settings.gimbalYawRightKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.gimbalYawRightKey.label
+                keyText:            _settings.gimbalYawRightKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.gimbalYawRightKey.rawValue)
+                onKeyChosen:        (key) => _settings.gimbalYawRightKey.rawValue = key
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
@@ -175,17 +206,21 @@ Item {
                 fact:                       _settings.gimbalYawStep
                 label:                      _settings.gimbalYawStep.label
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.gimbalNextModeKey
-                label:                      _settings.gimbalNextModeKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.gimbalNextModeKey.label
+                keyText:            _settings.gimbalNextModeKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.gimbalNextModeKey.rawValue)
+                onKeyChosen:        (key) => _settings.gimbalNextModeKey.rawValue = key
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.gimbalPrevModeKey
-                label:                      _settings.gimbalPrevModeKey.label
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.gimbalPrevModeKey.label
+                keyText:            _settings.gimbalPrevModeKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.gimbalPrevModeKey.rawValue)
+                onKeyChosen:        (key) => _settings.gimbalPrevModeKey.rawValue = key
             }
         }
 
@@ -217,24 +252,15 @@ Item {
                     spacing:            ScreenTools.defaultFontPixelWidth
                     visible:            _settings.modeHotkeysEnabled.rawValue
 
-                    QGCLabel { text: qsTr("Press") }
-
-                    QGCTextField {
-                        Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
-                        text:                   object.key
-                        onEditingFinished: {
-                            object.key = text
+                    OIKeyBindField {
+                        Layout.fillWidth:   true
+                        label:              object.mode
+                        keyText:            object.key
+                        conflicted:         _conflictedKeyText(object.key)
+                        onKeyChosen: (key) => {
+                            object.key = key
                             OIKeyboard.saveModeHotkeys()
                         }
-                    }
-
-                    QGCLabel { text: qsTr("for") }
-
-                    QGCLabel {
-                        Layout.fillWidth:       true
-                        Layout.minimumWidth:    0
-                        elide:                  Text.ElideRight
-                        text:                   object.mode
                     }
 
                     QGCButton {
@@ -249,10 +275,31 @@ Item {
                 spacing:            ScreenTools.defaultFontPixelWidth
                 visible:            _settings.modeHotkeysEnabled.rawValue
 
-                QGCTextField {
-                    id:                     newKeyField
-                    Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
-                    placeholderText:        qsTr("Key")
+                QGCButton {
+                    id:                     newKeyButton
+                    Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 16
+                    property string chosen: ""
+                    property bool   waiting: false
+                    text:                   waiting ? qsTr("Press a key…")
+                                                    : (chosen === "" ? qsTr("Pick a key") : chosen)
+                    onClicked: {
+                        waiting = true
+                        OIKeyboard.beginKeyCapture()
+                    }
+                    Connections {
+                        target: OIKeyboard
+                        function onKeyCaptured(keyName) {
+                            if (newKeyButton.waiting) {
+                                newKeyButton.waiting = false
+                                newKeyButton.chosen = keyName
+                            }
+                        }
+                        function onCapturingKeyChanged() {
+                            if (!OIKeyboard.capturingKey) {
+                                newKeyButton.waiting = false
+                            }
+                        }
+                    }
                 }
 
                 QGCComboBox {
@@ -267,10 +314,10 @@ Item {
 
                 QGCButton {
                     text:       qsTr("Add")
-                    enabled:    newKeyField.text !== "" && newModeCombo.count > 0
+                    enabled:    newKeyButton.chosen !== "" && newModeCombo.count > 0
                     onClicked: {
-                        OIKeyboard.addModeHotkey(newKeyField.text, newModeCombo.currentText)
-                        newKeyField.text = ""
+                        OIKeyboard.addModeHotkey(newKeyButton.chosen, newModeCombo.currentText)
+                        newKeyButton.chosen = ""
                     }
                 }
             }

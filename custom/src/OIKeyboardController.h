@@ -118,6 +118,8 @@ class OIKeyboardController : public QObject
     /// Human-readable descriptions of keys bound to more than one action. While a
     /// key is in conflict every action using it is disabled.
     Q_PROPERTY(QStringList keyConflicts READ keyConflicts                   NOTIFY keyConflictsChanged)
+    /// True while waiting for the operator to press the key they want to bind.
+    Q_PROPERTY(bool     capturingKey    READ capturingKey                   NOTIFY capturingKeyChanged)
     Q_PROPERTY(QmlObjectListModel* modeHotkeys READ modeHotkeys             CONSTANT)
     /// The OIKeyboard settings group. Owned here rather than by SettingsManager,
     /// which would be a src/ change for no gain.
@@ -152,6 +154,15 @@ public:
     int pendingSeconds() const;
     QStringList keyConflicts() const { return _keyConflicts; }
 
+    bool capturingKey() const { return _capturingKey; }
+
+    /// Arms key capture. The next key press is swallowed and reported through
+    /// keyCaptured() instead of doing whatever it is bound to. Esc cancels.
+    /// Done here rather than with QML focus because this event filter sees keys
+    /// before the focused item does and would otherwise eat the very press being bound.
+    Q_INVOKABLE void beginKeyCapture();
+    Q_INVOKABLE void cancelKeyCapture();
+
     /// One row per bound action, for the Fly view quick reference:
     /// { "action": ..., "key": ..., "conflict": bool }.
     Q_INVOKABLE QVariantList bindingList() const;
@@ -173,6 +184,11 @@ signals:
     void pendingModeChanged();
     void warningChanged();
     void keyConflictsChanged();
+    void capturingKeyChanged();
+
+    /// The operator pressed a key while capture was armed. Empty is never emitted;
+    /// a cancel just clears capturingKey.
+    void keyCaptured(const QString &keyName);
 
 private slots:
     void _activeVehicleChanged(Vehicle *vehicle);
@@ -231,6 +247,8 @@ private:
     QString _warningText;
     QString _warningDetail;
     QTimer _warningTimer;
+
+    bool _capturingKey = false;
 
     QStringList _keyConflicts;      ///< human-readable, for the settings page
     QList<int> _conflictedKeys;     ///< resolved key codes that are disabled

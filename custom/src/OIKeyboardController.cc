@@ -285,6 +285,23 @@ void OIKeyboardController::_setWarning(const QString &text, const QString &detai
     qCDebug(OIKeyboardLog) << "blocked:" << text << detail;
 }
 
+void OIKeyboardController::beginKeyCapture()
+{
+    if (!_capturingKey) {
+        _capturingKey = true;
+        _clearPendingMode();
+        emit capturingKeyChanged();
+    }
+}
+
+void OIKeyboardController::cancelKeyCapture()
+{
+    if (_capturingKey) {
+        _capturingKey = false;
+        emit capturingKeyChanged();
+    }
+}
+
 int OIKeyboardController::pendingSeconds() const
 {
     return _confirmTimer.isActive() ? ((_confirmTimer.remainingTime() + 999) / 1000) : 0;
@@ -347,6 +364,40 @@ bool OIKeyboardController::eventFilter(QObject *watched, QEvent *event)
     }
 
     QKeyEvent *const keyEvent = static_cast<QKeyEvent*>(event);
+
+    // Capture runs before everything else, including the enabled() gate, so keys can
+    // be bound with the feature switched off. The press is always consumed so it
+    // cannot leak into whatever had focus behind the dialog.
+    if (_capturingKey) {
+        switch (keyEvent->key()) {
+        case Qt::Key_Escape:
+            cancelKeyCapture();
+            return true;
+        case Qt::Key_Shift:
+        case Qt::Key_Control:
+        case Qt::Key_Alt:
+        case Qt::Key_Meta:
+        case Qt::Key_AltGr:
+        case Qt::Key_CapsLock:
+        case Qt::Key_NumLock:
+        case Qt::Key_ScrollLock:
+            // A modifier on its own is not a binding; keep waiting for a real key.
+            return true;
+        default:
+            break;
+        }
+
+        // Portable text is what _matches() parses back, so capture and lookup cannot
+        // disagree about what a key is called.
+        const QString name = QKeySequence(keyEvent->key()).toString(QKeySequence::PortableText);
+        _capturingKey = false;
+        emit capturingKeyChanged();
+        if (!name.isEmpty()) {
+            qCDebug(OIKeyboardLog) << "captured key" << name;
+            emit keyCaptured(name);
+        }
+        return true;
+    }
 
     // Esc cancels a pending flight mode confirmation. It deliberately does not turn
     // the feature off: that is a settings-page decision, not a keystroke.
@@ -878,6 +929,8 @@ void OIKeyboardController::removeModeHotkey(int index)
 
 void OIKeyboardController::saveModeHotkeys()
 {
+    _rebuildKeyConflicts();
+
     QSettings settings;
     // beginWriteArray writes the new size but leaves higher indices behind, so a
     // shrinking list would keep reading stale rows on the next start.
