@@ -198,8 +198,16 @@ void OIKeyboardController::_recomputeState()
 
     // Deliberately does NOT touch `enabled`. Leaving Guided means keys stop working,
     // not that the operator has withdrawn their preference.
+    //
+    // The targets are dropped though, because neither is in force once the aircraft
+    // leaves Guided: another mode's _enter() overwrites next_WP_loc, and the guided
+    // heading target is not consumed at all. The indicator then reads "--", which is
+    // the honest answer and is what tells the operator the targets have gone - no
+    // warning needed, but only as long as a stale number is never displayed.
     if (!canAct) {
         _clearPendingMode();
+        _altitudeTargetValid = false;
+        _headingTargetValid = false;
     }
 
     if ((canAct != _canAct) || (headingUsable != _headingUsable) || (status != _statusText)) {
@@ -209,8 +217,14 @@ void OIKeyboardController::_recomputeState()
         emit stateChanged();
     }
 
-    // Becoming actionable is the moment to re-seed: the aircraft may have moved a
-    // long way since the last time keys worked.
+    // Becoming actionable re-seeds the altitude target from the aircraft. That is not
+    // an arbitrary choice: ModeGuided::_enter() does set_guided_WP(current_loc), so
+    // the autopilot resets its own target to where the aircraft is. Seeding to
+    // current altitude is what keeps the two in agreement.
+    //
+    // Heading is left invalid until the first press, because ArduPlane has no heading
+    // target on entry either - guided_state.target_heading_type is NONE until a
+    // GUIDED_CHANGE_HEADING arrives.
     if (canAct && !wasCanAct) {
         _reseedAltitudeTarget();
         _headingTargetValid = false;
