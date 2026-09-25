@@ -287,11 +287,17 @@ void OIKeyboardController::_setWarning(const QString &text, const QString &detai
 
 void OIKeyboardController::beginKeyCapture()
 {
-    if (!_capturingKey) {
-        _capturingKey = true;
-        _clearPendingMode();
+    // A second row arming capture has to knock the first one out, or one press would
+    // land in two bindings. Rows arm themselves after calling this, so the cancelling
+    // emission below reaches only the rows that were already waiting.
+    if (_capturingKey) {
+        _capturingKey = false;
         emit capturingKeyChanged();
     }
+
+    _capturingKey = true;
+    _clearPendingMode();
+    emit capturingKeyChanged();
 }
 
 void OIKeyboardController::cancelKeyCapture()
@@ -391,11 +397,15 @@ bool OIKeyboardController::eventFilter(QObject *watched, QEvent *event)
         // disagree about what a key is called.
         const QString name = QKeySequence(keyEvent->key()).toString(QKeySequence::PortableText);
         _capturingKey = false;
-        emit capturingKeyChanged();
+
+        // Order matters. The binding row disarms itself on capturingKeyChanged and
+        // only applies a result while it is still armed, so emitting that first threw
+        // every captured key away. Report the result, then announce the state change.
         if (!name.isEmpty()) {
             qCDebug(OIKeyboardLog) << "captured key" << name;
             emit keyCaptured(name);
         }
+        emit capturingKeyChanged();
         return true;
     }
 

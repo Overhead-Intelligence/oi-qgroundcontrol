@@ -283,8 +283,8 @@ Item {
                     text:                   waiting ? qsTr("Press a key…")
                                                     : (chosen === "" ? qsTr("Pick a key") : chosen)
                     onClicked: {
-                        waiting = true
                         OIKeyboard.beginKeyCapture()
+                        waiting = true
                     }
                     Connections {
                         target: OIKeyboard

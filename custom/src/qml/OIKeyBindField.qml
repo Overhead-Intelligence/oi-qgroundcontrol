@@ -57,8 +57,10 @@ RowLayout {
             return root.conflicted ? qsTr("%1 (conflict)").arg(root.keyText) : root.keyText
         }
         onClicked: {
-            root._waiting = true
+            // begin first: it cancels any other waiting row, and that
+            // cancellation must not clear the flag we are about to set.
             OIKeyboard.beginKeyCapture()
+            root._waiting = true
         }
     }
 
