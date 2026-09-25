@@ -103,6 +103,7 @@ OIKeyboardController::OIKeyboardController(QObject *parent)
     _warningTimer.setInterval(6000);
     (void) connect(&_warningTimer, &QTimer::timeout, this, [this]() {
         _warningText.clear();
+        _warningDetail.clear();
         emit warningChanged();
     });
 
@@ -243,14 +244,19 @@ void OIKeyboardController::setEnabled(bool enabled)
     _settings->enabled()->setRawValue(enabled);
 }
 
-void OIKeyboardController::_setWarning(const QString &text)
+void OIKeyboardController::_setWarning(const QString &text, const QString &detail)
 {
-    // Always re-emit, even for the same text: a repeated press should visibly
+    // Two fields, not one long string. The Fly view indicator is two rows; a
+    // two-sentence warning packed into row one while row two still read "Ready" was
+    // both ugly and ambiguous.
+    //
+    // Always re-emit, even for identical text: a repeated press should visibly
     // re-trigger rather than look like nothing happened.
     _warningText = text;
+    _warningDetail = detail;
     _warningTimer.start();
     emit warningChanged();
-    qCDebug(OIKeyboardLog) << "blocked:" << text;
+    qCDebug(OIKeyboardLog) << "blocked:" << text << detail;
 }
 
 int OIKeyboardController::pendingSeconds() const
@@ -326,7 +332,10 @@ bool OIKeyboardController::eventFilter(QObject *watched, QEvent *event)
         return QObject::eventFilter(watched, event);
     }
 
-    if (!_canAct) {
+    // Gate on the preference only. Which keys need Guided is decided per action in
+    // _handleKey - gating the whole filter on canAct silently disabled the gimbal and
+    // flight mode keys, which are supposed to work on the ground.
+    if (!enabled()) {
         return QObject::eventFilter(watched, event);
     }
 
@@ -366,8 +375,8 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
     }
 
     if (_keyIsConflicted(key)) {
-        _setWarning(tr("That key is bound to more than one action. Both are disabled "
-                       "until the conflict is resolved in Settings > Keyboard."));
+        _setWarning(tr("That key has more than one action bound to it."),
+                    tr("All of them are disabled until it is resolved in Settings > Keyboard."));
         return true;
     }
 
@@ -428,7 +437,7 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
     }
 
     if (!_canAct) {
-        _setWarning(_statusText);
+        _setWarning(_statusText, tr("Heading and altitude keys need Guided flight."));
         return true;
     }
 
@@ -449,8 +458,8 @@ void OIKeyboardController::_stepHeading(int direction)
         return;
     }
     if (!_headingUsable) {
-        _setWarning(tr("Heading keys need forward flight. ArduPlane accepts the command "
-                       "in a VTOL hover and then ignores it."));
+        _setWarning(tr("Heading keys need forward flight."),
+                    tr("ArduPlane accepts them in a VTOL hover, then ignores them."));
         return;
     }
 
@@ -524,17 +533,19 @@ void OIKeyboardController::_stepAltitude(int direction)
     const double clampedToLimits = qBound(minAlt, wanted, maxAlt);
 
     if (qAbs(clampedToLimits - _altitudeTarget) < 0.01) {
-        _setWarning(direction > 0
-                        ? tr("Altitude target is at the Fly View maximum (%1 m). Cannot climb further.")
-                              .arg(maxAlt, 0, 'f', 0)
-                        : tr("Altitude target is at the Fly View minimum (%1 m). Cannot descend further.")
-                              .arg(minAlt, 0, 'f', 0));
+        if (direction > 0) {
+            _setWarning(tr("Alt target is at the Fly View maximum (%1 m).").arg(maxAlt, 0, 'f', 0),
+                        tr("Cannot climb any further."));
+        } else {
+            _setWarning(tr("Alt target is at the Fly View minimum (%1 m).").arg(minAlt, 0, 'f', 0),
+                        tr("Cannot descend any further."));
+        }
         return;
     }
 
     if ((clampedToLimits > current + lead) || (clampedToLimits < current - lead)) {
-        _setWarning(tr("Altitude target is %1 m from the current altitude, the maximum lead. "
-                       "Please wait for the aircraft to catch up.").arg(lead, 0, 'f', 0));
+        _setWarning(tr("Alt target is %1 m from current alt, the maximum lead.").arg(lead, 0, 'f', 0),
+                    tr("Please wait for the aircraft to catch up."));
         return;
     }
 
@@ -557,7 +568,8 @@ void OIKeyboardController::_stepGimbalPitch(int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
-        _setWarning(tr("No vehicle with a gimbal is connected"));
+        _setWarning(tr("No gimbal on the connected vehicle."),
+                    tr("Gimbal keys have nothing to command."));
         return;
     }
 
@@ -573,7 +585,8 @@ void OIKeyboardController::_stepGimbalYaw(int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
-        _setWarning(tr("No vehicle with a gimbal is connected"));
+        _setWarning(tr("No gimbal on the connected vehicle."),
+                    tr("Gimbal keys have nothing to command."));
         return;
     }
 
@@ -589,7 +602,8 @@ void OIKeyboardController::_cycleGimbalMode(int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
-        _setWarning(tr("No vehicle with a gimbal is connected"));
+        _setWarning(tr("No gimbal on the connected vehicle."),
+                    tr("Gimbal keys have nothing to command."));
         return;
     }
 
@@ -637,11 +651,13 @@ bool OIKeyboardController::_tryModeHotkey(int key)
             continue;
         }
         if (!vehicle) {
-            _setWarning(tr("No vehicle connected, cannot change flight mode"));
+            _setWarning(tr("No vehicle connected."),
+                        tr("Cannot change flight mode."));
             return true;
         }
         if (!vehicle->flightModes().contains(hotkey->mode())) {
-            _setWarning(tr("%1 is not a flight mode this vehicle offers").arg(hotkey->mode()));
+            _setWarning(tr("%1 is not a flight mode this vehicle offers.").arg(hotkey->mode()),
+                        tr("Check the hotkey in Settings > Keyboard."));
             return true;
         }
 

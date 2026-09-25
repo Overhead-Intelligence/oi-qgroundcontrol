@@ -74,7 +74,7 @@ Item {
                         return qsTr("Esc cancels")
                     }
                     if (control._warning) {
-                        return OIKeyboard.statusText
+                        return OIKeyboard.warningDetail
                     }
                     return qsTr("Alt %1").arg(OIKeyboard.altitudeTargetValid
                                                   ? OIKeyboard.altitudeTarget.toFixed(0) + " m"

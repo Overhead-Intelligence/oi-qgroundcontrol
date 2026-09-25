@@ -111,6 +111,7 @@ class OIKeyboardController : public QObject
     Q_PROPERTY(bool     headingTargetValid READ headingTargetValid           NOTIFY stateChanged)
     /// Transient, operator-facing reason a key press did nothing. Clears itself.
     Q_PROPERTY(QString  warningText     READ warningText                    NOTIFY warningChanged)
+    Q_PROPERTY(QString  warningDetail   READ warningDetail                  NOTIFY warningChanged)
     Q_PROPERTY(QString  pendingModeName READ pendingModeName                NOTIFY pendingModeChanged)
     Q_PROPERTY(int      pendingSeconds  READ pendingSeconds                 NOTIFY pendingModeChanged)
     /// Human-readable descriptions of keys bound to more than one action. While a
@@ -145,6 +146,7 @@ public:
     double headingTarget() const { return _headingTarget; }
     bool headingTargetValid() const { return _headingTargetValid; }
     QString warningText() const { return _warningText; }
+    QString warningDetail() const { return _warningDetail; }
     QString pendingModeName() const { return _pendingModeName; }
     int pendingSeconds() const;
     QStringList keyConflicts() const { return _keyConflicts; }
@@ -191,7 +193,7 @@ private:
     void _reseedAltitudeTarget();
     void _loadModeHotkeys();
     void _setStatus(const QString &text);
-    void _setWarning(const QString &text);
+    void _setWarning(const QString &text, const QString &detail = QString());
     /// Every bound action as (label, key string). The single source of truth for
     /// both conflict detection and the quick reference, so they cannot disagree.
     QList<QPair<QString, QString>> _bindings() const;
@@ -223,6 +225,7 @@ private:
     QTimer _confirmTimer;
 
     QString _warningText;
+    QString _warningDetail;
     QTimer _warningTimer;
 
     QStringList _keyConflicts;      ///< human-readable, for the settings page
