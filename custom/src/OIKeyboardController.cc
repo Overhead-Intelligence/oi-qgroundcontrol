@@ -21,6 +21,8 @@
 #include "Vehicle.h"
 
 #include <QtCore/QCoreApplication>
+#include <cmath>
+
 #include <QtCore/QMap>
 #include <QtCore/QSettings>
 #include <QtGui/QKeyEvent>
@@ -47,6 +49,24 @@ constexpr int kHeadingTypeHeading = 1;
 /// are the ones GimbalController exposes directly.
 const char *kGimbalModeNames[] = { "Follow", "Lock", "Retract", "Neutral" };
 constexpr int kGimbalModeCount = 4;
+
+/// Next grid line above (direction > 0) or below (direction < 0) `value`, where the
+/// grid is multiples of `step` anchored on zero.
+///
+/// The epsilon matters. A target sitting exactly on a grid line is the normal case
+/// after the first press, and floor(315.0/5) computed on a value that is a hair under
+/// 315 would return the line the target is already on - a press that appears dead.
+/// Nudging in the direction of travel before the floor/ceil removes that entirely.
+double snapToGrid(double value, double step, int direction)
+{
+    constexpr double kEpsilon = 1e-6;
+    if (step <= 0.0) {
+        return value;
+    }
+    return (direction > 0)
+               ? (std::floor((value + kEpsilon) / step) + 1.0) * step
+               : (std::ceil((value - kEpsilon) / step) - 1.0) * step;
+}
 
 double wrap360(double deg)
 {
@@ -95,6 +115,12 @@ OIKeyboardController::OIKeyboardController(QObject *parent)
 {
     _confirmTimer.setSingleShot(true);
     (void) connect(&_confirmTimer, &QTimer::timeout, this, &OIKeyboardController::_confirmTimeout);
+
+    // A step tuned before these became dropdowns may not be one of the offered
+    // values, which would leave the combo showing nothing. Move it to the nearest
+    // offered value rather than silently keeping an unselectable one.
+    _normaliseStep(_settings->headingStep(), { 1, 2, 5, 10, 15, 30, 45, 90 });
+    _normaliseStep(_settings->altitudeStep(), { 1, 2, 5, 10 });
 
     _loadModeHotkeys();
     _rebuildKeyConflicts();
@@ -471,8 +497,12 @@ void OIKeyboardController::_stepHeading(int direction)
         _headingTargetValid = true;
     }
 
+    // Snap to the grid rather than adding the step, so targets are always round
+    // headings. Snapping from the tracked target, never from the live heading: from
+    // the live heading a second press before the aircraft reached the first target
+    // would compute the same grid line and silently do nothing.
     const double step = _settings->headingStep()->rawValue().toDouble();
-    _headingTarget = wrap360(_headingTarget + (direction * step));
+    _headingTarget = wrap360(snapToGrid(wrap360(_headingTarget), step, direction));
 
     // param3 is an acceleration limit that ArduPlane turns into a bank limit and
     // then clamps to ROLL_LIMIT_DEG, so this cannot command more bank than the
@@ -518,7 +548,9 @@ void OIKeyboardController::_stepAltitude(int direction)
     const double step = _settings->altitudeStep()->rawValue().toDouble();
     const double lead = _settings->altitudeLead()->rawValue().toDouble();
 
-    const double wanted = _altitudeTarget + (direction * step);
+    // Same grid treatment as heading, anchored on zero, so targets are round
+    // altitudes above home. The clamps below are unchanged.
+    const double wanted = snapToGrid(_altitudeTarget, step, direction);
 
     // Two clamps, and they behave differently on purpose.
     //
@@ -711,6 +743,26 @@ void OIKeyboardController::_confirmTimeout()
 }
 
 /*===========================================================================*/
+
+void OIKeyboardController::_normaliseStep(Fact *fact, const QList<double> &allowed)
+{
+    const double current = fact->rawValue().toDouble();
+    for (const double value : allowed) {
+        if (qFuzzyCompare(value, current)) {
+            return;
+        }
+    }
+
+    double nearest = allowed.first();
+    for (const double value : allowed) {
+        if (qAbs(value - current) < qAbs(nearest - current)) {
+            nearest = value;
+        }
+    }
+    qCInfo(OIKeyboardLog) << "step" << fact->name() << current
+                          << "is no longer an offered value, moved to" << nearest;
+    fact->setRawValue(nearest);
+}
 
 QList<QPair<QString, QString>> OIKeyboardController::_bindings() const
 {

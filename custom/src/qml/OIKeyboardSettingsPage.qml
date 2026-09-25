@@ -86,11 +86,10 @@ Item {
                 fact:                       _settings.headingRightKey
                 label:                      _settings.headingRightKey.label
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.headingStep
-                label:                      _settings.headingStep.label
+            LabelledFactComboBox {
+                Layout.fillWidth:   true
+                fact:               _settings.headingStep
+                label:              _settings.headingStep.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true
@@ -120,11 +119,10 @@ Item {
                 fact:                       _settings.altitudeDownKey
                 label:                      _settings.altitudeDownKey.label
             }
-            LabelledFactTextField {
-                Layout.fillWidth:           true
-                textFieldPreferredWidth:    _fieldWidth
-                fact:                       _settings.altitudeStep
-                label:                      _settings.altitudeStep.label
+            LabelledFactComboBox {
+                Layout.fillWidth:   true
+                fact:               _settings.altitudeStep
+                label:              _settings.altitudeStep.label
             }
             LabelledFactTextField {
                 Layout.fillWidth:           true

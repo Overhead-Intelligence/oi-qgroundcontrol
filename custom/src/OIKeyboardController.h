@@ -65,6 +65,7 @@
 #include <QtCore/QVariantList>
 
 class QEvent;
+class Fact;
 class Vehicle;
 class OIKeyboardSettings;
 class QmlObjectListModel;
@@ -193,6 +194,9 @@ private:
     void _reseedAltitudeTarget();
     void _loadModeHotkeys();
     void _setStatus(const QString &text);
+    /// Moves a step fact onto the nearest offered value if a previously tuned
+    /// value is no longer in the dropdown.
+    void _normaliseStep(Fact *fact, const QList<double> &allowed);
     void _setWarning(const QString &text, const QString &detail = QString());
     /// Every bound action as (label, key string). The single source of truth for
     /// both conflict detection and the quick reference, so they cannot disagree.

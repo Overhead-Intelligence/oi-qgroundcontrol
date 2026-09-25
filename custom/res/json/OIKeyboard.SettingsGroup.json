@@ -25,14 +25,14 @@
         },
         {
             "name": "headingStep",
-            "shortDesc": "Heading change per key press.",
+            "shortDesc": "Size of the heading grid. Each press moves the target to the next multiple of this value, so targets are always round headings. Restricted to factors of 360 so the grid stays exact across the 360/0 wrap.",
             "type": "double",
             "units": "deg",
-            "min": 1,
-            "max": 90,
             "decimalPlaces": 0,
             "default": 15,
-            "label": "Heading step"
+            "label": "Heading step",
+            "enumStrings": "1,2,5,10,15,30,45,90",
+            "enumValues": "1,2,5,10,15,30,45,90"
         },
         {
             "name": "headingBankLimit",
@@ -61,14 +61,14 @@
         },
         {
             "name": "altitudeStep",
-            "shortDesc": "Altitude change per key press. The resulting target is clamped to the Fly View guided minimum and maximum altitudes.",
+            "shortDesc": "Size of the altitude grid. Each press moves the target to the next multiple of this value above home, so targets are always round altitudes.",
             "type": "double",
             "units": "vertical m",
-            "min": 1,
-            "max": 100,
             "decimalPlaces": 0,
             "default": 10,
-            "label": "Altitude step"
+            "label": "Altitude step",
+            "enumStrings": "1,2,5,10",
+            "enumValues": "1,2,5,10"
         },
         {
             "name": "altitudeLead",

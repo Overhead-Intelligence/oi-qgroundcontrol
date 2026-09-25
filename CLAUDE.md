@@ -140,6 +140,14 @@ overrides as he names things. A complete 5.0 port is parked on branch
   is overridden. The flight mode confirmation lives there rather than in a dialog:
   `showMessageDialog` would take focus and swallow the second key press it asks for.
   Key conflicts are compared by resolved key code, so "a" and "A" collide.
+  **Steps snap to a grid, and the snap is taken from the tracked target, never
+  from the live heading or altitude.** Snapping from the live value would make a
+  second press before the aircraft reached the first target compute the same grid
+  line and do nothing. Heading steps are restricted to factors of 360 so the grid
+  survives the wrap; a non-factor leaves the grid permanently offset after a lap.
+  The altitude path sends the autopilot a *relative* offset that it accumulates,
+  so the GCS target and `next_WP_loc.alt` must not drift apart - verified in SITL
+  over a 16-press sequence including both clamps (`res_snap.txt`), 0 mismatches.
   `custom/src/qml/OIKeyboardSettingsPage.qml` is the Settings → Keyboard section;
   it lives in Application Settings rather than beside the Joystick tab because no
   `QGCCorePlugin` hook adds a Vehicle Setup component, and binding keys should not
