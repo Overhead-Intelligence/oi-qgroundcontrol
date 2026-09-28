@@ -258,7 +258,11 @@ void OIKeyboardController::_recomputeState()
     // the honest answer and is what tells the operator the targets have gone - no
     // warning needed, but only as long as a stale number is never displayed.
     if (!canAct) {
-        _clearPendingMode();
+        // Targets only - NOT the pending mode confirmation. Mode hotkeys are
+        // deliberately ungated from canAct so they work on the ground, so their
+        // confirmation has to survive here too. Clearing it made the confirmation
+        // expire almost instantly once terrain reports started driving this function
+        // at telemetry rate: every report re-entered the !canAct branch.
         _altitudeTargetValid = false;
         _headingTargetValid = false;
     }
@@ -899,8 +903,11 @@ bool OIKeyboardController::_tryModeHotkey(int key)
         // hang on one keystroke that could have been meant for something else.
         _pendingModeName = hotkey->mode();
         _pendingModeKey = key;
-        _confirmTimer.start(static_cast<int>(
-            _settings->modeConfirmTimeout()->rawValue().toDouble() * 1000.0));
+        const int timeoutMs = static_cast<int>(
+            _settings->modeConfirmTimeout()->rawValue().toDouble() * 1000.0);
+        _confirmTimer.start(timeoutMs);
+        qCDebug(OIKeyboardLog) << "mode confirmation armed for" << hotkey->mode()
+                               << "timeout" << timeoutMs << "ms";
         emit pendingModeChanged();
         return true;
     }
