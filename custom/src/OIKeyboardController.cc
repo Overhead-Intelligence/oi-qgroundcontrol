@@ -11,7 +11,6 @@
 #include "OIKeyboardSettings.h"
 
 #include "FlyViewSettings.h"
-#include "ParameterManager.h"
 #include "Fact.h"
 #include "GimbalController.h"
 #include "MultiVehicleManager.h"
@@ -19,6 +18,7 @@
 #include "QGCLoggingCategory.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
+#include "TerrainFactGroup.h"
 #include "Vehicle.h"
 
 #include <QtCore/QCoreApplication>
@@ -199,6 +199,10 @@ void OIKeyboardController::_activeVehicleChanged(Vehicle *vehicle)
         (void) connect(vehicle, &Vehicle::armedChanged, this, &OIKeyboardController::_recomputeState);
         (void) connect(vehicle, &Vehicle::flyingChanged, this, &OIKeyboardController::_recomputeState);
         (void) connect(vehicle, &Vehicle::vtolInFwdFlightChanged, this, &OIKeyboardController::_recomputeState);
+        if (TerrainFactGroup *const terrain = qobject_cast<TerrainFactGroup*>(vehicle->terrainFactGroup())) {
+            (void) connect(terrain, &TerrainFactGroup::referenceReadyChanged,
+                           this, &OIKeyboardController::_recomputeState);
+        }
     }
 
     _altitudeTargetValid = false;
@@ -363,17 +367,6 @@ bool OIKeyboardController::altitudeFrameAGL() const
                ->guidedAltitudeFrame()->rawValue().toUInt() == 1;
 }
 
-void OIKeyboardController::terrainReportReceived(uint16_t pending, uint16_t loaded,
-                                                 float terrainHeight, float currentHeight)
-{
-    _terrainPending = pending;
-    _terrainLoaded = loaded;
-    _terrainHeight = terrainHeight;
-    _terrainCurrentHeight = currentHeight;
-    _sinceTerrainReport.start();
-    _recomputeState();
-}
-
 double OIKeyboardController::_currentAltitudeInFrame() const
 {
     Vehicle *const vehicle = _vehicle();
@@ -383,7 +376,11 @@ double OIKeyboardController::_currentAltitudeInFrame() const
     // In AGL the vehicle's own terrain report is the only honest source: altitudeRelative
     // is height above home, which is the very thing AGL is not.
     if (altitudeFrameAGL()) {
-        return _altitudeUsable ? static_cast<double>(_terrainCurrentHeight) : qQNaN();
+        if (!_altitudeUsable) {
+            return qQNaN();
+        }
+        TerrainFactGroup *const terrain = qobject_cast<TerrainFactGroup*>(vehicle->terrainFactGroup());
+        return terrain ? terrain->vehicleHeight()->rawValue().toDouble() : qQNaN();
     }
     return vehicle->altitudeRelative()->rawValue().toDouble();
 }
@@ -395,51 +392,10 @@ QString OIKeyboardController::_checkTerrainReady() const
         return tr("no vehicle");
     }
 
-    // Configuration first: without these the vehicle cannot honour an above-terrain
-    // altitude however good its data is. Measured in SITL on the fleet firmware: a
-    // terrain-framed command with terrain following off is ACCEPTED and then flown as
-    // height above home, ending 201 m below the ground it was told to clear.
-    ParameterManager *const params = vehicle->parameterManager();
-    const int compId = vehicle->defaultComponentId();
-
-    if (!params->parameterExists(compId, QStringLiteral("TERRAIN_ENABLE"))) {
-        return tr("this firmware has no terrain support");
-    }
-    if (params->getParameter(compId, QStringLiteral("TERRAIN_ENABLE"))->rawValue().toInt() != 1) {
-        return tr("TERRAIN_ENABLE is off");
-    }
-
-    if (params->parameterExists(compId, QStringLiteral("TERRAIN_FOLLOW"))) {
-        // Bit 0 is "all modes", bit 6 is Guided. Anything else leaves Guided flying
-        // above home no matter what frame the command carries.
-        const int follow = params->getParameter(compId, QStringLiteral("TERRAIN_FOLLOW"))->rawValue().toInt();
-        constexpr int kAllModes = 1 << 0;
-        constexpr int kGuided = 1 << 6;
-        if ((follow & (kAllModes | kGuided)) == 0) {
-            return tr("TERRAIN_FOLLOW does not include Guided");
-        }
-    }
-
-    // Then the data, for where the vehicle actually is.
-    if (_terrainLoaded < 0) {
-        return tr("no terrain report from the vehicle yet");
-    }
-    if (!_sinceTerrainReport.isValid() || (_sinceTerrainReport.elapsed() > kTerrainReportStaleMs)) {
-        return tr("terrain reports have stopped");
-    }
-    if (_terrainPending > 0) {
-        return tr("vehicle is still waiting on %1 terrain blocks").arg(_terrainPending);
-    }
-    if (_terrainLoaded <= 0) {
-        return tr("vehicle holds no terrain data");
-    }
-    // Both read exactly zero when the vehicle has no terrain for its position, which is
-    // how the bad case presented in SITL (pending 448 / loaded 0 / heights 0.0).
-    if (qFuzzyIsNull(_terrainHeight) && qFuzzyIsNull(_terrainCurrentHeight)) {
-        return tr("vehicle has no terrain height for its position");
-    }
-
-    return QString();
+    // The judgement lives in TerrainFactGroup so the guided actions and this agree by
+    // construction. Two implementations of a safety check are two chances to disagree.
+    TerrainFactGroup *const terrain = qobject_cast<TerrainFactGroup*>(vehicle->terrainFactGroup());
+    return terrain ? terrain->referenceProblem() : tr("terrain state unavailable");
 }
 
 void OIKeyboardController::_reseedAltitudeTarget()

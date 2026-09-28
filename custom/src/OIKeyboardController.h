@@ -154,11 +154,6 @@ public:
     bool altitudeFrameAGL() const;
     QString terrainProblem() const { return _terrainProblem; }
 
-    /// Fed from OIPlugin::mavlinkMessage. TERRAIN_REPORT is the only place the vehicle
-    /// says whether it holds terrain for where it is; QGC's own handler keeps only the
-    /// pending/loaded counts and drops the heights.
-    void terrainReportReceived(uint16_t pending, uint16_t loaded,
-                               float terrainHeight, float currentHeight);
 
     double altitudeTarget() const { return _altitudeTarget; }
     bool altitudeTargetValid() const { return _altitudeTargetValid; }
@@ -251,14 +246,6 @@ private:
     bool _altitudeUsable = false;
     QString _terrainProblem;
 
-    // Latest TERRAIN_REPORT, with the time it arrived. Staleness matters as much as
-    // content: if the reports stop, the last good one must not keep vouching for the
-    // vehicle - that is exactly the mid-flight coverage loss this is guarding against.
-    int _terrainPending = -1;
-    int _terrainLoaded = -1;
-    float _terrainHeight = 0.0f;
-    float _terrainCurrentHeight = 0.0f;
-    QElapsedTimer _sinceTerrainReport;
     QString _statusText;
 
     double _headingTarget = 0.0;

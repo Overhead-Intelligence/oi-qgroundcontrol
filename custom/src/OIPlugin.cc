@@ -28,7 +28,6 @@
 #include "InstrumentValueData.h"
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
-#include "MAVLinkLib.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
@@ -234,20 +233,6 @@ const QVariantList &OIPlugin::analyzePages()
     }
 
     return _analyzePages;
-}
-
-/*===========================================================================*/
-
-bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
-{
-    if ((message.msgid == MAVLINK_MSG_ID_TERRAIN_REPORT) && _keyboard) {
-        mavlink_terrain_report_t report;
-        mavlink_msg_terrain_report_decode(&message, &report);
-        _keyboard->terrainReportReceived(report.pending, report.loaded,
-                                         report.terrain_height, report.current_height);
-    }
-
-    return QGCCorePlugin::mavlinkMessage(vehicle, link, message);
 }
 
 /*===========================================================================*/

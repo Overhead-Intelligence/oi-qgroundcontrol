@@ -64,8 +64,12 @@ void TerrainProtocolHandler::_handleTerrainReport(const mavlink_message_t &messa
     mavlink_terrain_report_t terrainReport;
     mavlink_msg_terrain_report_decode(&message, &terrainReport);
 
-    _terrainFactGroup->blocksPending()->setRawValue(terrainReport.pending);
-    _terrainFactGroup->blocksLoaded()->setRawValue(terrainReport.loaded);
+    // One entry point so the group can also judge whether an above-terrain altitude
+    // would actually be honoured - the heights matter for that and were previously
+    // decoded and discarded here.
+    _terrainFactGroup->handleTerrainReport(terrainReport.pending, terrainReport.loaded,
+                                           terrainReport.terrain_height,
+                                           terrainReport.current_height);
 
     if (TerrainProtocolHandlerLog().isDebugEnabled()) {
         bool error;
