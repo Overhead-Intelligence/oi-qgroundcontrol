@@ -306,6 +306,10 @@ public:
     ///     @param pauseVehicle true: pause vehicle prior to altitude change
     Q_INVOKABLE void guidedModeChangeAltitude(double altitudeChange, bool pauseVehicle);
 
+    /// Absolute altitude in an explicit MAV_FRAME. See
+    /// FirmwarePlugin::guidedModeChangeAltitudeInFrame for why absolute.
+    Q_INVOKABLE void guidedModeChangeAltitudeInFrame(double altitude, int mavFrame, bool pauseVehicle);
+
     /// Command vehicle to change yaw
     ///     @param coordinate to rotate towards
     Q_INVOKABLE void guidedModeChangeHeading(const QGeoCoordinate &headingCoord);

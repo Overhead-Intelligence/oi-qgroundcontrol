@@ -22,7 +22,7 @@
         },
         {
             "name": "guidedAltitudeFrame",
-            "shortDesc": "What the guided altitudes above are measured from. Above Ground Level needs the vehicle configured for terrain following and holding terrain data for where it is; where that cannot be confirmed, altitude commands are refused rather than sent in a frame the vehicle will not honour.",
+            "shortDesc": "What the guided altitudes below are measured from, for the altitude slider as well as keyboard control. Above Ground Level needs the vehicle configured for terrain following and holding terrain data for where it is; where that cannot be confirmed the altitude falls back to Relative to Home and says so, rather than being sent in a frame the vehicle will not honour.",
             "type": "uint32",
             "enumStrings": "Relative to Home,Above Ground Level",
             "enumValues": "0,1",

@@ -1905,6 +1905,15 @@ bool Vehicle::guidedModeGotoLocation(const QGeoCoordinate& gotoCoord, double for
     return _firmwarePlugin->guidedModeGotoLocation(this, gotoCoord, forwardFlightLoiterRadius);
 }
 
+void Vehicle::guidedModeChangeAltitudeInFrame(double altitude, int mavFrame, bool pauseVehicle)
+{
+    if (!_vehicleSupports->guidedMode()) {
+        QGC::showAppMessage(guided_mode_not_supported_by_vehicle);
+        return;
+    }
+    _firmwarePlugin->guidedModeChangeAltitudeInFrame(this, altitude, mavFrame, pauseVehicle);
+}
+
 void Vehicle::guidedModeChangeAltitude(double altitudeChange, bool pauseVehicle)
 {
     if (!_vehicleSupports->guidedMode()) {

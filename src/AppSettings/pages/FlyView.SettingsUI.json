@@ -66,13 +66,13 @@
             ],
             "controls": [
                 {
+                    "setting": "flyViewSettings.guidedAltitudeFrame"
+                },
+                {
                     "setting": "flyViewSettings.guidedMinimumAltitude"
                 },
                 {
                     "setting": "flyViewSettings.guidedMaximumAltitude"
-                },
-                {
-                    "setting": "flyViewSettings.guidedAltitudeFrame"
                 },
                 {
                     "setting": "flyViewSettings.maxGoToLocationDistance"

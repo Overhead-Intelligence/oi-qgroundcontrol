@@ -843,6 +843,28 @@ void APMFirmwarePlugin::guidedModeRTL(Vehicle *vehicle, bool smartRTL) const
     _setFlightModeAndValidate(vehicle, smartRTL ? smartRTLFlightMode() : rtlFlightMode());
 }
 
+void APMFirmwarePlugin::guidedModeChangeAltitudeInFrame(Vehicle *vehicle, double altitude, int mavFrame, bool pauseVehicle)
+{
+    if (pauseVehicle && !_setFlightModeAndValidate(vehicle, pauseFlightMode())) {
+        QGC::showAppMessage(tr("Unable to pause vehicle."));
+        return;
+    }
+
+    setGuidedMode(vehicle, true);
+
+    // DO_CHANGE_ALTITUDE carries the frame in param2 and the altitude in param1, and
+    // ArduPilot acks it - unlike the relative SET_POSITION_TARGET_LOCAL_NED path,
+    // which is fire-and-forget and accumulates into the vehicle's existing target.
+    vehicle->sendMavCommandInt(
+        vehicle->defaultComponentId(),
+        MAV_CMD_DO_CHANGE_ALTITUDE,
+        static_cast<MAV_FRAME>(mavFrame),
+        true /* showError */,
+        static_cast<float>(altitude),
+        static_cast<float>(mavFrame),
+        0, 0, 0, 0, 0);
+}
+
 void APMFirmwarePlugin::guidedModeChangeAltitude(Vehicle *vehicle, double altitudeChange, bool pauseVehicle)
 {
     if (qIsNaN(vehicle->altitudeRelative()->rawValue().toDouble())) {
