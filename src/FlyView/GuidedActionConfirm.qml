@@ -18,6 +18,10 @@ Item {
     property int    action
     property var    actionData
     property bool   hideTrigger:        false
+    // True when the app raised this confirmation by itself rather than the pilot
+    // asking for it - currently only the automatic Start/Continue Mission prompts.
+    // Those must not suppress map interaction the pilot never disabled.
+    property bool   autoRaised:         false
     property var    mapIndicator
     property alias  optionText:         optionCheckBox.text
     property alias  optionChecked:      optionCheckBox.checked
@@ -45,6 +49,7 @@ Item {
 
     function reset() {
         visible = false
+        autoRaised = false
         guidedValueSlider.visible = false
         hideTrigger = false
         visibleTimer.stop()

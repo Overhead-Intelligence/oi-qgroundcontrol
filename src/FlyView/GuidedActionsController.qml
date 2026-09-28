@@ -150,6 +150,12 @@ Item {
     property bool showResumeMission:    _activeVehicle && !_vehicleArmed && _vehicleWasFlying && _missionAvailable && _resumeMissionIndex > 0 && (_resumeMissionIndex < _visualItemsCount - 2)
 
     property bool guidedUIVisible:          confirmDialog.visible
+    // Map clicks are suppressed only while a confirmation the PILOT opened is pending,
+    // where a second click opening another drop panel would be confusing. An automatic
+    // mission prompt is not that: it appears unbidden, and silently disabling Go To
+    // Location, Set Home and the rest until it is dismissed reads as the map being
+    // broken. The X that fixes it is documented nowhere.
+    property bool guidedUIBlocksMapClicks: confirmDialog.visible && !confirmDialog.autoRaised
 
     property var    _corePlugin:            QGroundControl.corePlugin
     property var    _corePluginOptions:     QGroundControl.corePlugin.options
@@ -273,6 +279,7 @@ Item {
         if (showStartMission &&
             _flyViewSettings.enableAutomaticMissionPopups.rawValue) {
             confirmAction(actionStartMission)
+            confirmDialog.autoRaised = true
         }
     }
     onShowContinueMissionChanged: {
@@ -283,6 +290,7 @@ Item {
         if (showContinueMission &&
             _flyViewSettings.enableAutomaticMissionPopups.rawValue) {
             confirmAction(actionContinueMission)
+            confirmDialog.autoRaised = true
         }
     }
     onShowRTLChanged: {
