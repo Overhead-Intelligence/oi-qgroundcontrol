@@ -21,6 +21,16 @@
             "keywords": "altitude,guided,maximum"
         },
         {
+            "name": "guidedAltitudeFrame",
+            "shortDesc": "What the guided altitudes above are measured from. Above Ground Level needs the vehicle configured for terrain following and holding terrain data for where it is; where that cannot be confirmed, altitude commands are refused rather than sent in a frame the vehicle will not honour.",
+            "type": "uint32",
+            "enumStrings": "Relative to Home,Above Ground Level",
+            "enumValues": "0,1",
+            "default": 0,
+            "label": "Altitude Reference",
+            "keywords": "altitude,guided,frame,terrain,agl,reference"
+        },
+        {
             "name": "showLogReplayStatusBar",
             "shortDesc": "Show the playback control bar during telemetry log replay.",
             "type": "bool",

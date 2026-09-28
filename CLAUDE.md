@@ -140,6 +140,21 @@ overrides as he names things. A complete 5.0 port is parked on branch
   is overridden. The flight mode confirmation lives there rather than in a dialog:
   `showMessageDialog` would take focus and swallow the second key press it asks for.
   Key conflicts are compared by resolved key code, so "a" and "A" collide.
+  **Above Ground Level is validated by the GCS, never trusted to the ack.** Measured
+  in SITL on the fleet branch (OI-master-DEVPRS-20260922): a terrain-framed altitude
+  command with terrain data absent is `ACCEPTED` and then flown as height above home -
+  the aircraft finished 201 m *below* the ground it was told to clear, with no NAK and
+  no in-flight statustext. With data present and `TERRAIN_FOLLOW` bit 6 it works
+  properly (climbed 352 m for a 351 m terrain rise). The GCS can tell the two apart:
+  `TERRAIN_REPORT` reads pending 0 / loaded 448 / heights non-zero when good, and
+  pending 448 / loaded 0 / heights exactly 0.0 when not, so `_checkTerrainReady()`
+  gates on that plus `TERRAIN_ENABLE` and `TERRAIN_FOLLOW`, and on report freshness -
+  a stale report must stop vouching, since mid-flight coverage loss is the unprotected
+  case (ArduPilot already refuses to *arm* without terrain when `TERRAIN_ENABLE=1`).
+  QGC's own TERRAIN_REPORT handler keeps only pending/loaded and drops the heights, so
+  the raw message is taken from the `mavlinkMessage` hook.
+  Altitude gating is separate from heading gating on purpose: losing terrain must not
+  cost the pilot the ability to turn.
   **Steps snap to a grid, and the snap is taken from the tracked target, never
   from the live heading or altitude.** Snapping from the live value would make a
   second press before the aircraft reached the first target compute the same grid

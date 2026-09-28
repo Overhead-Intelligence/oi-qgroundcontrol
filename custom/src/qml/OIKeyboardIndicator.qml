@@ -76,9 +76,12 @@ Item {
                     if (control._warning) {
                         return OIKeyboard.warningDetail
                     }
+                    // The datum is never left implicit: "120 m" means very different
+                    // things above home and above ground.
+                    var suffix = OIKeyboard.altitudeFrameAGL ? qsTr(" m AGL") : qsTr(" m")
                     return qsTr("Alt %1").arg(OIKeyboard.altitudeTargetValid
-                                                  ? OIKeyboard.altitudeTarget.toFixed(0) + " m"
-                                                  : "--")
+                                                  ? OIKeyboard.altitudeTarget.toFixed(0) + suffix
+                                                  : (OIKeyboard.altitudeFrameAGL ? qsTr("-- AGL") : "--"))
                 }
             }
         }

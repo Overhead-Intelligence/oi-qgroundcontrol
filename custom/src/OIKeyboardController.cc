@@ -11,6 +11,7 @@
 #include "OIKeyboardSettings.h"
 
 #include "FlyViewSettings.h"
+#include "ParameterManager.h"
 #include "Fact.h"
 #include "GimbalController.h"
 #include "MultiVehicleManager.h"
@@ -43,7 +44,16 @@ constexpr const char *kGuidedModeName = "Guided";
 /// sendMavCommand sends a COMMAND_LONG, which ArduPilot converts with param1..4
 /// carried through unchanged, so the long form is enough for this command.
 constexpr int kCmdGuidedChangeHeading = 43002;
+/// Absolute, frame-carrying, and acked. Verified in SITL on the fleet firmware:
+/// with terrain data and TERRAIN_FOLLOW bit 6 the aircraft climbed 352 m for a
+/// 351 m terrain rise, holding the commanded AGL.
+constexpr int kCmdDoChangeAltitude = 186;
+constexpr int kFrameGlobalTerrainAlt = 10;   // MAV_FRAME_GLOBAL_TERRAIN_ALT
 constexpr int kHeadingTypeHeading = 1;
+
+/// A TERRAIN_REPORT older than this stops vouching for the vehicle. It rides in
+/// STREAM_EXTRA3, so a live link produces them continuously.
+constexpr int kTerrainReportStaleMs = 10000;
 
 /// The gimbal modes the operator cycles through. Kept deliberately short: these
 /// are the ones GimbalController exposes directly.
@@ -142,6 +152,9 @@ OIKeyboardController::OIKeyboardController(QObject *parent)
         (void) connect(fact, &Fact::rawValueChanged, this, &OIKeyboardController::_rebuildKeyConflicts);
     }
 
+    (void) connect(SettingsManager::instance()->flyViewSettings()->guidedAltitudeFrame(),
+                   &Fact::rawValueChanged, this, &OIKeyboardController::_recomputeState);
+
     (void) connect(_settings->enabled(), &Fact::rawValueChanged, this, [this]() {
         _clearPendingMode();
         emit enabledChanged();
@@ -201,6 +214,8 @@ void OIKeyboardController::_recomputeState()
     QString status;
     bool canAct = false;
     bool headingUsable = false;
+    bool altitudeUsable = false;
+    QString terrainProblem;
 
     if (!enabled()) {
         status = tr("Keyboard control is off");
@@ -219,8 +234,19 @@ void OIKeyboardController::_recomputeState()
         // GUIDED_CHANGE_HEADING and then never reads the target, so the control is
         // disabled here rather than letting the operator press a key that lies.
         headingUsable = vehicle->fixedWing() || (vehicle->vtol() && vehicle->vtolInFwdFlight());
-        status = headingUsable ? tr("Ready")
-                               : tr("Ready - heading keys need forward flight");
+
+        // Altitude is gated separately. Selecting AGL is always allowed; it is only
+        // *applied* when the vehicle can be shown to honour it.
+        terrainProblem = altitudeFrameAGL() ? _checkTerrainReady() : QString();
+        altitudeUsable = terrainProblem.isEmpty();
+
+        if (!altitudeUsable) {
+            status = tr("Ready - altitude keys disabled, %1").arg(terrainProblem);
+        } else if (!headingUsable) {
+            status = tr("Ready - heading keys need forward flight");
+        } else {
+            status = tr("Ready");
+        }
     }
 
     // Deliberately does NOT touch `enabled`. Leaving Guided means keys stop working,
@@ -232,14 +258,22 @@ void OIKeyboardController::_recomputeState()
     // the honest answer and is what tells the operator the targets have gone - no
     // warning needed, but only as long as a stale number is never displayed.
     if (!canAct) {
-        _clearPendingMode();
+        // Targets only - NOT the pending mode confirmation. Mode hotkeys are
+        // deliberately ungated from canAct so they work on the ground, so their
+        // confirmation has to survive here too. Clearing it made the confirmation
+        // expire almost instantly once terrain reports started driving this function
+        // at telemetry rate: every report re-entered the !canAct branch.
         _altitudeTargetValid = false;
         _headingTargetValid = false;
     }
 
-    if ((canAct != _canAct) || (headingUsable != _headingUsable) || (status != _statusText)) {
+    if ((canAct != _canAct) || (headingUsable != _headingUsable) ||
+        (altitudeUsable != _altitudeUsable) || (terrainProblem != _terrainProblem) ||
+        (status != _statusText)) {
         _canAct = canAct;
         _headingUsable = headingUsable;
+        _altitudeUsable = altitudeUsable;
+        _terrainProblem = terrainProblem;
         _statusText = status;
         emit stateChanged();
     }
@@ -323,6 +357,91 @@ void OIKeyboardController::_setStatus(const QString &text)
 
 /*===========================================================================*/
 
+bool OIKeyboardController::altitudeFrameAGL() const
+{
+    return SettingsManager::instance()->flyViewSettings()
+               ->guidedAltitudeFrame()->rawValue().toUInt() == 1;
+}
+
+void OIKeyboardController::terrainReportReceived(uint16_t pending, uint16_t loaded,
+                                                 float terrainHeight, float currentHeight)
+{
+    _terrainPending = pending;
+    _terrainLoaded = loaded;
+    _terrainHeight = terrainHeight;
+    _terrainCurrentHeight = currentHeight;
+    _sinceTerrainReport.start();
+    _recomputeState();
+}
+
+double OIKeyboardController::_currentAltitudeInFrame() const
+{
+    Vehicle *const vehicle = _vehicle();
+    if (!vehicle) {
+        return qQNaN();
+    }
+    // In AGL the vehicle's own terrain report is the only honest source: altitudeRelative
+    // is height above home, which is the very thing AGL is not.
+    if (altitudeFrameAGL()) {
+        return _altitudeUsable ? static_cast<double>(_terrainCurrentHeight) : qQNaN();
+    }
+    return vehicle->altitudeRelative()->rawValue().toDouble();
+}
+
+QString OIKeyboardController::_checkTerrainReady() const
+{
+    Vehicle *const vehicle = _vehicle();
+    if (!vehicle) {
+        return tr("no vehicle");
+    }
+
+    // Configuration first: without these the vehicle cannot honour an above-terrain
+    // altitude however good its data is. Measured in SITL on the fleet firmware: a
+    // terrain-framed command with terrain following off is ACCEPTED and then flown as
+    // height above home, ending 201 m below the ground it was told to clear.
+    ParameterManager *const params = vehicle->parameterManager();
+    const int compId = vehicle->defaultComponentId();
+
+    if (!params->parameterExists(compId, QStringLiteral("TERRAIN_ENABLE"))) {
+        return tr("this firmware has no terrain support");
+    }
+    if (params->getParameter(compId, QStringLiteral("TERRAIN_ENABLE"))->rawValue().toInt() != 1) {
+        return tr("TERRAIN_ENABLE is off");
+    }
+
+    if (params->parameterExists(compId, QStringLiteral("TERRAIN_FOLLOW"))) {
+        // Bit 0 is "all modes", bit 6 is Guided. Anything else leaves Guided flying
+        // above home no matter what frame the command carries.
+        const int follow = params->getParameter(compId, QStringLiteral("TERRAIN_FOLLOW"))->rawValue().toInt();
+        constexpr int kAllModes = 1 << 0;
+        constexpr int kGuided = 1 << 6;
+        if ((follow & (kAllModes | kGuided)) == 0) {
+            return tr("TERRAIN_FOLLOW does not include Guided");
+        }
+    }
+
+    // Then the data, for where the vehicle actually is.
+    if (_terrainLoaded < 0) {
+        return tr("no terrain report from the vehicle yet");
+    }
+    if (!_sinceTerrainReport.isValid() || (_sinceTerrainReport.elapsed() > kTerrainReportStaleMs)) {
+        return tr("terrain reports have stopped");
+    }
+    if (_terrainPending > 0) {
+        return tr("vehicle is still waiting on %1 terrain blocks").arg(_terrainPending);
+    }
+    if (_terrainLoaded <= 0) {
+        return tr("vehicle holds no terrain data");
+    }
+    // Both read exactly zero when the vehicle has no terrain for its position, which is
+    // how the bad case presented in SITL (pending 448 / loaded 0 / heights 0.0).
+    if (qFuzzyIsNull(_terrainHeight) && qFuzzyIsNull(_terrainCurrentHeight)) {
+        return tr("vehicle has no terrain height for its position");
+    }
+
+    return QString();
+}
+
 void OIKeyboardController::_reseedAltitudeTarget()
 {
     Vehicle *const vehicle = _vehicle();
@@ -331,7 +450,7 @@ void OIKeyboardController::_reseedAltitudeTarget()
         return;
     }
 
-    const double current = vehicle->altitudeRelative()->rawValue().toDouble();
+    const double current = _currentAltitudeInFrame();
     if (qIsNaN(current)) {
         _altitudeTargetValid = false;
         return;
@@ -528,6 +647,12 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
         return true;
     }
 
+    if (altitudeKey && !_altitudeUsable) {
+        _setWarning(tr("Drone not configured for terrain referencing."),
+                    tr("Check your configuration or switch altitude reference."));
+        return true;
+    }
+
     if (headingKey) {
         _stepHeading(_matches(_settings->headingLeftKey()->rawValue().toString(), key) ? -1 : 1);
     } else {
@@ -590,9 +715,10 @@ void OIKeyboardController::_stepAltitude(int direction)
         return;
     }
 
-    const double current = vehicle->altitudeRelative()->rawValue().toDouble();
+    const double current = _currentAltitudeInFrame();
     if (qIsNaN(current)) {
-        _setStatus(tr("Altitude not known"));
+        _setWarning(tr("Altitude not known."),
+                    tr("Waiting for a usable altitude from the vehicle."));
         return;
     }
 
@@ -645,6 +771,25 @@ void OIKeyboardController::_stepAltitude(int direction)
     const double delta = clampedToLimits - _altitudeTarget;
     _altitudeTarget = clampedToLimits;
     _sinceLastAltitudeStep.start();
+
+    if (altitudeFrameAGL()) {
+        // Absolute and frame-carrying, so nothing accumulates and the GCS target cannot
+        // drift from the vehicle's. Only ever sent once the terrain check has passed:
+        // the identical command with terrain unavailable is ACCEPTED and then flown as
+        // height above home.
+        vehicle->sendMavCommandInt(
+            vehicle->defaultComponentId(),
+            static_cast<MAV_CMD>(kCmdDoChangeAltitude),
+            static_cast<MAV_FRAME>(kFrameGlobalTerrainAlt),
+            false /* showError */,
+            static_cast<float>(_altitudeTarget),
+            static_cast<float>(kFrameGlobalTerrainAlt),
+            0, 0, 0, 0, 0);
+        qCDebug(OIKeyboardLog) << "altitude target ->" << _altitudeTarget << "m AGL";
+        emit stateChanged();
+        return;
+    }
+
 
     // Uses the stock guided path so behaviour matches the altitude slider exactly.
     // Safe here only because _canAct has already established that the vehicle is
@@ -758,8 +903,11 @@ bool OIKeyboardController::_tryModeHotkey(int key)
         // hang on one keystroke that could have been meant for something else.
         _pendingModeName = hotkey->mode();
         _pendingModeKey = key;
-        _confirmTimer.start(static_cast<int>(
-            _settings->modeConfirmTimeout()->rawValue().toDouble() * 1000.0));
+        const int timeoutMs = static_cast<int>(
+            _settings->modeConfirmTimeout()->rawValue().toDouble() * 1000.0);
+        _confirmTimer.start(timeoutMs);
+        qCDebug(OIKeyboardLog) << "mode confirmation armed for" << hotkey->mode()
+                               << "timeout" << timeoutMs << "ms";
         emit pendingModeChanged();
         return true;
     }
