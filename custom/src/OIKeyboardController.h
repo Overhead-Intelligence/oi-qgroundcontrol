@@ -207,6 +207,8 @@ private slots:
     void _recomputeState();
     void _confirmTimeout();
     void _rebuildKeyConflicts();
+    /// Adopts a target commanded by anything else, notably the altitude slider.
+    void _guidedAltitudeCommanded(double altitude, int mavFrame);
 
 private:
     bool _handleKey(int key, Qt::KeyboardModifiers modifiers);
@@ -227,6 +229,10 @@ private:
     QString _checkTerrainReady() const;
     /// The vehicle's current altitude in whichever reference is selected.
     double _currentAltitudeInFrame() const;
+    int _altitudeMavFrame() const;
+    /// Drops a warning the moment something is accepted, so the readout never
+    /// shows a refusal while a newer target has already taken.
+    void _clearWarning();
     /// Moves a step fact onto the nearest offered value if a previously tuned
     /// value is no longer in the dropdown.
     void _normaliseStep(Fact *fact, const QList<double> &allowed);

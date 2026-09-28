@@ -8,6 +8,11 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Fixed
+- The keyboard altitude target now follows the altitude slider. They each kept their own idea of the target, so setting 80 m on the slider while the key target still read 120 m left the keys refusing every press - the maximum-lead guard was measuring from a target nothing was flying, and it only recovered by widening the lead or dragging the slider back. Both paths now go through one absolute command and the vehicle reports it, so whichever moves the altitude, the other adopts it.
+- A warning in the Fly view readout is now interrupted by the next accepted action rather than sitting out its timer. Hitting the guided minimum and then successfully turning or climbing left the refusal on screen while the new targets were already in force, so the readout described something that was no longer the latest thing that happened. Same principle as a keypress cancelling a pending mode confirmation.
+- The altitude slider label no longer overflows: it names the datum only, "Alt (AGL)" or "Alt (rel)". Why a terrain fallback happened is still reported on the Keyboard settings page, where there is room for it.
+
 ### Changed
 - The altitude reference selector now scopes the **altitude slider** as well as keyboard control, and leads the Guided Commands group rather than sitting under the limits it qualifies. Change Altitude and Pause send an absolute altitude in an explicit frame (`MAV_CMD_DO_CHANGE_ALTITUDE`) instead of a relative delta. That is a fix in its own right: the old path sent `target - current altitude` and the autopilot added it to *its own* target, which only matches the number on the slider while the vehicle is settled there - drag it twice during a climb and the target walked away from the display. The slider bounds, seeds, labels and commands in whichever reference is in force, and when AGL is selected but the vehicle cannot be confirmed to honour it the slider falls back to Relative to Home and **says so** ("Alt (rel) - no terrain") rather than degrading silently.
 

@@ -157,18 +157,10 @@ Item {
     property var  _vehicleTerrain:      _activeVehicle ? _activeVehicle.terrain : null
     property bool altFrameAGL:          _altFrameAGLSelected && _vehicleTerrain && _vehicleTerrain.referenceReady
     property string altFrameProblem:    _altFrameAGLSelected && _vehicleTerrain ? _vehicleTerrain.referenceProblem : ""
-    // Selecting AGL and quietly getting height-above-home would be the same silent
-    // degradation this whole guard exists to prevent, so the label says when it has
-    // fallen back. The specific reason is in altFrameProblem.
-    property string altFrameLabel: {
-        if (altFrameAGL) {
-            return qsTr("Alt (AGL)")
-        }
-        if (_altFrameAGLSelected) {
-            return qsTr("Alt (rel) - no terrain")
-        }
-        return qsTr("Alt (rel)")
-    }
+    // Names the datum only. A longer label spelling out a terrain fallback overflowed
+    // the slider, and the reason is already reported where there is room for it: the
+    // Keyboard settings page status line and altFrameProblem.
+    property string altFrameLabel: altFrameAGL ? qsTr("Alt (AGL)") : qsTr("Alt (rel)")
 
     // MAV_FRAME_GLOBAL_RELATIVE_ALT / MAV_FRAME_GLOBAL_TERRAIN_ALT
     property int  altFrameMavFrame:     altFrameAGL ? 10 : 3

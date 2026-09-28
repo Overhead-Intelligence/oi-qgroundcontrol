@@ -1912,6 +1912,7 @@ void Vehicle::guidedModeChangeAltitudeInFrame(double altitude, int mavFrame, boo
         return;
     }
     _firmwarePlugin->guidedModeChangeAltitudeInFrame(this, altitude, mavFrame, pauseVehicle);
+    emit guidedAltitudeCommanded(altitude, mavFrame);
 }
 
 void Vehicle::guidedModeChangeAltitude(double altitudeChange, bool pauseVehicle)

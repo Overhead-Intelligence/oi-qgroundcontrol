@@ -199,6 +199,8 @@ void OIKeyboardController::_activeVehicleChanged(Vehicle *vehicle)
         (void) connect(vehicle, &Vehicle::armedChanged, this, &OIKeyboardController::_recomputeState);
         (void) connect(vehicle, &Vehicle::flyingChanged, this, &OIKeyboardController::_recomputeState);
         (void) connect(vehicle, &Vehicle::vtolInFwdFlightChanged, this, &OIKeyboardController::_recomputeState);
+        (void) connect(vehicle, &Vehicle::guidedAltitudeCommanded,
+                       this, &OIKeyboardController::_guidedAltitudeCommanded);
         if (TerrainFactGroup *const terrain = qobject_cast<TerrainFactGroup*>(vehicle->terrainFactGroup())) {
             (void) connect(terrain, &TerrainFactGroup::referenceReadyChanged,
                            this, &OIKeyboardController::_recomputeState);
@@ -308,6 +310,21 @@ void OIKeyboardController::setEnabled(bool enabled)
     _settings->enabled()->setRawValue(enabled);
 }
 
+void OIKeyboardController::_clearWarning()
+{
+    // Any accepted action interrupts a warning still on screen. Letting it sit out its
+    // timer while newer targets have already taken means the readout describes a
+    // refusal that is no longer the latest thing that happened - the operator reads
+    // stale feedback and only sees the real targets once the timer expires. Same
+    // principle as a keypress cancelling a pending mode confirmation.
+    _warningTimer.stop();
+    if (!_warningText.isEmpty() || !_warningDetail.isEmpty()) {
+        _warningText.clear();
+        _warningDetail.clear();
+        emit warningChanged();
+    }
+}
+
 void OIKeyboardController::_setWarning(const QString &text, const QString &detail)
 {
     // Two fields, not one long string. The Fly view indicator is two rows; a
@@ -365,6 +382,29 @@ bool OIKeyboardController::altitudeFrameAGL() const
 {
     return SettingsManager::instance()->flyViewSettings()
                ->guidedAltitudeFrame()->rawValue().toUInt() == 1;
+}
+
+int OIKeyboardController::_altitudeMavFrame() const
+{
+    // MAV_FRAME_GLOBAL_TERRAIN_ALT / MAV_FRAME_GLOBAL_RELATIVE_ALT
+    return altitudeFrameAGL() ? 10 : 3;
+}
+
+void OIKeyboardController::_guidedAltitudeCommanded(double altitude, int mavFrame)
+{
+    // Whoever commanded it, that is the target in force now. Without adopting it the
+    // slider and these keys keep separate beliefs: set 80 m on the slider while the
+    // key target still reads 120 and the lead clamp refuses every further key press,
+    // because it is measuring from a target nothing is flying.
+    if (mavFrame != _altitudeMavFrame()) {
+        return;
+    }
+
+    _altitudeTarget = altitude;
+    _altitudeTargetValid = true;
+    _sinceLastAltitudeStep.start();
+    _clearWarning();
+    emit stateChanged();
 }
 
 double OIKeyboardController::_currentAltitudeInFrame() const
@@ -652,6 +692,7 @@ void OIKeyboardController::_stepHeading(int direction)
     const double bankLimitDeg = _settings->headingBankLimit()->rawValue().toDouble();
     const float accelLimit = static_cast<float>(9.80665 * qTan(qDegreesToRadians(bankLimitDeg)));
 
+    _clearWarning();
     vehicle->sendMavCommand(
         vehicle->defaultComponentId(),
         static_cast<MAV_CMD>(kCmdGuidedChangeHeading),
@@ -724,35 +765,21 @@ void OIKeyboardController::_stepAltitude(int direction)
         return;
     }
 
-    const double delta = clampedToLimits - _altitudeTarget;
     _altitudeTarget = clampedToLimits;
     _sinceLastAltitudeStep.start();
 
-    if (altitudeFrameAGL()) {
-        // Absolute and frame-carrying, so nothing accumulates and the GCS target cannot
-        // drift from the vehicle's. Only ever sent once the terrain check has passed:
-        // the identical command with terrain unavailable is ACCEPTED and then flown as
-        // height above home.
-        vehicle->sendMavCommandInt(
-            vehicle->defaultComponentId(),
-            static_cast<MAV_CMD>(kCmdDoChangeAltitude),
-            static_cast<MAV_FRAME>(kFrameGlobalTerrainAlt),
-            false /* showError */,
-            static_cast<float>(_altitudeTarget),
-            static_cast<float>(kFrameGlobalTerrainAlt),
-            0, 0, 0, 0, 0);
-        qCDebug(OIKeyboardLog) << "altitude target ->" << _altitudeTarget << "m AGL";
-        emit stateChanged();
-        return;
-    }
 
 
-    // Uses the stock guided path so behaviour matches the altitude slider exactly.
-    // Safe here only because _canAct has already established that the vehicle is
-    // in Guided: guidedModeChangeAltitude() would otherwise switch it there itself.
-    vehicle->guidedModeChangeAltitude(delta, false /* pauseVehicle */);
+    // One funnel for both frames, shared with the altitude slider: absolute, acked,
+    // and it makes the vehicle emit guidedAltitudeCommanded so the two cannot drift
+    // apart. Safe here only because _canAct has already established Guided - the
+    // firmware plugin would otherwise switch the vehicle there itself.
+    _clearWarning();
+    vehicle->guidedModeChangeAltitudeInFrame(_altitudeTarget, _altitudeMavFrame(),
+                                             false /* pauseVehicle */);
 
-    qCDebug(OIKeyboardLog) << "altitude target ->" << _altitudeTarget << "delta" << delta;
+    qCDebug(OIKeyboardLog) << "altitude target ->" << _altitudeTarget
+                           << (altitudeFrameAGL() ? "m AGL" : "m rel");
     emit stateChanged();
 }
 
@@ -768,6 +795,7 @@ void OIKeyboardController::_stepGimbalPitch(int direction)
     }
 
     const double step = _settings->gimbalPitchStep()->rawValue().toDouble();
+    _clearWarning();
     _gimbalPitch = qBound(-90.0, _gimbalPitch + (direction * step), 90.0);
     vehicle->gimbalController()->sendPitchBodyYaw(static_cast<float>(_gimbalPitch),
                                                  static_cast<float>(_gimbalYaw),
@@ -785,6 +813,7 @@ void OIKeyboardController::_stepGimbalYaw(int direction)
     }
 
     const double step = _settings->gimbalYawStep()->rawValue().toDouble();
+    _clearWarning();
     _gimbalYaw = qBound(-180.0, _gimbalYaw + (direction * step), 180.0);
     vehicle->gimbalController()->sendPitchBodyYaw(static_cast<float>(_gimbalPitch),
                                                  static_cast<float>(_gimbalYaw),
@@ -801,6 +830,7 @@ void OIKeyboardController::_cycleGimbalMode(int direction)
         return;
     }
 
+    _clearWarning();
     GimbalController *const gimbal = vehicle->gimbalController();
     _gimbalModeIndex = (_gimbalModeIndex + direction + kGimbalModeCount) % kGimbalModeCount;
 
@@ -881,6 +911,7 @@ void OIKeyboardController::_sendPendingMode()
         return;
     }
 
+    _clearWarning();
     qCDebug(OIKeyboardLog) << "flight mode ->" << mode;
     vehicle->setFlightMode(mode);
     _setStatus(tr("Flight mode: %1").arg(mode));
