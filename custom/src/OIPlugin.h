@@ -80,6 +80,11 @@ public:
     /// Stock toolbar indicators plus the keyboard control target readout.
     const QVariantList &toolBarIndicators() final;
 
+    /// Forwards TERRAIN_REPORT to the keyboard controller, which needs the terrain
+    /// heights to tell whether the vehicle can honour an above-terrain altitude.
+    /// QGC's own handler keeps only the pending/loaded counts.
+    bool mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message) final;
+
     /// No first-run "Preferences" prompt: the OI defaults already answer the vehicle and units
     /// questions (both false makes firstRunPromptStdIds() empty).
     bool showInitialSetupVehiclePreferences() const final { return false; }

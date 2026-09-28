@@ -106,6 +106,14 @@ class OIKeyboardController : public QObject
     Q_PROPERTY(bool     canAct          READ canAct                         NOTIFY stateChanged)
     Q_PROPERTY(QString  statusText      READ statusText                     NOTIFY stateChanged)
     Q_PROPERTY(bool     headingUsable   READ headingUsable                  NOTIFY stateChanged)
+    /// Altitude keys are gated separately from heading: losing terrain must not cost
+    /// the operator the ability to turn.
+    Q_PROPERTY(bool     altitudeUsable  READ altitudeUsable                 NOTIFY stateChanged)
+    /// True when the selected reference is Above Ground Level.
+    Q_PROPERTY(bool     altitudeFrameAGL READ altitudeFrameAGL              NOTIFY stateChanged)
+    /// Whether the vehicle is actually configured and supplied for terrain referencing
+    /// where it currently is. Empty when it is; otherwise why not.
+    Q_PROPERTY(QString  terrainProblem  READ terrainProblem                 NOTIFY stateChanged)
     Q_PROPERTY(double   altitudeTarget  READ altitudeTarget                 NOTIFY stateChanged)
     Q_PROPERTY(bool     altitudeTargetValid READ altitudeTargetValid        NOTIFY stateChanged)
     Q_PROPERTY(double   headingTarget   READ headingTarget                  NOTIFY stateChanged)
@@ -142,6 +150,15 @@ public:
 
     /// Heading keys only work in forward flight; in VTOL the command is accepted and ignored.
     bool headingUsable() const { return _headingUsable; }
+    bool altitudeUsable() const { return _altitudeUsable; }
+    bool altitudeFrameAGL() const;
+    QString terrainProblem() const { return _terrainProblem; }
+
+    /// Fed from OIPlugin::mavlinkMessage. TERRAIN_REPORT is the only place the vehicle
+    /// says whether it holds terrain for where it is; QGC's own handler keeps only the
+    /// pending/loaded counts and drops the heights.
+    void terrainReportReceived(uint16_t pending, uint16_t loaded,
+                               float terrainHeight, float currentHeight);
 
     double altitudeTarget() const { return _altitudeTarget; }
     bool altitudeTargetValid() const { return _altitudeTargetValid; }
@@ -210,6 +227,11 @@ private:
     void _reseedAltitudeTarget();
     void _loadModeHotkeys();
     void _setStatus(const QString &text);
+    /// Empty when the vehicle can be trusted to honour an above-terrain altitude right
+    /// now, otherwise the reason it cannot.
+    QString _checkTerrainReady() const;
+    /// The vehicle's current altitude in whichever reference is selected.
+    double _currentAltitudeInFrame() const;
     /// Moves a step fact onto the nearest offered value if a previously tuned
     /// value is no longer in the dropdown.
     void _normaliseStep(Fact *fact, const QList<double> &allowed);
@@ -226,6 +248,17 @@ private:
 
     bool _canAct = false;
     bool _headingUsable = false;
+    bool _altitudeUsable = false;
+    QString _terrainProblem;
+
+    // Latest TERRAIN_REPORT, with the time it arrived. Staleness matters as much as
+    // content: if the reports stop, the last good one must not keep vouching for the
+    // vehicle - that is exactly the mid-flight coverage loss this is guarding against.
+    int _terrainPending = -1;
+    int _terrainLoaded = -1;
+    float _terrainHeight = 0.0f;
+    float _terrainCurrentHeight = 0.0f;
+    QElapsedTimer _sinceTerrainReport;
     QString _statusText;
 
     double _headingTarget = 0.0;
