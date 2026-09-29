@@ -183,6 +183,27 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
   actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.
+- **A comms dropout does not destroy the Vehicle; a link teardown does.**
+  `VehicleLinkManager::_autoDisconnect` is false by default, so missed heartbeats only
+  set `communicationLost` and the `Vehicle` survives with its flight timer running. It
+  is `allLinksRemoved` - a serial port disappearing, a TCP socket closing, an operator
+  reconnecting - that makes `MultiVehicleManager` delete the `Vehicle`, and anything
+  held on it goes too. That is why `src/Vehicle/FlightStatsResume.{h,cc}` is owned by
+  `MultiVehicleManager` rather than by the `Vehicle` whose totals it carries.
+  It resumes flight time and distance from ArduPilot's own `AP_Stats` counters, which
+  are plain parameters: `STAT_FLTTIME`, `STAT_DISTFLWN`, `STAT_FLTCNT`, `STAT_BOOTCNT`.
+  Three measured facts they depend on (SITL, fleet branch). `STAT_FLTTIME` counts
+  **airborne** time, not armed time - armed on the ground for 238 s it stayed at 0.0.
+  `STAT_FLTCNT` increments at **takeoff**, not at arming, which is why the record is
+  dropped on disarm: between a re-arm and leaving the ground it would still match the
+  previous flight. And the counters are only flushed to their parameters every 30 s
+  (`AP_Stats::flush_interval_ms`), which is the whole error budget - measured worst case
+  30.8 s and 918 m over a 1188 s, 30 km flight.
+  The values must be **read**, never taken from the parameter cache: on a reconnect that
+  cache holds exactly the pre-gap values the resume is measuring against. Hence
+  `ParameterManager::bulkRefresh` plus the `_paramRequestReadSuccess` signal to know when
+  all four have come back. Touches `src/` - no hook reaches the flight totals or the
+  vehicle lifecycle.
 - **MAVLink actions are a list, not a file.** `flyViewActionsFile` and
   `joystickActionsFile` hold `;`-separated file names, and `MavlinkActionManager`
   loads every one of them into a single action model. `;` rather than `,` because
