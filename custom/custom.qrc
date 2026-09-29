@@ -11,6 +11,7 @@
     <qresource prefix="/Custom/qml">
         <file alias="QGroundControl/Controls/QGCToolBarButton.qml">src/qml/QGCToolBarButton.qml</file>
         <file alias="QGroundControl/Toolbar/SelectViewDropdown.qml">src/qml/SelectViewDropdown.qml</file>
+        <file alias="QGroundControl/AppSettings/LinkConfigurationManager.qml">src/qml/LinkConfigurationManager.qml</file>
     </qresource>
 
     <!-- OI-only QML that adds to QGC rather than replacing a stock file. Loaded by
