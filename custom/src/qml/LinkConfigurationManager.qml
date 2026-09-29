@@ -144,16 +144,19 @@ SettingsGroupLayout {
                 // Deliberately capped. A tailnet hostname is long and this row already
                 // carries four controls; the dropdown itself shows the full text.
                 Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 22
-                // The port is the point of showing this: it is not the telemetry port the
-                // operator typed, so naming it is what stops the button looking like it
-                // reuses the link. The scheme is left off - it is always http and would
-                // cost seven characters of a width that is already tight.
-                model:                  linkRow._guiHosts.map(function (host) { return host + ":8088" })
+                // Addresses only. The GUI port was shown here at first, on the theory that
+                // naming it distinguished it from the telemetry port - but it reads as a
+                // link the operator is meant to understand rather than a machine to pick,
+                // and the button says what it opens. Which drone is the only question this
+                // has to answer.
+                model:                  linkRow._guiHosts
                 enabled:                linkRow._guiHosts.length > 0
             }
 
             QGCButton {
-                text:       qsTr("Configure")
+                // QGCButton sizes to its text - the background's implicitWidth is only a
+                // five character floor - so the wider label needs no explicit width.
+                text:       qsTr("Open Device Config")
                 visible:    linkRow._showDroneGui
                 // Nothing to open with no addresses saved, and nothing sensible to put in
                 // the dropdown either, so both go dead rather than the button failing.
