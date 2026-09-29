@@ -427,7 +427,8 @@ public:
     /// Set the flight totals from the aircraft's own counters and keep counting from there.
     /// With `force` the values are applied outright, for a flight the ground side has not
     /// been following; otherwise they only correct *forward*, so the smoother local timer
-    /// wins between reads and the display never runs backwards. See FlightStatsResume.
+    /// wins between reads and the display never runs backwards. Ignored while disarmed, so
+    /// polling on the ground cannot restart a finished flight. See FlightStatsResume.
     void syncFlightStats(double flightTimeSecs, double flightDistanceM, bool force);
 
     void sendJoystickDataThreadSafe (float roll, float pitch, float yaw, float thrust, quint16 buttons, quint16 buttons2, float pitchExtension, float rollExtension, float aux1, float aux2, float aux3, float aux4, float aux5, float aux6);

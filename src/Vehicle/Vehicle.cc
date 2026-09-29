@@ -1633,6 +1633,15 @@ void Vehicle::_updateFlightTime()
 
 void Vehicle::syncFlightStats(double flightTimeSecs, double flightDistanceM, bool force)
 {
+    // The totals only run between arm and disarm - that is the invariant the stock timer
+    // keeps, and the counters are polled continuously, including on the ground. Without
+    // this guard a poll arriving while disarmed restarts the 1 Hz updater: harmless before
+    // arming, since arming zeroes everything, but after landing it starts the clock running
+    // again on a flight that has already finished.
+    if (!_armed) {
+        return;
+    }
+
     if (force || (flightTimeSecs > _flightTimeFact.rawValue().toDouble())) {
         // Restarted rather than left alone: it has been running since this Vehicle saw the
         // aircraft armed, which for a reconnect is the moment the link came back, not the
