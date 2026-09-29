@@ -36,6 +36,16 @@ overrides as he names things. A complete 5.0 port is parked on branch
   class (`CUSTOMCLASS=OIPlugin`). `custom/custom.qrc` — resources, including the
   QML overrides under `/Custom/qml/...`: QGC's URL interceptor swaps a stock
   `qrc:/qml/X` for `:/Custom/qml/X` whenever the latter exists.
+  **An override changes the file's directory, so every directory-relative URL inside
+  it breaks.** The copy is served from `qrc:/Custom/qml/QGroundControl/<Module>/...`,
+  where none of the module's siblings exist, and QML resolves a bare relative source
+  against the containing file. This is silent: a `Loader` just renders nothing.
+  `LinkConfigurationManager.qml` hit exactly this - `LinkConfiguration::settingsURL()`
+  returns a bare `"UdpSettings.qml"`, so the whole per-type half of the Edit Link dialog
+  vanished. Name the stock directory explicitly (`qrc:/qml/QGroundControl/AppSettings/`
+  - the modules all set `RESOURCE_PREFIX /qml`); the interceptor still gets first refusal
+  on the result. A source with a leading slash, like `"/res/pencil.svg"`, is fine: it
+  resolves against the scheme root, not the directory.
 - `custom/src/OIPlugin.{h,cc}` — the `QGCCorePlugin` subclass. Hooks used:
   `adjustSettingMetaData` (defaults read from `res/OI-defaults.ini`),
   `factValueGridCreateDefaultSettings` (telemetry bar), `init` (deploys

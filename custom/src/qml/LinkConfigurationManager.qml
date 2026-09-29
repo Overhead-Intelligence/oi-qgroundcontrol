@@ -255,8 +255,21 @@ SettingsGroupLayout {
                 }
 
                 Loader {
-                    id:     linkSettingsLoader
-                    source: editingConfig && editingConfig.settingsURL ? editingConfig.settingsURL : ""
+                    id: linkSettingsLoader
+
+                    // settingsURL is a bare file name - "UdpSettings.qml" - which a Loader
+                    // resolves against the directory of the file it is written in. The stock
+                    // LinkConfigurationManager.qml lives beside those pages; this override is
+                    // served from qrc:/Custom/qml/... where none of them exist, so a relative
+                    // source silently loaded nothing and the edit dialog lost every per-type
+                    // field below Type. Name the stock directory instead. The interceptor
+                    // still gets first refusal on the result, so a /Custom copy of a settings
+                    // page would be picked up if one is ever added.
+                    readonly property string _stockSettingsDir: "qrc:/qml/QGroundControl/AppSettings/"
+
+                    source: editingConfig && editingConfig.settingsURL
+                                ? _stockSettingsDir + editingConfig.settingsURL
+                                : ""
                     asynchronous: true
 
                     property var subEditConfig:         editingConfig
