@@ -32,6 +32,12 @@ Item {
     id:             root
     implicitHeight: mainLayout.implicitHeight
 
+    // Twice the stock settings column. SettingsPage.qml sizes itself to
+    // Math.max(implicitWidth, 50 characters), so asking for more widens this page and
+    // leaves every other one alone. These are paragraphs rather than labelled controls,
+    // and at the stock width they wrap into a narrow ribbon.
+    implicitWidth:  ScreenTools.defaultFontPixelWidth * 100
+
     readonly property string releaseVersion: "1.1.0"
 
     readonly property var features: [

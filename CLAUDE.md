@@ -234,7 +234,8 @@ overrides as he names things. A complete 5.0 port is parked on branch
   is Settings → What's New, the last visible page in the list. It describes **one
   release**, not a running history: at release time replace `releaseVersion`,
   `features` and `fixes` wholesale, and make `releaseVersion` match
-  `custom/VERSION`. It is not the changelog in different words — `CHANGELOG.md` is
+  `custom/VERSION` - and the "Current version" line at the top of this file. It is
+  not the changelog in different words — `CHANGELOG.md` is
   written for whoever maintains the code, this is written for whoever flies with
   it, so each entry says what the operator can now do and names the tab or window
   it is reached from. Descriptions are `Text.StyledText`, so `<b>` works and a
