@@ -149,6 +149,30 @@ Item {
     // Note: The '_visualItemsCount - 2' is a hack to not trigger resume mission when a mission ends with an RTL item
     property bool showResumeMission:    _activeVehicle && !_vehicleArmed && _vehicleWasFlying && _missionAvailable && _resumeMissionIndex > 0 && (_resumeMissionIndex < _visualItemsCount - 2)
 
+    // Altitude reference for guided commands. AGL is only honoured when the vehicle can
+    // be shown to support it: a terrain-framed command sent to a vehicle without terrain
+    // data is ACCEPTED and then flown as height above home, so the ack proves nothing
+    // and the decision has to be made here. TerrainFactGroup owns that judgement.
+    property bool _altFrameAGLSelected: _flyViewSettings.guidedAltitudeFrame.rawValue === 1
+    property var  _vehicleTerrain:      _activeVehicle ? _activeVehicle.terrain : null
+    property bool altFrameAGL:          _altFrameAGLSelected && _vehicleTerrain && _vehicleTerrain.referenceReady
+    property string altFrameProblem:    _altFrameAGLSelected && _vehicleTerrain ? _vehicleTerrain.referenceProblem : ""
+    // Names the datum only. A longer label spelling out a terrain fallback overflowed
+    // the slider, and the reason is already reported where there is room for it: the
+    // Keyboard settings page status line and altFrameProblem.
+    property string altFrameLabel: altFrameAGL ? qsTr("Alt (AGL)") : qsTr("Alt (rel)")
+
+    // MAV_FRAME_GLOBAL_RELATIVE_ALT / MAV_FRAME_GLOBAL_TERRAIN_ALT
+    property int  altFrameMavFrame:     altFrameAGL ? 10 : 3
+
+    /// The vehicle's current altitude in whichever reference is in force.
+    function currentAltitudeInFrame() {
+        if (altFrameAGL) {
+            return _vehicleTerrain.vehicleHeight.rawValue
+        }
+        return _activeVehicle.altitudeRelative.rawValue
+    }
+
     property bool guidedUIVisible:          confirmDialog.visible
     // Map clicks are suppressed only while a confirmation the PILOT opened is pending,
     // where a second click opening another drop panel would be confusing. An automatic
@@ -212,6 +236,9 @@ Item {
                 _unitsConversion.metersToAppSettingsVerticalDistanceUnits(_activeVehicle.minimumTakeoffAltitudeMeters()),
                 _flyViewSettings.guidedMaximumAltitude.value,
                 _unitsConversion.metersToAppSettingsVerticalDistanceUnits(_activeVehicle.minimumTakeoffAltitudeMeters()),
+                // Takeoff is always relative to where the vehicle is sitting; a
+                // height above the ground it is standing on would be the same number
+                // and inviting confusion.
                 qsTr("Height (rel)"))
         } else if (actionCode === actionChangeSpeed) {
             if (_vehicleInFwdFlight) {
@@ -232,12 +259,16 @@ Item {
                 console.error("setupSlider called for inapproproate change speed action", _vehicleInFwdFlight, _activeVehicle.haveMRSpeedLimits)
             }
         } else if (actionCode === actionChangeAlt || actionCode === actionOrbit || actionCode === actionGoto || actionCode === actionPause) {
+            // The limits are reinterpreted in whichever frame is in force rather than
+            // being converted between frames, which would need a terrain lookup on a
+            // path that has to stay immediate. The label always names the datum,
+            // because "120 m" means very different things above home and above ground.
             guidedValueSlider.setupSlider(
                 GuidedValueSlider.SliderType.Altitude,
                 _flyViewSettings.guidedMinimumAltitude.value,
                 _flyViewSettings.guidedMaximumAltitude.value,
-                _activeVehicle.altitudeRelative.value,
-                qsTr("Alt (rel)"))
+                _unitsConversion.metersToAppSettingsVerticalDistanceUnits(currentAltitudeInFrame()),
+                altFrameLabel)
         }
     }
 
@@ -617,8 +648,7 @@ Item {
             break
         case actionChangeAlt:
             var valueInMeters = _unitsConversion.appSettingsVerticalDistanceUnitsToMeters(sliderOutputValue)
-            var altitudeChangeInMeters = valueInMeters - _activeVehicle.altitudeRelative.rawValue
-            _activeVehicle.guidedModeChangeAltitude(altitudeChangeInMeters, false /* pauseVehicle */)
+            _activeVehicle.guidedModeChangeAltitudeInFrame(valueInMeters, altFrameMavFrame, false /* pauseVehicle */)
             break
         case actionChangeLoiterRadius:
             if (!_activeVehicle.guidedModeGotoLocation(
@@ -651,8 +681,7 @@ Item {
             break
         case actionPause:
             var valueInMeters = _unitsConversion.appSettingsVerticalDistanceUnitsToMeters(sliderOutputValue)
-            var altitudeChangeInMeters = valueInMeters - _activeVehicle.altitudeRelative.rawValue
-            _activeVehicle.guidedModeChangeAltitude(altitudeChangeInMeters, true /* pauseVehicle */)
+            _activeVehicle.guidedModeChangeAltitudeInFrame(valueInMeters, altFrameMavFrame, true /* pauseVehicle */)
             break
         case actionMVPause:
             selectedVehicles = QGroundControl.multiVehicleManager.selectedVehicles

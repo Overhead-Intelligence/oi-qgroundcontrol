@@ -154,6 +154,20 @@ bool FirmwarePlugin::guidedModeGotoLocation(Vehicle *vehicle, const QGeoCoordina
     return false;
 }
 
+void FirmwarePlugin::guidedModeChangeAltitudeInFrame(Vehicle *vehicle, double altitude, int mavFrame, bool pauseVehicle)
+{
+    Q_UNUSED(mavFrame);
+
+    // No frame-aware command on this firmware: convert to the relative change every
+    // firmware understands. Correct only for a relative-altitude frame, which is why
+    // callers gate any other frame on the plugin actually overriding this.
+    const double currentAltitude = vehicle->altitudeRelative()->rawValue().toDouble();
+    if (qIsNaN(currentAltitude)) {
+        return;
+    }
+    guidedModeChangeAltitude(vehicle, altitude - currentAltitude, pauseVehicle);
+}
+
 void FirmwarePlugin::guidedModeChangeAltitude(Vehicle*, double, bool pauseVehicle)
 {
     Q_UNUSED(pauseVehicle);

@@ -306,6 +306,10 @@ public:
     ///     @param pauseVehicle true: pause vehicle prior to altitude change
     Q_INVOKABLE void guidedModeChangeAltitude(double altitudeChange, bool pauseVehicle);
 
+    /// Absolute altitude in an explicit MAV_FRAME. See
+    /// FirmwarePlugin::guidedModeChangeAltitudeInFrame for why absolute.
+    Q_INVOKABLE void guidedModeChangeAltitudeInFrame(double altitude, int mavFrame, bool pauseVehicle);
+
     /// Command vehicle to change yaw
     ///     @param coordinate to rotate towards
     Q_INVOKABLE void guidedModeChangeHeading(const QGeoCoordinate &headingCoord);
@@ -752,6 +756,12 @@ signals:
     void armedPositionChanged();
     void armedChanged                   (bool armed);
     void flightModeChanged              (const QString& flightMode);
+
+    /// A guided altitude has been commanded, by any means - the altitude slider,
+    /// keyboard control, anything else. Anything holding its own idea of the target
+    /// must adopt this, or the two drift apart and each starts working from a target
+    /// nothing is flying.
+    void guidedAltitudeCommanded        (double altitude, int mavFrame);
     void flyingChanged                  (bool flying);
     void landingChanged                 (bool landing);
     void guidedModeChanged              (bool guidedMode);
