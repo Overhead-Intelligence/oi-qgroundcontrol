@@ -3,6 +3,7 @@
 #include <QtCore/QObject>
 #include <QtQmlIntegration/QtQmlIntegration>
 
+class FlightStatsResume;
 class LinkInterface;
 class Vehicle;
 class QmlObjectListModel;
@@ -65,6 +66,7 @@ private:
     void _setParameterReadyVehicleAvailable(bool parametersReady);
 
     QTimer *_gcsHeartbeatTimer = nullptr;           ///< Timer to emit heartbeats
+    FlightStatsResume *_flightStatsResume = nullptr; ///< Carries flight time/distance across a reconnect
     QmlObjectListModel *_vehicles = nullptr;
     QmlObjectListModel *_selectedVehicles = nullptr;
     Vehicle *_offlineEditingVehicle = nullptr;      ///< Disconnected vechicle used for offline editing
