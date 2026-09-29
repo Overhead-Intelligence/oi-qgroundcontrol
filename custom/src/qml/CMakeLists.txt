@@ -22,6 +22,7 @@ qgc_set_qt_resource_alias(
     ${CMAKE_CURRENT_SOURCE_DIR}/OIMapOverlaySettings.qml
     ${CMAKE_CURRENT_SOURCE_DIR}/OIKeyboardSettingsPage.qml
     ${CMAKE_CURRENT_SOURCE_DIR}/OIKeyBindField.qml
+    ${CMAKE_CURRENT_SOURCE_DIR}/OIWhatsNewPage.qml
 )
 
 qt_add_qml_module(OISettingsModule
@@ -32,5 +33,6 @@ qt_add_qml_module(OISettingsModule
         ${CMAKE_CURRENT_SOURCE_DIR}/OIMapOverlaySettings.qml
         ${CMAKE_CURRENT_SOURCE_DIR}/OIKeyboardSettingsPage.qml
         ${CMAKE_CURRENT_SOURCE_DIR}/OIKeyBindField.qml
+        ${CMAKE_CURRENT_SOURCE_DIR}/OIWhatsNewPage.qml
     NO_PLUGIN
 )

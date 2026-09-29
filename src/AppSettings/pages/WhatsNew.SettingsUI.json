@@ -1,0 +1,21 @@
+{
+    "version": 1,
+    "fileType": "SettingsUI",
+    "imports": [
+        "OI.Settings"
+    ],
+    "groups": [
+        {
+            "component": "OIWhatsNewPage",
+            "sectionName": "What's New",
+            "keywords": [
+                "whats new",
+                "what is new",
+                "release",
+                "release notes",
+                "changes",
+                "version"
+            ]
+        }
+    ]
+}

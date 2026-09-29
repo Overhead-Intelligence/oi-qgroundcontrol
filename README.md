@@ -20,7 +20,7 @@ Every pull request and every push to `development` also produces an installer: o
 
 ## What is in this fork
 
-All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build overlay, so upstream releases merge cleanly. The single exception is 15 lines of declarative JSON in `src/AppSettings/pages/Maps.SettingsUI.json`, which registers the Map Overlays settings section; QGC generates its settings pages from those files and gives a custom build no other way in.
+Nearly all OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build overlay, so upstream releases merge cleanly. A few changes do reach into `src/`, where QGC offers no hook: settings pages are code-generated from JSON that lives there, and a handful of core behaviours — guided altitude framing, the MAVLink actions list, map click handling — have no plugin surface at all. Each one is called out in its `CHANGELOG.md` entry, because those are what conflict on the next upstream sync.
 
 | Area | Where to look |
 |---|---|
@@ -40,7 +40,7 @@ Same flow as `oi-raspi-toolkit`:
 
 1. `main` is what has been released. `development` is where work lands. Nobody pushes to either directly.
 2. Branch off `development` (`feat/...`, `fix/...`, `docs/...`, `chore/...`), commit with Conventional Commits, add a line to `CHANGELOG.md` under `[Unreleased]`, open a PR against `development`. CI builds the installer (about 25 minutes) and attaches it to the run. A human reviews and merges (merge commit).
-3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `custom/VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
+3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]`, writes `custom/VERSION`, and rewrites the What's New tab (`custom/src/qml/OIWhatsNewPage.qml`) for the new release — that page describes one release rather than a history, and its `releaseVersion` must match `custom/VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
 
 No local Qt toolchain is needed to contribute: CI builds every PR. To iterate faster, build on your own Windows PC with the three scripts in `custom/scripts/` (`install-qt.cmd` once, then `build-local.cmd` and `run-local.cmd`); see [custom/README.md](custom/README.md#building-on-your-own-pc-minutes-instead-of-a-ci-run). CMake picks up the `custom/` directory automatically.
 

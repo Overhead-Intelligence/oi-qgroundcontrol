@@ -107,6 +107,12 @@
             "icon": "qrc:/InstrumentValueIcons/question.svg"
         },
         {
+            "name": "What's New",
+            "qml": "WhatsNewSettings.qml",
+            "icon": "qrc:/InstrumentValueIcons/news-paper.svg",
+            "pageDefinition": "WhatsNew.SettingsUI.json"
+        },
+        {
             "divider": true
         },
         {

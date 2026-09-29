@@ -230,6 +230,15 @@ overrides as he names things. A complete 5.0 port is parked on branch
   Commits; PR against `development`; a `CHANGELOG.md` `[Unreleased]` entry in
   every PR; humans merge with a merge commit (the ruleset allows nothing else).
   `main` fast-forwards at release time; tags are OI versions `vX.Y.Z`, not QGC's.
+- **Every release updates the What's New tab.** `custom/src/qml/OIWhatsNewPage.qml`
+  is Settings → What's New, the last visible page in the list. It describes **one
+  release**, not a running history: at release time replace `releaseVersion`,
+  `features` and `fixes` wholesale, and make `releaseVersion` match
+  `custom/VERSION`. It is not the changelog in different words — `CHANGELOG.md` is
+  written for whoever maintains the code, this is written for whoever flies with
+  it, so each entry says what the operator can now do and names the tab or window
+  it is reached from. Descriptions are `Text.StyledText`, so `<b>` works and a
+  literal `<` or `&` must be escaped.
 - `custom/VERSION` + `CHANGELOG.md` drive releases. The version file cannot
   sit at the repo root: MSVC resolves `#include <version>` (C++20 standard
   header) to a root file named `VERSION` because the root is on the include

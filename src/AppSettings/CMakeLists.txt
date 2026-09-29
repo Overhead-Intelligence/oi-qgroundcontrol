@@ -36,6 +36,7 @@ set(_generated_qml_names
     TelemetrySettings.qml
     VideoSettings.qml
     Viewer3DSettings.qml
+    WhatsNewSettings.qml
 )
 
 qgc_add_qml_codegen(GenerateSettingsQml
