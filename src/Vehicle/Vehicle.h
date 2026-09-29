@@ -424,14 +424,11 @@ public:
 
     void updateFlightDistance(double distance);
 
-    /// Ground-side flight totals as they currently read. Paired with the vehicle's own
-    /// counters by FlightStatsResume, which needs both halves from the same instant.
-    double flightTimeSecs() const;
-    double flightDistanceM() const;
-
-    /// Adopt totals carried over from a previous connection to this same flight, and keep
-    /// counting from there. See FlightStatsResume.
-    void resumeFlightStats(double flightTimeSecs, double flightDistanceM);
+    /// Set the flight totals from the aircraft's own counters and keep counting from there.
+    /// With `force` the values are applied outright, for a flight the ground side has not
+    /// been following; otherwise they only correct *forward*, so the smoother local timer
+    /// wins between reads and the display never runs backwards. See FlightStatsResume.
+    void syncFlightStats(double flightTimeSecs, double flightDistanceM, bool force);
 
     void sendJoystickDataThreadSafe (float roll, float pitch, float yaw, float thrust, quint16 buttons, quint16 buttons2, float pitchExtension, float rollExtension, float aux1, float aux2, float aux3, float aux4, float aux5, float aux6);
     /// Sends RC_CHANNELS_OVERRIDE for joystick aux axes mapped to RC channels 5–10 only.
