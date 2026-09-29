@@ -1616,6 +1616,7 @@ void Vehicle::_flightTimerStart()
 {
     _flightTimer.start();
     _flightTimeUpdater.start();
+    _flightTimeOffsetSecs = 0;
     _flightDistanceFact.setRawValue(0);
     _flightTimeFact.setRawValue(0);
 }
@@ -1627,7 +1628,30 @@ void Vehicle::_flightTimerStop()
 
 void Vehicle::_updateFlightTime()
 {
-    _flightTimeFact.setRawValue((double)_flightTimer.elapsed() / 1000.0);
+    _flightTimeFact.setRawValue(_flightTimeOffsetSecs + ((double)_flightTimer.elapsed() / 1000.0));
+}
+
+double Vehicle::flightTimeSecs() const
+{
+    return _flightTimeFact.rawValue().toDouble();
+}
+
+double Vehicle::flightDistanceM() const
+{
+    return _flightDistanceFact.rawValue().toDouble();
+}
+
+void Vehicle::resumeFlightStats(double flightTimeSecs, double flightDistanceM)
+{
+    // The elapsed timer is restarted rather than left alone: it has been running since
+    // this Vehicle saw the aircraft armed, which for a reconnect is the moment the link
+    // came back, not the moment the flight began.
+    _flightTimeOffsetSecs = flightTimeSecs;
+    _flightTimer.start();
+    _flightTimeUpdater.start();
+
+    _flightDistanceFact.setRawValue(flightDistanceM);
+    _updateFlightTime();
 }
 
 void Vehicle::_gotProgressUpdate(float progressValue)
