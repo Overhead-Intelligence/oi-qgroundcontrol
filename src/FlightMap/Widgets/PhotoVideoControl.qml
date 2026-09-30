@@ -60,7 +60,18 @@ Rectangle {
                 from: 0
                 value: _camera.zoomLevel
                 live: true
-                onValueChanged: _camera.zoomLevel = value
+                // onMoved, not onValueChanged. valueChanged fires for ANY change including
+                // the binding above updating from CAMERA_SETTINGS, so the camera's reported
+                // level was being written straight back as a new zoom command roughly once a
+                // second. That cancels a zoom in progress and pins the camera wherever the
+                // last telemetry sample caught it: commanding 5.3% on a Siyi ZR10 crept from
+                // 1.1x to 1.3x and was then driven back to 1.1x by its own echo. It also
+                // meant the slider commanded zoom 0 at startup, before any telemetry, purely
+                // from being constructed at its default value.
+                //
+                // moved() is emitted only for user interaction, which is the only time this
+                // widget has anything to say.
+                onMoved: _camera.zoomLevel = value
             }
         }
 
