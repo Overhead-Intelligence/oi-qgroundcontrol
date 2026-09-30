@@ -223,6 +223,13 @@ void OIKeyboardController::_activeVehicleChanged(Vehicle *vehicle)
             (void) connect(gimbal, &GimbalController::activeGimbalChanged,
                            this, &OIKeyboardController::gimbalStateChanged);
         }
+        if (QGCCameraManager *const cameras = vehicle->cameraManager()) {
+            (void) connect(cameras, &QGCCameraManager::currentCameraChanged, this, [this]() {
+                _connectZoomCamera();
+                emit gimbalStateChanged();
+            });
+            _connectZoomCamera();
+        }
         if (TerrainFactGroup *const terrain = qobject_cast<TerrainFactGroup*>(vehicle->terrainFactGroup())) {
             (void) connect(terrain, &TerrainFactGroup::referenceReadyChanged,
                            this, &OIKeyboardController::_recomputeState);
@@ -918,19 +925,17 @@ void OIKeyboardController::_connectZoomCamera()
     if (!camera) {
         return;
     }
-    // Only the commanded value is adopted, never the reported one. UniqueConnection because
-    // the camera can be re-resolved on any camera list change.
-    (void) connect(camera, &MavlinkCameraControlInterface::zoomLevelCommanded,
-                   this, &OIKeyboardController::_zoomLevelCommanded, Qt::UniqueConnection);
+    // The readout follows the camera's target, which the zoom slider sets too - so there is
+    // nothing to keep in step, only something to repaint. UniqueConnection because the
+    // camera is re-resolved whenever the camera list changes.
+    (void) connect(camera, &MavlinkCameraControlInterface::zoomTargetChanged,
+                   this, &OIKeyboardController::gimbalStateChanged, Qt::UniqueConnection);
 }
 
-void OIKeyboardController::_zoomLevelCommanded(qreal level)
+double OIKeyboardController::zoomTarget() const
 {
-    // Covers the zoom slider and our own sends alike. Adopting our own is a no-op; adopting
-    // the slider's is the point, and is what keeps the two from drifting apart.
-    _zoomTarget = qBound(0.0, static_cast<double>(level), 100.0);
-    _zoomTargetValid = true;
-    emit gimbalStateChanged();
+    MavlinkCameraControlInterface *const camera = _zoomCamera();
+    return camera ? camera->zoomTarget() : 0.0;
 }
 
 void OIKeyboardController::_stepZoom(int direction)
@@ -945,18 +950,15 @@ void OIKeyboardController::_stepZoom(int direction)
 
     const double step = _settings->zoomStep()->rawValue().toDouble();
 
-    // Seed once from the camera, then step from the target. Seeding on every press read a
-    // zoom still in progress - a press could land short of its step, and two quick presses
-    // computed the same target twice and did nothing the second time. Same reason heading
-    // and altitude snap from the tracked target and never from the live value.
-    if (!_zoomTargetValid) {
-        _zoomTarget = qBound(0.0, static_cast<double>(camera->zoomLevel()), 100.0);
-        _zoomTargetValid = true;
-    }
-
-    // Snapped to a grid, so targets are round percentages however they were seeded. The
-    // offered steps all divide 100, so the grid survives the full range.
-    const double current = _zoomTarget;
+    // Stepped from the camera's target, never from the level it reports. A zoom takes
+    // seconds and is reported about once a second while it runs, so stepping from the
+    // reported level sampled a slew in progress: presses landed short of their step, and
+    // two quick presses computed the same target twice and the second did nothing. The
+    // camera seeds its target from the first report, so this is meaningful from the start.
+    //
+    // Snapped to a grid so targets are round percentages however they were seeded. Every
+    // offered step divides 100, so the grid survives the full range.
+    const double current = qBound(0.0, static_cast<double>(camera->zoomTarget()), 100.0);
     const double snapped = (direction > 0) ? (qFloor(current / step) + 1) * step
                                            : (qCeil(current / step) - 1) * step;
     const double wanted = snapped;
@@ -979,10 +981,9 @@ void OIKeyboardController::_stepZoom(int direction)
         camera->setZoomLevel(wanted);
     }
 
-    // setZoomLevel emits zoomLevelCommanded, which is what actually moves _zoomTarget - one
-    // place, so the slider and the keys cannot disagree about where it was put.
+    // setZoomLevel moves the camera's target, which is the single copy the slider reads too.
     _clearGimbalWarning();
-    qCDebug(OIKeyboardLog) << "zoom" << current << "->" << _zoomTarget;
+    qCDebug(OIKeyboardLog) << "zoom" << current << "->" << camera->zoomTarget();
 }
 
 void OIKeyboardController::_gimbalPitchYawCommanded(float pitch, float yaw, bool yawInBodyFrame)

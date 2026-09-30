@@ -58,7 +58,11 @@ Rectangle {
                 orientation: Qt.Vertical
                 to: 100
                 from: 0
-                value: _camera.zoomLevel
+                // The target, not the reported level. Bound to the level, the handle crept
+                // toward the new position for many seconds after the zoom had finished -
+                // CAMERA_SETTINGS only arrives about once a second - so releasing the handle
+                // made it drift somewhere else. This makes it hold where it was put.
+                value: _camera.zoomTarget
                 live: true
                 // onMoved, not onValueChanged. valueChanged fires for ANY change including
                 // the binding above updating from CAMERA_SETTINGS, so the camera's reported
