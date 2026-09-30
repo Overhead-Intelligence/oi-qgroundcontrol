@@ -136,6 +136,14 @@ OIKeyboardController::OIKeyboardController(QObject *parent)
     _loadModeHotkeys();
     _rebuildKeyConflicts();
 
+    _gimbalWarningTimer.setSingleShot(true);
+    _gimbalWarningTimer.setInterval(6000);
+    (void) connect(&_gimbalWarningTimer, &QTimer::timeout, this, [this]() {
+        _gimbalWarningText.clear();
+        _gimbalWarningDetail.clear();
+        emit gimbalWarningChanged();
+    });
+
     _warningTimer.setSingleShot(true);
     _warningTimer.setInterval(6000);
     (void) connect(&_warningTimer, &QTimer::timeout, this, [this]() {
@@ -205,6 +213,10 @@ void OIKeyboardController::_activeVehicleChanged(Vehicle *vehicle)
         if (GimbalController *const gimbal = vehicle->gimbalController()) {
             (void) connect(gimbal, &GimbalController::pitchYawCommanded,
                            this, &OIKeyboardController::_gimbalPitchYawCommanded);
+            // The indicator hides itself when there is no gimbal, so it has to hear about
+            // one arriving or going away.
+            (void) connect(gimbal, &GimbalController::activeGimbalChanged,
+                           this, &OIKeyboardController::gimbalStateChanged);
         }
         if (TerrainFactGroup *const terrain = qobject_cast<TerrainFactGroup*>(vehicle->terrainFactGroup())) {
             (void) connect(terrain, &TerrainFactGroup::referenceReadyChanged,
@@ -328,6 +340,24 @@ void OIKeyboardController::_clearWarning()
         _warningDetail.clear();
         emit warningChanged();
     }
+}
+
+void OIKeyboardController::_clearGimbalWarning()
+{
+    _gimbalWarningTimer.stop();
+    if (!_gimbalWarningText.isEmpty() || !_gimbalWarningDetail.isEmpty()) {
+        _gimbalWarningText.clear();
+        _gimbalWarningDetail.clear();
+        emit gimbalWarningChanged();
+    }
+}
+
+void OIKeyboardController::_setGimbalWarning(const QString &text, const QString &detail)
+{
+    _gimbalWarningText = text;
+    _gimbalWarningDetail = detail;
+    _gimbalWarningTimer.start();
+    emit gimbalWarningChanged();
 }
 
 void OIKeyboardController::_setWarning(const QString &text, const QString &detail)
@@ -813,8 +843,8 @@ void OIKeyboardController::_stepGimbalAxis(bool pitch, int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
-        _setWarning(tr("No gimbal on the connected vehicle."),
-                    tr("Gimbal keys have nothing to command."));
+        _setGimbalWarning(tr("No gimbal on the connected vehicle."),
+                          tr("Gimbal keys have nothing to command."));
         return;
     }
 
@@ -834,10 +864,10 @@ void OIKeyboardController::_stepGimbalAxis(bool pitch, int direction)
     if ((wanted < minDeg) || (wanted > maxDeg)) {
         const double limit = (wanted < minDeg) ? minDeg : maxDeg;
         if (qFuzzyCompare(target, limit)) {
-            _setWarning(pitch ? tr("Gimbal is at its pitch limit (%1°).").arg(limit, 0, 'f', 0)
-                              : tr("Gimbal is at its pan limit (%1°).").arg(limit, 0, 'f', 0),
-                        reported ? tr("Reported by the gimbal.")
-                                 : tr("The gimbal does not report its travel."));
+            _setGimbalWarning(pitch ? tr("Gimbal is at its pitch limit (%1°).").arg(limit, 0, 'f', 0)
+                                    : tr("Gimbal is at its pan limit (%1°).").arg(limit, 0, 'f', 0),
+                              reported ? tr("Reported by the gimbal.")
+                                       : tr("The gimbal does not report its travel."));
             return;
         }
         // Part of a step still fits: take it, so the stop itself stays reachable.
@@ -846,10 +876,12 @@ void OIKeyboardController::_stepGimbalAxis(bool pitch, int direction)
         target = wanted;
     }
 
-    _clearWarning();
+    _clearGimbalWarning();
+    _gimbalTargetValid = true;
     vehicle->gimbalController()->sendPitchBodyYaw(static_cast<float>(_gimbalPitch),
                                                  static_cast<float>(_gimbalYaw),
                                                  false /* showError */);
+    emit gimbalStateChanged();
     qCDebug(OIKeyboardLog) << (pitch ? "gimbal pitch ->" : "gimbal yaw ->") << target
                            << (reported ? "(reported limits)" : "(fallback limits)");
 }
@@ -869,6 +901,8 @@ void OIKeyboardController::_gimbalPitchYawCommanded(float pitch, float yaw, bool
         _gimbalYaw = yaw;
     }
 
+    _gimbalTargetValid = true;
+    emit gimbalStateChanged();
     qCDebug(OIKeyboardLog) << "gimbal target adopted from command: pitch" << pitch
                            << "yaw" << yaw << (yawInBodyFrame ? "(body)" : "(earth, yaw ignored)");
 }
@@ -887,12 +921,12 @@ void OIKeyboardController::_cycleGimbalMode(int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
-        _setWarning(tr("No gimbal on the connected vehicle."),
-                    tr("Gimbal keys have nothing to command."));
+        _setGimbalWarning(tr("No gimbal on the connected vehicle."),
+                          tr("Gimbal keys have nothing to command."));
         return;
     }
 
-    _clearWarning();
+    _clearGimbalWarning();
     GimbalController *const gimbal = vehicle->gimbalController();
     _gimbalModeIndex = (_gimbalModeIndex + direction + kGimbalModeCount) % kGimbalModeCount;
 
@@ -928,7 +962,10 @@ void OIKeyboardController::_cycleGimbalMode(int direction)
         break;
     }
 
-    _setStatus(tr("Gimbal mode: %1").arg(QString::fromLatin1(kGimbalModeNames[_gimbalModeIndex])));
+    // Reported through gimbalModeName rather than the shared status line: that line
+    // describes whether the aircraft can be flown from the keyboard, and _recomputeState()
+    // would overwrite a gimbal message on the next telemetry update anyway.
+    emit gimbalStateChanged();
     qCDebug(OIKeyboardLog) << "gimbal mode ->" << kGimbalModeNames[_gimbalModeIndex];
 }
 
@@ -1034,6 +1071,11 @@ void OIKeyboardController::_normaliseStep(Fact *fact, const QList<double> &allow
 
 QList<QPair<QString, QString>> OIKeyboardController::_bindings() const
 {
+    return _flightBindings() + _gimbalBindings();
+}
+
+QList<QPair<QString, QString>> OIKeyboardController::_flightBindings() const
+{
     QList<QPair<QString, QString>> rows;
     const auto add = [&rows](const QString &label, Fact *fact) {
         const QString key = fact->rawValue().toString().trimmed();
@@ -1045,12 +1087,6 @@ QList<QPair<QString, QString>> OIKeyboardController::_bindings() const
     add(tr("Turn right"),           _settings->headingRightKey());
     add(tr("Climb"),                _settings->altitudeUpKey());
     add(tr("Descend"),              _settings->altitudeDownKey());
-    add(tr("Gimbal up"),            _settings->gimbalPitchUpKey());
-    add(tr("Gimbal down"),          _settings->gimbalPitchDownKey());
-    add(tr("Gimbal left"),          _settings->gimbalYawLeftKey());
-    add(tr("Gimbal right"),         _settings->gimbalYawRightKey());
-    add(tr("Next gimbal mode"),     _settings->gimbalNextModeKey());
-    add(tr("Previous gimbal mode"), _settings->gimbalPrevModeKey());
 
     for (int i = 0; i < _modeHotkeys->count(); i++) {
         const OIModeHotkey *const hotkey = _modeHotkeys->value<OIModeHotkey*>(i);
@@ -1058,6 +1094,24 @@ QList<QPair<QString, QString>> OIKeyboardController::_bindings() const
             rows.append(qMakePair(tr("Flight mode: %1").arg(hotkey->mode()), hotkey->key().trimmed()));
         }
     }
+    return rows;
+}
+
+QList<QPair<QString, QString>> OIKeyboardController::_gimbalBindings() const
+{
+    QList<QPair<QString, QString>> rows;
+    const auto add = [&rows](const QString &label, Fact *fact) {
+        const QString key = fact->rawValue().toString().trimmed();
+        if (!key.isEmpty()) {
+            rows.append(qMakePair(label, key));
+        }
+    };
+    add(tr("Gimbal up"),            _settings->gimbalPitchUpKey());
+    add(tr("Gimbal down"),          _settings->gimbalPitchDownKey());
+    add(tr("Gimbal left"),          _settings->gimbalYawLeftKey());
+    add(tr("Gimbal right"),         _settings->gimbalYawRightKey());
+    add(tr("Next gimbal mode"),     _settings->gimbalNextModeKey());
+    add(tr("Previous gimbal mode"), _settings->gimbalPrevModeKey());
     return rows;
 }
 
@@ -1096,10 +1150,13 @@ bool OIKeyboardController::_keyIsConflicted(int key) const
     return _conflictedKeys.contains(key);
 }
 
-QVariantList OIKeyboardController::bindingList() const
+/// Conflicts are still judged across *every* binding - `_bindings()` - because a gimbal
+/// key and a heading key colliding is exactly the case worth catching. Only the display
+/// is split.
+QVariantList OIKeyboardController::_formatBindings(const QList<QPair<QString, QString>> &bindings) const
 {
     QVariantList rows;
-    for (const auto &row : _bindings()) {
+    for (const auto &row : bindings) {
         const QKeySequence sequence = QKeySequence::fromString(row.second, QKeySequence::PortableText);
         QVariantMap entry;
         entry[QStringLiteral("action")] = row.first;
@@ -1109,6 +1166,31 @@ QVariantList OIKeyboardController::bindingList() const
         rows.append(entry);
     }
     return rows;
+}
+
+QVariantList OIKeyboardController::bindingList() const
+{
+    return _formatBindings(_flightBindings());
+}
+
+QVariantList OIKeyboardController::gimbalBindingList() const
+{
+    return _formatBindings(_gimbalBindings());
+}
+
+bool OIKeyboardController::gimbalPresent() const
+{
+    Vehicle *const vehicle = _vehicle();
+    GimbalController *const controller = vehicle ? vehicle->gimbalController() : nullptr;
+    return controller && controller->activeGimbal();
+}
+
+QString OIKeyboardController::gimbalModeName() const
+{
+    if ((_gimbalModeIndex < 0) || (_gimbalModeIndex >= kGimbalModeCount)) {
+        return QString();
+    }
+    return QString::fromLatin1(kGimbalModeNames[_gimbalModeIndex]);
 }
 
 QObject *OIKeyboardController::settingsObject() const

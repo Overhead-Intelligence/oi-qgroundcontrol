@@ -245,6 +245,10 @@ const QVariantList &OIPlugin::toolBarIndicators()
         _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
+        // Beside it rather than inside it: the gimbal readout hides itself when the
+        // aircraft has no gimbal, and its warnings must not disturb the flying one.
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIGimbalIndicator.qml"))));
     }
 
     return _toolBarIndicators;
