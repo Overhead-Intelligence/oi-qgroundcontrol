@@ -16,6 +16,8 @@
 #include "GimbalController.h"
 #include "MavlinkCameraControlInterface.h"
 #include "QGCCameraManager.h"
+
+#include <QtCore/QtMath>
 #include "MultiVehicleManager.h"
 #include "QGCApplication.h"
 #include "QGCLoggingCategory.h"
@@ -910,10 +912,25 @@ bool OIKeyboardController::zoomAvailable() const
     return _zoomCamera() != nullptr;
 }
 
-double OIKeyboardController::zoomLevel() const
+void OIKeyboardController::_connectZoomCamera()
 {
     MavlinkCameraControlInterface *const camera = _zoomCamera();
-    return camera ? camera->zoomLevel() : 0.0;
+    if (!camera) {
+        return;
+    }
+    // Only the commanded value is adopted, never the reported one. UniqueConnection because
+    // the camera can be re-resolved on any camera list change.
+    (void) connect(camera, &MavlinkCameraControlInterface::zoomLevelCommanded,
+                   this, &OIKeyboardController::_zoomLevelCommanded, Qt::UniqueConnection);
+}
+
+void OIKeyboardController::_zoomLevelCommanded(qreal level)
+{
+    // Covers the zoom slider and our own sends alike. Adopting our own is a no-op; adopting
+    // the slider's is the point, and is what keeps the two from drifting apart.
+    _zoomTarget = qBound(0.0, static_cast<double>(level), 100.0);
+    _zoomTargetValid = true;
+    emit gimbalStateChanged();
 }
 
 void OIKeyboardController::_stepZoom(int direction)
@@ -924,14 +941,25 @@ void OIKeyboardController::_stepZoom(int direction)
                           tr("Zoom keys have nothing to command."));
         return;
     }
+    _connectZoomCamera();
 
-    // Read the camera's level rather than keeping one here. MAV_CMD_SET_CAMERA_ZOOM is
-    // absolute and the camera reports zoomLevel back, so stepping from the reported value
-    // keeps the keys in step with the slider and with anything else that zooms - the
-    // desync the gimbal pitch and pan targets needed a signal to avoid does not arise.
     const double step = _settings->zoomStep()->rawValue().toDouble();
-    const double current = camera->zoomLevel();
-    const double wanted = current + (direction * step);
+
+    // Seed once from the camera, then step from the target. Seeding on every press read a
+    // zoom still in progress - a press could land short of its step, and two quick presses
+    // computed the same target twice and did nothing the second time. Same reason heading
+    // and altitude snap from the tracked target and never from the live value.
+    if (!_zoomTargetValid) {
+        _zoomTarget = qBound(0.0, static_cast<double>(camera->zoomLevel()), 100.0);
+        _zoomTargetValid = true;
+    }
+
+    // Snapped to a grid, so targets are round percentages however they were seeded. The
+    // offered steps all divide 100, so the grid survives the full range.
+    const double current = _zoomTarget;
+    const double snapped = (direction > 0) ? (qFloor(current / step) + 1) * step
+                                           : (qCeil(current / step) - 1) * step;
+    const double wanted = snapped;
 
     // The camera's own range, which VehicleCameraControl::setZoomLevel() clamps to.
     // Refused at the end rather than clamped, matching the gimbal travel limits: a press
@@ -943,7 +971,7 @@ void OIKeyboardController::_stepZoom(int direction)
         if (qFuzzyCompare(current, limit)) {
             _setGimbalWarning(direction > 0 ? tr("Camera is fully zoomed in.")
                                             : tr("Camera is fully zoomed out."),
-                              tr("Zoom is at %1%.").arg(limit, 0, 'f', 0));
+                              tr("Zoom target is at %1%.").arg(limit, 0, 'f', 0));
             return;
         }
         camera->setZoomLevel(limit);
@@ -951,9 +979,10 @@ void OIKeyboardController::_stepZoom(int direction)
         camera->setZoomLevel(wanted);
     }
 
+    // setZoomLevel emits zoomLevelCommanded, which is what actually moves _zoomTarget - one
+    // place, so the slider and the keys cannot disagree about where it was put.
     _clearGimbalWarning();
-    emit gimbalStateChanged();
-    qCDebug(OIKeyboardLog) << "zoom" << current << "->" << camera->zoomLevel();
+    qCDebug(OIKeyboardLog) << "zoom" << current << "->" << _zoomTarget;
 }
 
 void OIKeyboardController::_gimbalPitchYawCommanded(float pitch, float yaw, bool yawInBodyFrame)

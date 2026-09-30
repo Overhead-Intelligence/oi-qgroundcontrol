@@ -281,6 +281,11 @@ signals:
     void dataReady(const QByteArray &data);
     void parametersReady();
     void zoomLevelChanged();
+    /// A zoom level was *commanded*, by whoever asked - the slider, the keyboard, a script.
+    /// Distinct from zoomLevelChanged(), which also fires for the level the camera reports
+    /// back. Anything holding a zoom target of its own needs the commanded value and must
+    /// not be re-seeded from a measurement taken while the camera is still slewing.
+    void zoomLevelCommanded(qreal level);
     void focusLevelChanged();
     void streamsChanged();
     void currentStreamChanged();

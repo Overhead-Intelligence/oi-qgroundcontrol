@@ -92,7 +92,8 @@ Item {
             QGCLabel {
                 font.pointSize: ScreenTools.smallFontPointSize
                 color:          qgcPal.text
-                text:           OIKeyboard.zoomLevel.toFixed(0) + "%"
+                text:           OIKeyboard.zoomTargetValid
+                                    ? OIKeyboard.zoomTarget.toFixed(0) + "%" : "--"
             }
         }
     }
@@ -134,9 +135,10 @@ Item {
                         }
 
                         LabelledLabel {
-                            label:      qsTr("Zoom")
+                            label:      qsTr("Zoom target")
                             visible:    OIKeyboard.zoomAvailable
-                            labelText:  OIKeyboard.zoomLevel.toFixed(0) + "%"
+                            labelText:  OIKeyboard.zoomTargetValid
+                                            ? OIKeyboard.zoomTarget.toFixed(0) + "%" : qsTr("not set")
                         }
                     }
 

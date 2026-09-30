@@ -604,6 +604,7 @@ void VehicleCameraControl::setZoomLevel(qreal level)
                 ZOOM_TYPE_RANGE,                        // Zoom type
                 static_cast<float>(level));             // Level
         }
+        emit zoomLevelCommanded(level);
     }
 }
 
