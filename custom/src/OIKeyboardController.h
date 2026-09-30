@@ -66,6 +66,7 @@
 
 class QEvent;
 class Fact;
+class MavlinkCameraControlInterface;
 class Vehicle;
 class OIKeyboardSettings;
 class QmlObjectListModel;
@@ -129,6 +130,9 @@ class OIKeyboardController : public QObject
     Q_PROPERTY(double   gimbalYawTarget     READ gimbalYawTarget        NOTIFY gimbalStateChanged)
     Q_PROPERTY(bool     gimbalTargetValid   READ gimbalTargetValid      NOTIFY gimbalStateChanged)
     Q_PROPERTY(QString  gimbalModeName      READ gimbalModeName         NOTIFY gimbalStateChanged)
+    /// Camera zoom, reported by the camera rather than tracked here - see _stepZoom().
+    Q_PROPERTY(bool     zoomAvailable       READ zoomAvailable          NOTIFY gimbalStateChanged)
+    Q_PROPERTY(double   zoomLevel           READ zoomLevel              NOTIFY gimbalStateChanged)
     Q_PROPERTY(QString  gimbalWarningText   READ gimbalWarningText      NOTIFY gimbalWarningChanged)
     Q_PROPERTY(QString  gimbalWarningDetail READ gimbalWarningDetail    NOTIFY gimbalWarningChanged)
     Q_PROPERTY(QString  pendingModeName READ pendingModeName                NOTIFY pendingModeChanged)
@@ -178,6 +182,8 @@ public:
     double gimbalYawTarget() const { return _gimbalYaw; }
     bool gimbalTargetValid() const { return _gimbalTargetValid; }
     QString gimbalModeName() const;
+    bool zoomAvailable() const;
+    double zoomLevel() const;
     QString gimbalWarningText() const { return _gimbalWarningText; }
     QString gimbalWarningDetail() const { return _gimbalWarningDetail; }
     QString pendingModeName() const { return _pendingModeName; }
@@ -250,6 +256,11 @@ private:
     void _stepGimbalYaw(int direction);
     /// Both axes differ only in which setting and which target they use.
     void _stepGimbalAxis(bool pitch, int direction);
+    /// Zoom is not tracked here. The camera reports its own level back, so each press steps
+    /// from where the camera actually is - which is what keeps it in step with the slider
+    /// and with anything else that zooms, for free.
+    void _stepZoom(int direction);
+    MavlinkCameraControlInterface *_zoomCamera() const;
     /// Travel limits in degrees for one axis. Returns false, and the protocol range, when
     /// the gimbal does not publish its own.
     bool _gimbalTravel(bool pitch, double &minDeg, double &maxDeg) const;

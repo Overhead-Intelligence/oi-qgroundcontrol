@@ -132,17 +132,42 @@
             "label": "Gimbal pan step"
         },
         {
+            "name": "zoomInKey",
+            "shortDesc": "Key that zooms the camera in.",
+            "type": "string",
+            "default": "PgUp",
+            "label": "Zoom in"
+        },
+        {
+            "name": "zoomOutKey",
+            "shortDesc": "Key that zooms the camera out.",
+            "type": "string",
+            "default": "PgDown",
+            "label": "Zoom out"
+        },
+        {
+            "name": "zoomStep",
+            "shortDesc": "Camera zoom change per key press, as a percentage of the full range. The camera reports its own level back, so the keys always step from where it actually is.",
+            "type": "double",
+            "units": "%",
+            "decimalPlaces": 0,
+            "default": 5,
+            "label": "Zoom step",
+            "enumStrings": "1,2,5,10",
+            "enumValues": "1,2,5,10"
+        },
+        {
             "name": "gimbalNextModeKey",
             "shortDesc": "Key that steps forward through the gimbal modes.",
             "type": "string",
-            "default": "PgUp",
+            "default": "+",
             "label": "Next gimbal mode"
         },
         {
             "name": "gimbalPrevModeKey",
             "shortDesc": "Key that steps back through the gimbal modes.",
             "type": "string",
-            "default": "PgDown",
+            "default": "-",
             "label": "Previous gimbal mode"
         },
         {

@@ -14,6 +14,8 @@
 #include "Fact.h"
 #include "Gimbal.h"
 #include "GimbalController.h"
+#include "MavlinkCameraControlInterface.h"
+#include "QGCCameraManager.h"
 #include "MultiVehicleManager.h"
 #include "QGCApplication.h"
 #include "QGCLoggingCategory.h"
@@ -157,7 +159,8 @@ OIKeyboardController::OIKeyboardController(QObject *parent)
                               _settings->altitudeUpKey(), _settings->altitudeDownKey(),
                               _settings->gimbalPitchUpKey(), _settings->gimbalPitchDownKey(),
                               _settings->gimbalYawLeftKey(), _settings->gimbalYawRightKey(),
-                              _settings->gimbalNextModeKey(), _settings->gimbalPrevModeKey() }) {
+                              _settings->gimbalNextModeKey(), _settings->gimbalPrevModeKey(),
+                              _settings->zoomInKey(), _settings->zoomOutKey() }) {
         (void) connect(fact, &Fact::rawValueChanged, this, &OIKeyboardController::_rebuildKeyConflicts);
     }
 
@@ -645,6 +648,14 @@ bool OIKeyboardController::_handleKey(int key, Qt::KeyboardModifiers modifiers)
         _stepGimbalYaw(1);
         return true;
     }
+    if (_matches(_settings->zoomInKey()->rawValue().toString(), key)) {
+        _stepZoom(1);
+        return true;
+    }
+    if (_matches(_settings->zoomOutKey()->rawValue().toString(), key)) {
+        _stepZoom(-1);
+        return true;
+    }
     if (_matches(_settings->gimbalNextModeKey()->rawValue().toString(), key)) {
         _cycleGimbalMode(1);
         return true;
@@ -886,6 +897,65 @@ void OIKeyboardController::_stepGimbalAxis(bool pitch, int direction)
                            << (reported ? "(reported limits)" : "(fallback limits)");
 }
 
+MavlinkCameraControlInterface *OIKeyboardController::_zoomCamera() const
+{
+    Vehicle *const vehicle = _vehicle();
+    QGCCameraManager *const manager = vehicle ? vehicle->cameraManager() : nullptr;
+    MavlinkCameraControlInterface *const camera = manager ? manager->currentCameraInstance() : nullptr;
+    return (camera && camera->hasZoom()) ? camera : nullptr;
+}
+
+bool OIKeyboardController::zoomAvailable() const
+{
+    return _zoomCamera() != nullptr;
+}
+
+double OIKeyboardController::zoomLevel() const
+{
+    MavlinkCameraControlInterface *const camera = _zoomCamera();
+    return camera ? camera->zoomLevel() : 0.0;
+}
+
+void OIKeyboardController::_stepZoom(int direction)
+{
+    MavlinkCameraControlInterface *const camera = _zoomCamera();
+    if (!camera) {
+        _setGimbalWarning(tr("No zoom-capable camera."),
+                          tr("Zoom keys have nothing to command."));
+        return;
+    }
+
+    // Read the camera's level rather than keeping one here. MAV_CMD_SET_CAMERA_ZOOM is
+    // absolute and the camera reports zoomLevel back, so stepping from the reported value
+    // keeps the keys in step with the slider and with anything else that zooms - the
+    // desync the gimbal pitch and pan targets needed a signal to avoid does not arise.
+    const double step = _settings->zoomStep()->rawValue().toDouble();
+    const double current = camera->zoomLevel();
+    const double wanted = current + (direction * step);
+
+    // The camera's own range, which VehicleCameraControl::setZoomLevel() clamps to.
+    // Refused at the end rather than clamped, matching the gimbal travel limits: a press
+    // that cannot move anything should say so rather than look like it worked.
+    constexpr double kMinZoom = 0.0;
+    constexpr double kMaxZoom = 100.0;
+    if ((wanted < kMinZoom) || (wanted > kMaxZoom)) {
+        const double limit = (wanted < kMinZoom) ? kMinZoom : kMaxZoom;
+        if (qFuzzyCompare(current, limit)) {
+            _setGimbalWarning(direction > 0 ? tr("Camera is fully zoomed in.")
+                                            : tr("Camera is fully zoomed out."),
+                              tr("Zoom is at %1%.").arg(limit, 0, 'f', 0));
+            return;
+        }
+        camera->setZoomLevel(limit);
+    } else {
+        camera->setZoomLevel(wanted);
+    }
+
+    _clearGimbalWarning();
+    emit gimbalStateChanged();
+    qCDebug(OIKeyboardLog) << "zoom" << current << "->" << camera->zoomLevel();
+}
+
 void OIKeyboardController::_gimbalPitchYawCommanded(float pitch, float yaw, bool yawInBodyFrame)
 {
     // Adopt whatever was actually commanded, including our own sends - those already match,
@@ -1110,6 +1180,8 @@ QList<QPair<QString, QString>> OIKeyboardController::_gimbalBindings() const
     add(tr("Gimbal down"),          _settings->gimbalPitchDownKey());
     add(tr("Gimbal left"),          _settings->gimbalYawLeftKey());
     add(tr("Gimbal right"),         _settings->gimbalYawRightKey());
+    add(tr("Zoom in"),              _settings->zoomInKey());
+    add(tr("Zoom out"),             _settings->zoomOutKey());
     add(tr("Next gimbal mode"),     _settings->gimbalNextModeKey());
     add(tr("Previous gimbal mode"), _settings->gimbalPrevModeKey());
     return rows;

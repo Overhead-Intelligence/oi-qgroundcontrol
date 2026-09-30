@@ -30,7 +30,8 @@ Item {
     // gimbal key pressed on an aircraft without one still says so, rather than doing
     // nothing with nowhere to report it.
     property bool showIndicator: OIKeyboard.enabled &&
-                                 (OIKeyboard.gimbalPresent || OIKeyboard.gimbalWarningText !== "")
+                                 (OIKeyboard.gimbalPresent || OIKeyboard.zoomAvailable ||
+                                  OIKeyboard.gimbalWarningText !== "")
 
     property bool _warning: OIKeyboard.gimbalWarningText !== ""
 
@@ -74,6 +75,26 @@ Item {
                 }
             }
         }
+
+        // Zoom reads from the camera, not from a target held here, so it is right even
+        // when something else moved it. Shown only when there is a camera that can zoom.
+        ColumnLayout {
+            Layout.alignment:   Qt.AlignVCenter
+            spacing:            0
+            visible:            OIKeyboard.zoomAvailable && !control._warning
+
+            QGCLabel {
+                font.pointSize: ScreenTools.smallFontPointSize
+                color:          qgcPal.text
+                text:           qsTr("Zoom")
+            }
+
+            QGCLabel {
+                font.pointSize: ScreenTools.smallFontPointSize
+                color:          qgcPal.text
+                text:           OIKeyboard.zoomLevel.toFixed(0) + "%"
+            }
+        }
     }
 
     MouseArea {
@@ -111,12 +132,18 @@ Item {
                             labelText:  OIKeyboard.gimbalTargetValid
                                             ? OIKeyboard.gimbalYawTarget.toFixed(0) + "°" : qsTr("not set")
                         }
+
+                        LabelledLabel {
+                            label:      qsTr("Zoom")
+                            visible:    OIKeyboard.zoomAvailable
+                            labelText:  OIKeyboard.zoomLevel.toFixed(0) + "%"
+                        }
                     }
 
                     SettingsGroupLayout {
                         Layout.fillWidth:   true
-                        heading:            qsTr("Gimbal Keys")
-                        headingDescription: qsTr("Gimbal keys work in any flight mode, armed or not - pointing a camera cannot move the aircraft.")
+                        heading:            qsTr("Gimbal and Camera Keys")
+                        headingDescription: qsTr("These work in any flight mode, armed or not - pointing a camera cannot move the aircraft.")
 
                         Repeater {
                             model: OIKeyboard.gimbalBindingList()
