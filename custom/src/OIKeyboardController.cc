@@ -12,6 +12,7 @@
 
 #include "FlyViewSettings.h"
 #include "Fact.h"
+#include "Gimbal.h"
 #include "GimbalController.h"
 #include "MultiVehicleManager.h"
 #include "QGCApplication.h"
@@ -785,7 +786,26 @@ void OIKeyboardController::_stepAltitude(int direction)
 
 /*===========================================================================*/
 
-void OIKeyboardController::_stepGimbalPitch(int direction)
+bool OIKeyboardController::_gimbalTravel(bool pitch, double &minDeg, double &maxDeg) const
+{
+    // The protocol range, used when the gimbal does not publish its own. It is not a real
+    // limit and is not pretended to be: it only stops the target running away unbounded.
+    minDeg = pitch ? -90.0 : -180.0;
+    maxDeg = pitch ? 90.0 : 180.0;
+
+    Vehicle *const vehicle = _vehicle();
+    GimbalController *const controller = vehicle ? vehicle->gimbalController() : nullptr;
+    Gimbal *const gimbal = controller ? controller->activeGimbal() : nullptr;
+    if (!gimbal || !gimbal->angleLimitsKnown()) {
+        return false;
+    }
+
+    minDeg = pitch ? gimbal->pitchMin() : gimbal->yawMin();
+    maxDeg = pitch ? gimbal->pitchMax() : gimbal->yawMax();
+    return true;
+}
+
+void OIKeyboardController::_stepGimbalAxis(bool pitch, int direction)
 {
     Vehicle *const vehicle = _vehicle();
     if (!vehicle || !vehicle->gimbalController()) {
@@ -794,31 +814,50 @@ void OIKeyboardController::_stepGimbalPitch(int direction)
         return;
     }
 
-    const double step = _settings->gimbalPitchStep()->rawValue().toDouble();
+    const double step = (pitch ? _settings->gimbalPitchStep() : _settings->gimbalYawStep())
+                            ->rawValue().toDouble();
+    double &target = pitch ? _gimbalPitch : _gimbalYaw;
+
+    double minDeg = 0.0;
+    double maxDeg = 0.0;
+    const bool reported = _gimbalTravel(pitch, minDeg, maxDeg);
+
+    // Refused at the stop rather than clamped to it, and that is the fix. Clamping silently
+    // let the target keep taking presses the gimbal could not act on, so five presses into a
+    // stop cost five presses to come back out - the target and the gimbal had quietly parted
+    // company. Refusing keeps them equal, and says why.
+    const double wanted = target + (direction * step);
+    if ((wanted < minDeg) || (wanted > maxDeg)) {
+        const double limit = (wanted < minDeg) ? minDeg : maxDeg;
+        if (qFuzzyCompare(target, limit)) {
+            _setWarning(pitch ? tr("Gimbal is at its pitch limit (%1°).").arg(limit, 0, 'f', 0)
+                              : tr("Gimbal is at its pan limit (%1°).").arg(limit, 0, 'f', 0),
+                        reported ? tr("Reported by the gimbal.")
+                                 : tr("The gimbal does not report its travel."));
+            return;
+        }
+        // Part of a step still fits: take it, so the stop itself stays reachable.
+        target = limit;
+    } else {
+        target = wanted;
+    }
+
     _clearWarning();
-    _gimbalPitch = qBound(-90.0, _gimbalPitch + (direction * step), 90.0);
     vehicle->gimbalController()->sendPitchBodyYaw(static_cast<float>(_gimbalPitch),
                                                  static_cast<float>(_gimbalYaw),
                                                  false /* showError */);
-    qCDebug(OIKeyboardLog) << "gimbal pitch ->" << _gimbalPitch;
+    qCDebug(OIKeyboardLog) << (pitch ? "gimbal pitch ->" : "gimbal yaw ->") << target
+                           << (reported ? "(reported limits)" : "(fallback limits)");
+}
+
+void OIKeyboardController::_stepGimbalPitch(int direction)
+{
+    _stepGimbalAxis(true, direction);
 }
 
 void OIKeyboardController::_stepGimbalYaw(int direction)
 {
-    Vehicle *const vehicle = _vehicle();
-    if (!vehicle || !vehicle->gimbalController()) {
-        _setWarning(tr("No gimbal on the connected vehicle."),
-                    tr("Gimbal keys have nothing to command."));
-        return;
-    }
-
-    const double step = _settings->gimbalYawStep()->rawValue().toDouble();
-    _clearWarning();
-    _gimbalYaw = qBound(-180.0, _gimbalYaw + (direction * step), 180.0);
-    vehicle->gimbalController()->sendPitchBodyYaw(static_cast<float>(_gimbalPitch),
-                                                 static_cast<float>(_gimbalYaw),
-                                                 false /* showError */);
-    qCDebug(OIKeyboardLog) << "gimbal yaw ->" << _gimbalYaw;
+    _stepGimbalAxis(false, direction);
 }
 
 void OIKeyboardController::_cycleGimbalMode(int direction)

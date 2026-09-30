@@ -217,6 +217,11 @@ private:
     void _stepAltitude(int direction);
     void _stepGimbalPitch(int direction);
     void _stepGimbalYaw(int direction);
+    /// Both axes differ only in which setting and which target they use.
+    void _stepGimbalAxis(bool pitch, int direction);
+    /// Travel limits in degrees for one axis. Returns false, and the protocol range, when
+    /// the gimbal does not publish its own.
+    bool _gimbalTravel(bool pitch, double &minDeg, double &maxDeg) const;
     void _cycleGimbalMode(int direction);
     bool _tryModeHotkey(int key);
     void _sendPendingMode();

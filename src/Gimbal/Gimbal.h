@@ -22,6 +22,14 @@ class Gimbal : public FactGroup
     Q_PROPERTY(bool     gimbalOthersHaveControl READ gimbalOthersHaveControl    NOTIFY gimbalOthersHaveControlChanged)
     Q_PROPERTY(bool     supportsRetract         READ supportsRetract            NOTIFY capabilityFlagsChanged)
     Q_PROPERTY(bool     supportsYawLock         READ supportsYawLock            NOTIFY capabilityFlagsChanged)
+    /// Hardware travel limits in degrees, as reported in GIMBAL_MANAGER_INFORMATION.
+    /// Only meaningful when angleLimitsKnown is true - the fields are optional in
+    /// practice and plenty of gimbals send zeros or NaN for them.
+    Q_PROPERTY(bool     angleLimitsKnown        READ angleLimitsKnown           NOTIFY angleLimitsChanged)
+    Q_PROPERTY(float    pitchMin                READ pitchMin                   NOTIFY angleLimitsChanged)
+    Q_PROPERTY(float    pitchMax                READ pitchMax                   NOTIFY angleLimitsChanged)
+    Q_PROPERTY(float    yawMin                  READ yawMin                     NOTIFY angleLimitsChanged)
+    Q_PROPERTY(float    yawMax                  READ yawMax                     NOTIFY angleLimitsChanged)
 
     friend class GimbalController;
 
@@ -59,6 +67,17 @@ public:
     void setGimbalHaveControl(bool set) { if (set != _haveControl) { _haveControl = set; emit gimbalHaveControlChanged(); } }
     void setGimbalOthersHaveControl(bool set) { if (set != _othersHaveControl) { _othersHaveControl = set; emit gimbalOthersHaveControlChanged(); } }
 
+    bool angleLimitsKnown() const { return _angleLimitsKnown; }
+    float pitchMin() const { return _pitchMin; }
+    float pitchMax() const { return _pitchMax; }
+    float yawMin() const { return _yawMin; }
+    float yawMax() const { return _yawMax; }
+
+    /// Angles in radians, as they arrive on the wire. A range is only accepted when it is
+    /// finite and min is genuinely below max; anything else leaves angleLimitsKnown false
+    /// so callers fall back rather than clamping everything to zero.
+    void setAngleLimits(float pitchMinRad, float pitchMaxRad, float yawMinRad, float yawMaxRad);
+
     void setCapabilityFlags(uint32_t flags);
     bool supportsRetract() const { return (_capabilityFlags & GIMBAL_MANAGER_CAP_FLAGS_HAS_RETRACT) != 0; }
     bool supportsYawLock() const { return (_capabilityFlags & GIMBAL_MANAGER_CAP_FLAGS_HAS_YAW_LOCK) != 0; }
@@ -71,6 +90,7 @@ signals:
     void gimbalHaveControlChanged();
     void gimbalOthersHaveControlChanged();
     void capabilityFlagsChanged();
+    void angleLimitsChanged();
 
 private:
     void _initFacts();
@@ -84,6 +104,12 @@ private:
     bool _isComplete = false;
     bool _neutral = false;
     uint32_t _capabilityFlags = 0; // GIMBAL_MANAGER_CAP_FLAGS
+
+    bool _angleLimitsKnown = false;
+    float _pitchMin = 0.f;      ///< degrees
+    float _pitchMax = 0.f;
+    float _yawMin = 0.f;
+    float _yawMax = 0.f;
 
     Fact _absoluteRollFact = Fact(0, QStringLiteral("gimbalRoll"), FactMetaData::valueTypeFloat);
     Fact _absolutePitchFact = Fact(0, QStringLiteral("gimbalPitch"), FactMetaData::valueTypeFloat);

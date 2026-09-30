@@ -117,6 +117,11 @@ void GimbalController::_handleGimbalManagerInformation(const mavlink_message_t &
     gimbal->setManagerCompid(message.compid);
     gimbal->setDeviceId(information.gimbal_device_id);
     gimbal->setCapabilityFlags(information.cap_flags);
+    // The hardware travel limits ride in this message and were being discarded. Anything
+    // offering to drive the gimbal to an angle needs them, or it commands past the stops
+    // and its idea of where the gimbal is pointing walks away from the truth.
+    gimbal->setAngleLimits(information.pitch_min, information.pitch_max,
+                           information.yaw_min, information.yaw_max);
 
     if (!gimbal->_receivedGimbalManagerInformation) {
         qCDebug(GimbalControllerLog) << "gimbal manager with compId:" << message.compid
