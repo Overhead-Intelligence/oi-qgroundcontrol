@@ -202,6 +202,10 @@ void OIKeyboardController::_activeVehicleChanged(Vehicle *vehicle)
         (void) connect(vehicle, &Vehicle::vtolInFwdFlightChanged, this, &OIKeyboardController::_recomputeState);
         (void) connect(vehicle, &Vehicle::guidedAltitudeCommanded,
                        this, &OIKeyboardController::_guidedAltitudeCommanded);
+        if (GimbalController *const gimbal = vehicle->gimbalController()) {
+            (void) connect(gimbal, &GimbalController::pitchYawCommanded,
+                           this, &OIKeyboardController::_gimbalPitchYawCommanded);
+        }
         if (TerrainFactGroup *const terrain = qobject_cast<TerrainFactGroup*>(vehicle->terrainFactGroup())) {
             (void) connect(terrain, &TerrainFactGroup::referenceReadyChanged,
                            this, &OIKeyboardController::_recomputeState);
@@ -850,6 +854,25 @@ void OIKeyboardController::_stepGimbalAxis(bool pitch, int direction)
                            << (reported ? "(reported limits)" : "(fallback limits)");
 }
 
+void OIKeyboardController::_gimbalPitchYawCommanded(float pitch, float yaw, bool yawInBodyFrame)
+{
+    // Adopt whatever was actually commanded, including our own sends - those already match,
+    // so it costs nothing and needs no guard. What it buys is that Center, the on-screen
+    // control and a joystick no longer leave the tracked target describing a position the
+    // gimbal has left, which made the next key press snap back to it.
+    _gimbalPitch = pitch;
+
+    // Earth-frame yaw is not comparable with a body-frame target and converting it would
+    // need the vehicle heading at the moment the command was sent. Pitch is common to both
+    // frames, so it is still worth taking.
+    if (yawInBodyFrame) {
+        _gimbalYaw = yaw;
+    }
+
+    qCDebug(OIKeyboardLog) << "gimbal target adopted from command: pitch" << pitch
+                           << "yaw" << yaw << (yawInBodyFrame ? "(body)" : "(earth, yaw ignored)");
+}
+
 void OIKeyboardController::_stepGimbalPitch(int direction)
 {
     _stepGimbalAxis(true, direction);
@@ -895,9 +918,11 @@ void OIKeyboardController::_cycleGimbalMode(int direction)
         gimbal->setGimbalRetract(true);
         break;
     case 3:                                     // Neutral: centred, stowed forward
+        // The targets are not zeroed here any more: centerGimbal() commands 0/0 and that
+        // comes back through pitchYawCommanded, which is now the one place the tracked
+        // target is adopted from. Setting it here as well would work today and quietly
+        // diverge the moment centering changes.
         gimbal->centerGimbal();
-        _gimbalPitch = 0.0;
-        _gimbalYaw = 0.0;
         break;
     default:
         break;

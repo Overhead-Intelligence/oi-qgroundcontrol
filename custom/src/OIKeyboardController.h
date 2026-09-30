@@ -215,6 +215,9 @@ private:
     bool _matches(const QString &settingValue, int key) const;
     void _stepHeading(int direction);
     void _stepAltitude(int direction);
+    /// Someone else moved the gimbal; adopt their target so the next key step continues
+    /// from where it actually is.
+    void _gimbalPitchYawCommanded(float pitch, float yaw, bool yawInBodyFrame);
     void _stepGimbalPitch(int direction);
     void _stepGimbalYaw(int direction);
     /// Both axes differ only in which setting and which target they use.

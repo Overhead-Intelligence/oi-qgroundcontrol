@@ -506,6 +506,8 @@ void GimbalController::sendPitchBodyYaw(float pitch, float yaw, bool showError)
         flags,
         0,
         _activeGimbal->deviceId()->rawValue().toUInt());
+
+    emit pitchYawCommanded(pitch, yaw, true /* yawInBodyFrame */);
 }
 
 void GimbalController::sendPitchAbsoluteYaw(float pitch, float yaw, bool showError)
@@ -544,6 +546,8 @@ void GimbalController::sendPitchAbsoluteYaw(float pitch, float yaw, bool showErr
         flags,
         0,
         _activeGimbal->deviceId()->rawValue().toUInt());
+
+    emit pitchYawCommanded(pitch, yaw, false /* yawInBodyFrame */);
 }
 
 void GimbalController::setGimbalRetract(bool set)
