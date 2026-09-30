@@ -14,7 +14,11 @@ Rectangle {
     height: mainLayout.height + (_smallMargins * 2)
     color: Qt.rgba(qgcPal.window.r, qgcPal.window.g, qgcPal.window.b, 0.5)
     radius: _margins
-    visible: _camera.capturesVideo || _camera.capturesPhotos || _camera.hasTracking || _camera.hasVideoStream
+    // hasZoom belongs in this list: the zoom slider lives inside this widget and is
+    // correctly gated on it a few lines down, but a camera that only zooms - no MAVLink
+    // photo or video capture, no advertised stream, no tracking - had the whole widget
+    // hidden out from under it, slider included.
+    visible: _camera.capturesVideo || _camera.capturesPhotos || _camera.hasTracking || _camera.hasVideoStream || _camera.hasZoom
 
     property real _margins: ScreenTools.defaultFontPixelHeight / 2
     property real _smallMargins: ScreenTools.defaultFontPixelWidth / 2
