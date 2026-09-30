@@ -99,6 +99,7 @@ public:
     QString             batteryRemainingStr () const override;
     bool                paramComplete       () const override { return _paramComplete; }
     qreal               zoomLevel           () const override { return _zoomLevel; }
+    qreal               zoomTarget          () const override { return _zoomTarget; }
     qreal               focusLevel          () const override { return _focusLevel; }
 
     QmlObjectListModel* streams             () override { return &_streams; }
@@ -262,6 +263,8 @@ protected:
     bool                                _cached             = false;
     bool                                _paramComplete      = false;
     qreal                               _zoomLevel          = 0.0;
+    qreal                               _zoomTarget         = 0.0;
+    bool                                _zoomTargetSeeded   = false;
     qreal                               _focusLevel         = 0.0;
     uint32_t                            _storageFree        = 0;
     uint32_t                            _storageTotal       = 0;

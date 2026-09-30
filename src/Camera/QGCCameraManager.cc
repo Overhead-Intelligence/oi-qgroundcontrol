@@ -159,7 +159,7 @@ void QGCCameraManager::_mavlinkMessageReceived(const mavlink_message_t &message)
     }
 
     // Only pay attention to camera components (MAV_COMP_ID_CAMERA..CAMERA6)
-    // and camera-related messages proxied by the autopilot.
+    // and the autopilot, which may proxy a non-MAVLink camera.
     const bool fromAutopilot = message.compid == MAV_COMP_ID_AUTOPILOT1;
     const bool fromCamera = (message.compid >= MAV_COMP_ID_CAMERA) && (message.compid <= MAV_COMP_ID_CAMERA6);
     if ((message.sysid == _vehicle->id()) && (fromAutopilot || fromCamera)) {
@@ -171,11 +171,19 @@ void QGCCameraManager::_mavlinkMessageReceived(const mavlink_message_t &message)
             _handleStorageInformation(message);
             break;
         case MAVLINK_MSG_ID_HEARTBEAT:
-            // Autopilot heartbeats should not be treated as camera discovery.
-            // Only actual camera component heartbeats should start CAMERA_INFORMATION requests.
-            if (fromCamera) {
-                _handleHeartbeat(message);
-            }
+            // The autopilot counts as a camera source, because it may be proxying one.
+            // ArduPilot serves AP_Camera and AP_Mount from the autopilot component and
+            // never emits a heartbeat as MAV_COMP_ID_CAMERA - the only mention of that id
+            // in the firmware is AP_Camera_MAVLinkCamV2 addressing a real MAVLink camera.
+            // _handleHeartbeat is the one place CAMERA_INFORMATION is ever requested, so
+            // restricting it to camera components meant a gimbal proxied by ArduPilot was
+            // never asked and never discovered: QGC fell back to SimulatedCameraControl,
+            // whose hasZoom() is a hardcoded false, and the zoom slider vanished.
+            //
+            // Nothing phantom comes of this. A component that never answers only occupies
+            // an entry in _cameraInfoRequest while its retries run out; _cameras gains a
+            // camera exclusively in _handleCameraInfo, when CAMERA_INFORMATION arrives.
+            _handleHeartbeat(message);
             break;
         case MAVLINK_MSG_ID_CAMERA_INFORMATION:
             _handleCameraInfo(message);

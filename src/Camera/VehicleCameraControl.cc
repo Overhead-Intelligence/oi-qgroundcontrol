@@ -604,6 +604,11 @@ void VehicleCameraControl::setZoomLevel(qreal level)
                 ZOOM_TYPE_RANGE,                        // Zoom type
                 static_cast<float>(level));             // Level
         }
+        if (!qFuzzyCompare(_zoomTarget, level) || !_zoomTargetSeeded) {
+            _zoomTarget = level;
+            _zoomTargetSeeded = true;
+            emit zoomTargetChanged();
+        }
     }
 }
 
@@ -1587,6 +1592,15 @@ void VehicleCameraControl::handleCameraSettings(const mavlink_camera_settings_t&
     _setCameraMode(static_cast<CameraMode>(settings.mode_id));
     qreal z = static_cast<qreal>(settings.zoomLevel);
     qreal f = static_cast<qreal>(settings.focusLevel);
+    // Seed the target from the first report, so a control bound to it opens showing where
+    // the camera actually is rather than zero. Later reports are the camera's position, not
+    // an instruction, and must not move a target the operator set.
+    if (std::isfinite(z) && !_zoomTargetSeeded) {
+        _zoomTarget = z;
+        _zoomTargetSeeded = true;
+        emit zoomTargetChanged();
+    }
+
     if(std::isfinite(z) && z != _zoomLevel) {
         _zoomLevel = z;
         emit zoomLevelChanged();

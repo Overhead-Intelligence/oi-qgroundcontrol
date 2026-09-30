@@ -66,6 +66,7 @@
 
 class QEvent;
 class Fact;
+class MavlinkCameraControlInterface;
 class Vehicle;
 class OIKeyboardSettings;
 class QmlObjectListModel;
@@ -121,6 +122,20 @@ class OIKeyboardController : public QObject
     /// Transient, operator-facing reason a key press did nothing. Clears itself.
     Q_PROPERTY(QString  warningText     READ warningText                    NOTIFY warningChanged)
     Q_PROPERTY(QString  warningDetail   READ warningDetail                  NOTIFY warningChanged)
+    /// Gimbal readout and its own warning channel. Separate from the flight ones on
+    /// purpose: the gimbal has its own indicator, and a refused pan must not blank the
+    /// heading and altitude the pilot is flying on.
+    Q_PROPERTY(bool     gimbalPresent       READ gimbalPresent          NOTIFY gimbalStateChanged)
+    Q_PROPERTY(double   gimbalPitchTarget   READ gimbalPitchTarget      NOTIFY gimbalStateChanged)
+    Q_PROPERTY(double   gimbalYawTarget     READ gimbalYawTarget        NOTIFY gimbalStateChanged)
+    Q_PROPERTY(bool     gimbalTargetValid   READ gimbalTargetValid      NOTIFY gimbalStateChanged)
+    Q_PROPERTY(QString  gimbalModeName      READ gimbalModeName         NOTIFY gimbalStateChanged)
+    /// Camera zoom. The target lives on the camera - one copy, so the zoom slider and this
+    /// readout cannot disagree about where it was put.
+    Q_PROPERTY(bool     zoomAvailable       READ zoomAvailable          NOTIFY gimbalStateChanged)
+    Q_PROPERTY(double   zoomTarget          READ zoomTarget             NOTIFY gimbalStateChanged)
+    Q_PROPERTY(QString  gimbalWarningText   READ gimbalWarningText      NOTIFY gimbalWarningChanged)
+    Q_PROPERTY(QString  gimbalWarningDetail READ gimbalWarningDetail    NOTIFY gimbalWarningChanged)
     Q_PROPERTY(QString  pendingModeName READ pendingModeName                NOTIFY pendingModeChanged)
     Q_PROPERTY(int      pendingSeconds  READ pendingSeconds                 NOTIFY pendingModeChanged)
     /// Human-readable descriptions of keys bound to more than one action. While a
@@ -162,6 +177,16 @@ public:
     bool headingTargetValid() const { return _headingTargetValid; }
     QString warningText() const { return _warningText; }
     QString warningDetail() const { return _warningDetail; }
+
+    bool gimbalPresent() const;
+    double gimbalPitchTarget() const { return _gimbalPitch; }
+    double gimbalYawTarget() const { return _gimbalYaw; }
+    bool gimbalTargetValid() const { return _gimbalTargetValid; }
+    QString gimbalModeName() const;
+    bool zoomAvailable() const;
+    double zoomTarget() const;
+    QString gimbalWarningText() const { return _gimbalWarningText; }
+    QString gimbalWarningDetail() const { return _gimbalWarningDetail; }
     QString pendingModeName() const { return _pendingModeName; }
     int pendingSeconds() const;
     QStringList keyConflicts() const { return _keyConflicts; }
@@ -177,7 +202,10 @@ public:
 
     /// One row per bound action, for the Fly view quick reference:
     /// { "action": ..., "key": ..., "conflict": bool }.
+    /// Flight bindings only - heading, altitude and mode hotkeys. The gimbal has its own
+    /// indicator and its own list.
     Q_INVOKABLE QVariantList bindingList() const;
+    Q_INVOKABLE QVariantList gimbalBindingList() const;
     QmlObjectListModel *modeHotkeys() const { return _modeHotkeys; }
     QObject *settingsObject() const;
 
@@ -195,6 +223,8 @@ signals:
     void stateChanged();
     void pendingModeChanged();
     void warningChanged();
+    void gimbalStateChanged();
+    void gimbalWarningChanged();
     void keyConflictsChanged();
     void capturingKeyChanged();
 
@@ -215,8 +245,24 @@ private:
     bool _matches(const QString &settingValue, int key) const;
     void _stepHeading(int direction);
     void _stepAltitude(int direction);
+    QList<QPair<QString, QString>> _flightBindings() const;
+    QList<QPair<QString, QString>> _gimbalBindings() const;
+    QVariantList _formatBindings(const QList<QPair<QString, QString>> &bindings) const;
+    void _setGimbalWarning(const QString &text, const QString &detail);
+    void _clearGimbalWarning();
+    /// Someone else moved the gimbal; adopt their target so the next key step continues
+    /// from where it actually is.
+    void _gimbalPitchYawCommanded(float pitch, float yaw, bool yawInBodyFrame);
     void _stepGimbalPitch(int direction);
     void _stepGimbalYaw(int direction);
+    /// Both axes differ only in which setting and which target they use.
+    void _stepGimbalAxis(bool pitch, int direction);
+    void _stepZoom(int direction);
+    void _connectZoomCamera();
+    MavlinkCameraControlInterface *_zoomCamera() const;
+    /// Travel limits in degrees for one axis. Returns false, and the protocol range, when
+    /// the gimbal does not publish its own.
+    bool _gimbalTravel(bool pitch, double &minDeg, double &maxDeg) const;
     void _cycleGimbalMode(int direction);
     bool _tryModeHotkey(int key);
     void _sendPendingMode();
@@ -264,7 +310,11 @@ private:
     /// and the vehicle does not report a settable target back.
     double _gimbalPitch = 0.0;
     double _gimbalYaw = 0.0;
+    /// False until something has actually commanded an angle, so the readout can say
+    /// "--" rather than claim a target of zero it never sent.
+    bool _gimbalTargetValid = false;
     int _gimbalModeIndex = 0;
+
 
     QString _pendingModeName;
     int _pendingModeKey = 0;
@@ -273,6 +323,10 @@ private:
     QString _warningText;
     QString _warningDetail;
     QTimer _warningTimer;
+
+    QString _gimbalWarningText;
+    QString _gimbalWarningDetail;
+    QTimer _gimbalWarningTimer;
 
     bool _capturingKey = false;
 

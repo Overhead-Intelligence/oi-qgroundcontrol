@@ -14,7 +14,11 @@ Rectangle {
     height: mainLayout.height + (_smallMargins * 2)
     color: Qt.rgba(qgcPal.window.r, qgcPal.window.g, qgcPal.window.b, 0.5)
     radius: _margins
-    visible: _camera.capturesVideo || _camera.capturesPhotos || _camera.hasTracking || _camera.hasVideoStream
+    // hasZoom belongs in this list: the zoom slider lives inside this widget and is
+    // correctly gated on it a few lines down, but a camera that only zooms - no MAVLink
+    // photo or video capture, no advertised stream, no tracking - had the whole widget
+    // hidden out from under it, slider included.
+    visible: _camera.capturesVideo || _camera.capturesPhotos || _camera.hasTracking || _camera.hasVideoStream || _camera.hasZoom
 
     property real _margins: ScreenTools.defaultFontPixelHeight / 2
     property real _smallMargins: ScreenTools.defaultFontPixelWidth / 2
@@ -54,9 +58,24 @@ Rectangle {
                 orientation: Qt.Vertical
                 to: 100
                 from: 0
-                value: _camera.zoomLevel
+                // The target, not the reported level. Bound to the level, the handle crept
+                // toward the new position for many seconds after the zoom had finished -
+                // CAMERA_SETTINGS only arrives about once a second - so releasing the handle
+                // made it drift somewhere else. This makes it hold where it was put.
+                value: _camera.zoomTarget
                 live: true
-                onValueChanged: _camera.zoomLevel = value
+                // onMoved, not onValueChanged. valueChanged fires for ANY change including
+                // the binding above updating from CAMERA_SETTINGS, so the camera's reported
+                // level was being written straight back as a new zoom command roughly once a
+                // second. That cancels a zoom in progress and pins the camera wherever the
+                // last telemetry sample caught it: commanding 5.3% on a Siyi ZR10 crept from
+                // 1.1x to 1.3x and was then driven back to 1.1x by its own echo. It also
+                // meant the slider commanded zoom 0 at startup, before any telemetry, purely
+                // from being constructed at its default value.
+                //
+                // moved() is emitted only for user interaction, which is the only time this
+                // widget has anything to say.
+                onMoved: _camera.zoomLevel = value
             }
         }
 

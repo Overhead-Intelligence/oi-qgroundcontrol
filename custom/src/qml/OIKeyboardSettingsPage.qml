@@ -208,6 +208,28 @@ Item {
             }
             OIKeyBindField {
                 Layout.fillWidth:   true
+                label:              _settings.zoomInKey.label
+                keyText:            _settings.zoomInKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.zoomInKey.rawValue)
+                onKeyChosen:        (key) => _settings.zoomInKey.rawValue = key
+            }
+            OIKeyBindField {
+                Layout.fillWidth:   true
+                label:              _settings.zoomOutKey.label
+                keyText:            _settings.zoomOutKey.rawValue
+                conflicted:         OIKeyboard.keyConflicts.length > 0 &&
+                                    _conflictedKeyText(_settings.zoomOutKey.rawValue)
+                onKeyChosen:        (key) => _settings.zoomOutKey.rawValue = key
+            }
+            LabelledFactComboBox {
+                Layout.fillWidth:       true
+                comboBoxPreferredWidth: _fieldWidth
+                fact:                   _settings.zoomStep
+                label:                  _settings.zoomStep.label
+            }
+            OIKeyBindField {
+                Layout.fillWidth:   true
                 label:              _settings.gimbalNextModeKey.label
                 keyText:            _settings.gimbalNextModeKey.rawValue
                 conflicted:         OIKeyboard.keyConflicts.length > 0 &&

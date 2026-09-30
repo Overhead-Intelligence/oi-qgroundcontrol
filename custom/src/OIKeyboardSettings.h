@@ -49,6 +49,9 @@ public:
     DEFINE_SETTINGFACT(gimbalYawLeftKey)
     DEFINE_SETTINGFACT(gimbalYawRightKey)
     DEFINE_SETTINGFACT(gimbalYawStep)
+    DEFINE_SETTINGFACT(zoomInKey)
+    DEFINE_SETTINGFACT(zoomOutKey)
+    DEFINE_SETTINGFACT(zoomStep)
     DEFINE_SETTINGFACT(gimbalNextModeKey)
     DEFINE_SETTINGFACT(gimbalPrevModeKey)
 

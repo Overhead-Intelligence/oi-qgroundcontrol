@@ -13,7 +13,9 @@ import OI.Controls
 /// so no stock QML is overridden to place it.
 ///
 /// Two rows of text, matching the other indicators: the heading target and the
-/// altitude target the GCS is holding. Without this there is no way to tell what the
+/// altitude target the GCS is holding. The gimbal has its own indicator beside this one -
+/// OIGimbalIndicator.qml - so that a refused pan cannot blank what the pilot is flying on,
+/// and so an aircraft with no gimbal shows no gimbal chrome. Without this there is no way to tell what the
 /// aircraft has been asked to do after a key press - the first flight test made that
 /// the main complaint. Clicking opens the key bindings as a quick reference.
 ///
@@ -130,7 +132,7 @@ Item {
                     SettingsGroupLayout {
                         Layout.fillWidth:   true
                         heading:            qsTr("Key Bindings")
-                        headingDescription: qsTr("Gimbal and flight mode keys work in any mode. Heading and altitude keys need the vehicle flying in Guided.")
+                        headingDescription: qsTr("Flight mode keys work in any mode. Heading and altitude keys need the vehicle flying in Guided. Gimbal keys are listed on the gimbal indicator.")
 
                         Repeater {
                             model: OIKeyboard.bindingList()

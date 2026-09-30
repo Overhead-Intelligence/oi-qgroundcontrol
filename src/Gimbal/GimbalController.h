@@ -44,6 +44,14 @@ public:
     Q_INVOKABLE void sendGimbalRate(float pitch_rate_deg_s, float yaw_rate_deg_s);
 
 signals:
+    /// Emitted whenever an absolute pitch/yaw is commanded, whoever asked for it - the
+    /// on-screen control, Center, a joystick, the keyboard. Anything tracking a gimbal
+    /// target of its own has to hear about the others, or its idea of where the gimbal is
+    /// pointing survives a command it did not send. `yawInBodyFrame` distinguishes
+    /// sendPitchBodyYaw() from sendPitchAbsoluteYaw(), whose yaw is earth-referenced and
+    /// not comparable with a body-frame target.
+    void pitchYawCommanded(float pitch, float yaw, bool yawInBodyFrame);
+
     void activeGimbalChanged();
     void showAcquireGimbalControlPopup(); // This triggers a popup in QML asking the user for aproval to take control
 
