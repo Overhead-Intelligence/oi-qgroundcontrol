@@ -834,20 +834,28 @@ void OIKeyboardController::_cycleGimbalMode(int direction)
     GimbalController *const gimbal = vehicle->gimbalController();
     _gimbalModeIndex = (_gimbalModeIndex + direction + kGimbalModeCount) % kGimbalModeCount;
 
+    // One command per mode, and that is the fix rather than a tidy-up.
+    // setGimbalRetract(), setGimbalYawLock() and centerGimbal() all bottom out in
+    // MAV_CMD_DO_GIMBAL_MANAGER_PITCHYAW, so sending two of them in the same turn made
+    // MavCommandQueue reject the second as a duplicate - "Waiting on previous response to
+    // same command" - and the second was always the one that carried the intent. Three of
+    // the four modes did that, which is why only Retract appeared to work.
+    //
+    // Dropping the paired setGimbalRetract(false) costs nothing: it built flags of 0 and
+    // then cleared a bit that was already clear, so it sent an empty flag set that also
+    // dropped the roll and pitch locks setGimbalYawLock() sets correctly a moment later.
+    // Not retracting is expressed by not setting RETRACT, which every branch below does.
     switch (_gimbalModeIndex) {
     case 0:                                     // Follow: yaw tracks the airframe
-        gimbal->setGimbalRetract(false);
         gimbal->setGimbalYawLock(false);
         break;
     case 1:                                     // Lock: yaw holds an earth-frame heading
-        gimbal->setGimbalRetract(false);
         gimbal->setGimbalYawLock(true);
         break;
     case 2:                                     // Retract
         gimbal->setGimbalRetract(true);
         break;
     case 3:                                     // Neutral: centred, stowed forward
-        gimbal->setGimbalRetract(false);
         gimbal->centerGimbal();
         _gimbalPitch = 0.0;
         _gimbalYaw = 0.0;

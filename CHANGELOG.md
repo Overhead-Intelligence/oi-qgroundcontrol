@@ -8,6 +8,9 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+### Fixed
+- Cycling the gimbal mode with the keyboard no longer fails with "Unable to send command: Waiting on previous response to same command". Three of the four modes sent two commands in the same turn, and `setGimbalRetract()`, `setGimbalYawLock()` and `centerGimbal()` all bottom out in the same `MAV_CMD_DO_GIMBAL_MANAGER_PITCHYAW`, so the command queue rejected the second as a duplicate - and the second was always the one carrying the intent. Only Retract, which sends a single command, appeared to work. Each mode now sends one command; the dropped `setGimbalRetract(false)` was doing harm anyway, since it sent an empty flag set that cleared the roll and pitch locks the next command set correctly.
+
 ### Added
 - **"What's New" tab** at the bottom of Application Settings, listing what the release changed in operator terms - what you can now do, and which tab or window it is reached from. `CHANGELOG.md` is written for whoever maintains the code; this is for whoever flies with it, and the two are deliberately not the same text. The page describes **one release** rather than a running history, so cutting a release replaces its contents wholesale: that is now a step in the release process in `README.md` and a convention in `CLAUDE.md`. Touches `src/` - a settings page has to be registered in the generated page list (`SettingsPages.json`, a `*.SettingsUI.json` definition, and `_generated_qml_names`), which QGC gives a custom build no other way in; the page content itself is a QML type in `custom/`.
 
