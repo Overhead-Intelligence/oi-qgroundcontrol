@@ -2,9 +2,9 @@
 # Overhead Intelligence build configuration overrides
 #
 # The root CMakeLists.txt includes this file (before project()) whenever the
-# custom/ directory exists. Everything here only *renames and rebrands*; the
-# feature set stays stock QGC with every firmware plugin enabled (OI flies
-# ArduPilot, so the APM plugin must stay on).
+# custom/ directory exists. Most of what follows only *renames and rebrands*.
+# The one feature-set change is the PX4 plugin factory, disabled below; the APM
+# factory must stay on, OI flies ArduPilot.
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -23,6 +23,24 @@ set(QGC_APP_DESCRIPTION "Overhead Intelligence build of QGroundControl" CACHE ST
 
 string(TIMESTAMP _oi_copyright_year "%Y")
 set(QGC_APP_COPYRIGHT "Copyright (c) ${_oi_copyright_year} Overhead Intelligence. QGroundControl is Copyright (c) QGroundControl Project. All rights reserved." CACHE STRING "Copyright notice" FORCE)
+
+# ----------------------------------------------------------------------------
+# Firmware support
+#
+# OI flies ArduPilot only, so PX4 is dropped from the set QGC advertises. This
+# gates PX4FirmwarePluginFactory out of the build (src/FirmwarePlugin/PX4/
+# CMakeLists.txt), which removes PX4 from
+# FirmwarePluginManager::supportedFirmwareClasses(). The UI then hides the
+# PX4-only pieces at runtime through QGroundControl.px4ProFirmwareSupported:
+# the PX4 log transfer settings page, the PX4 entries in the firmware upgrade
+# picker and the PX4 options in MockLink.
+#
+# This is a UI-clutter change, not a code purge. The rest of the PX4 firmware
+# plugin and all of src/AutoPilotPlugins/PX4/ still compile in; that UI is
+# reached only through PX4AutoPilotPlugin, which is never instantiated without
+# a PX4 vehicle, so it is already unreachable on the OI fleet.
+# ----------------------------------------------------------------------------
+set(QGC_DISABLE_PX4_PLUGIN_FACTORY ON CACHE BOOL "Disable PX4 Plugin Factory" FORCE)
 
 # ----------------------------------------------------------------------------
 # Icons and installer artwork (generated from the OI brand kit, see custom/README.md)

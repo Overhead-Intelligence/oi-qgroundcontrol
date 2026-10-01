@@ -2,6 +2,10 @@
 #include "GimbalController.h"
 #include "QGCLoggingCategory.h"
 
+#include <QtCore/QtMath>
+
+#include <cmath>
+
 QGC_LOGGING_CATEGORY(GimbalLog, "Gimbal.Gimbal")
 
 Gimbal::Gimbal(GimbalController *parent)
@@ -64,6 +68,35 @@ void Gimbal::_initFacts()
     _absoluteYawFact.setRawValue(0.0f);
     _deviceIdFact.setRawValue(0);
     _managerCompidFact.setRawValue(0);
+}
+
+void Gimbal::setAngleLimits(float pitchMinRad, float pitchMaxRad, float yawMinRad, float yawMaxRad)
+{
+    // These fields are optional in practice: gimbals that do not publish travel limits send
+    // zeros, and some send NaN. Accepting those would clamp every commanded angle to zero,
+    // which is worse than having no limits at all - so a range has to be finite and
+    // non-empty before it counts as known.
+    const auto usable = [](float minRad, float maxRad) {
+        return std::isfinite(minRad) && std::isfinite(maxRad) && (maxRad > minRad);
+    };
+
+    const bool known = usable(pitchMinRad, pitchMaxRad) && usable(yawMinRad, yawMaxRad);
+    const float pitchMin = known ? qRadiansToDegrees(pitchMinRad) : 0.f;
+    const float pitchMax = known ? qRadiansToDegrees(pitchMaxRad) : 0.f;
+    const float yawMin = known ? qRadiansToDegrees(yawMinRad) : 0.f;
+    const float yawMax = known ? qRadiansToDegrees(yawMaxRad) : 0.f;
+
+    if ((known != _angleLimitsKnown) || (pitchMin != _pitchMin) || (pitchMax != _pitchMax) ||
+        (yawMin != _yawMin) || (yawMax != _yawMax)) {
+        _angleLimitsKnown = known;
+        _pitchMin = pitchMin;
+        _pitchMax = pitchMax;
+        _yawMin = yawMin;
+        _yawMax = yawMax;
+        qCDebug(GimbalLog) << "angle limits" << (known ? "known" : "not reported")
+                           << "pitch" << _pitchMin << _pitchMax << "yaw" << _yawMin << _yawMax;
+        emit angleLimitsChanged();
+    }
 }
 
 void Gimbal::setCapabilityFlags(uint32_t flags)

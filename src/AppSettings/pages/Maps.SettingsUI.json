@@ -1,6 +1,10 @@
 {
     "version": 1,
     "fileType": "SettingsUI",
+    "comment": "OI: the Map Overlays section lives in the OI.Settings QML module (custom/CMakeLists.txt).",
+    "imports": [
+        "OI.Settings"
+    ],
     "groups": [
         {
             "component": "MapProviderSettings",
@@ -23,6 +27,18 @@
                 "download",
                 "cache",
                 "tile set"
+            ]
+        },
+        {
+            "component": "OIMapOverlaySettings",
+            "sectionName": "Map Overlays",
+            "keywords": [
+                "overlay",
+                "kml",
+                "hazard",
+                "obstacle",
+                "tower",
+                "import"
             ]
         },
         {

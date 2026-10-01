@@ -125,6 +125,26 @@ void QGCFileDialogController::deleteFile(const QString &filename)
     QFile::remove(filename);
 }
 
+bool QGCFileDialogController::copyFile(const QString &source, const QString &destination)
+{
+    if (source == destination) {
+        return true;
+    }
+
+    // QFile::copy() will not overwrite, so clear the way first.
+    if (QFile::exists(destination) && !QFile::remove(destination)) {
+        qCWarning(QGCFileDialogControllerLog) << "copyFile could not replace" << destination;
+        return false;
+    }
+
+    if (!QFile::copy(source, destination)) {
+        qCWarning(QGCFileDialogControllerLog) << "copyFile" << source << "to" << destination << "failed";
+        return false;
+    }
+
+    return true;
+}
+
 QString QGCFileDialogController::fullFolderPathToShortMobilePath(const QString &fullFolderPath)
 {
 #if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)

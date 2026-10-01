@@ -59,6 +59,11 @@ class MavlinkCameraControlInterface : public FactGroup
     Q_PROPERTY(QString              batteryRemainingStr     READ batteryRemainingStr                                NOTIFY batteryRemainingChanged)
     Q_PROPERTY(bool                 paramComplete           READ paramComplete                                      NOTIFY parametersReady)
     Q_PROPERTY(qreal                zoomLevel               READ zoomLevel              WRITE setZoomLevel          NOTIFY zoomLevelChanged)
+    /// The zoom last *asked for*, as opposed to zoomLevel, which is where the camera
+    /// reports being. A zoom takes seconds and is reported only about once a second while
+    /// it runs, so a control bound to the reported level crawls after the operator long
+    /// after the zoom itself has finished. Anything the operator sets should show this.
+    Q_PROPERTY(qreal                zoomTarget              READ zoomTarget                                         NOTIFY zoomTargetChanged)
     Q_PROPERTY(qreal                focusLevel              READ focusLevel             WRITE setFocusLevel         NOTIFY focusLevelChanged)
     Q_PROPERTY(QStringList          activeSettings          READ activeSettings                                     NOTIFY activeSettingsChanged)
     Q_PROPERTY(StorageStatus        storageStatus           READ storageStatus                                      NOTIFY storageStatusChanged)
@@ -205,6 +210,8 @@ public:
     virtual QString batteryRemainingStr() const = 0;
     virtual bool paramComplete() const = 0;
     virtual qreal zoomLevel() const = 0;
+    /// Defaults to the reported level, for camera types that do not command a zoom at all.
+    virtual qreal zoomTarget() const { return zoomLevel(); }
     virtual qreal focusLevel() const = 0;
 
     virtual QmlObjectListModel *streams() = 0;
@@ -281,6 +288,7 @@ signals:
     void dataReady(const QByteArray &data);
     void parametersReady();
     void zoomLevelChanged();
+    void zoomTargetChanged();
     void focusLevelChanged();
     void streamsChanged();
     void currentStreamChanged();

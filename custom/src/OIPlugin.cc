@@ -10,6 +10,7 @@
 #include "OIPlugin.h"
 
 #include <QtCore/QApplicationStatic>
+#include <QtCore/QCryptographicHash>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QIODevice>
@@ -21,12 +22,16 @@
 #include <QtQml/qqml.h>
 
 #include "AppSettings.h"
+#include "Fact.h"
 #include "FactMetaData.h"
 #include "FactValueGrid.h"
 #include "InstrumentValueData.h"
-#include "MAVLinkLib.h"
+#include "MavlinkActionManager.h"
+#include "MavlinkActionsSettings.h"
 #include "OIKeyboardController.h"
+#include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
+#include "QmlComponentInfo.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
 
@@ -37,8 +42,31 @@ Q_APPLICATION_STATIC(OIPlugin, _oiPluginInstance);
 namespace {
 
 constexpr const char *kDefaultsResource = ":/custom/OI-defaults.ini";
-constexpr const char *kActionsResource  = ":/custom/OI-Actions.json";
-constexpr const char *kActionsFileName  = "OI-Actions.json";
+
+/// The bundled MAVLink actions, one file per capability rather than one combined list.
+/// None of them is enabled by default (see [MavlinkActions] in OI-defaults.ini): every one
+/// of these needs hardware or an aircraft-side script that only some airframes have, so a
+/// kit is configured by ticking the files that apply to it in Fly View Settings.
+constexpr const char *kActionsFileNames[] = {
+    "OI-Gripper.json",
+    "OI-Starnav.json",
+    "OI-WingtipLights.json",
+};
+
+/// Up to 1.0.1 the above shipped as one combined OI-Actions.json which the defaults
+/// selected. That file is retired: it also carried a "PosXY GPS Enable"/"Disable" pair
+/// written against a much older starnav.lua, and against the current script those two are
+/// inverted - "Enable" sends SCRIPTING_4 LOW, which selects EK3_SRC1_POSXY/VELXY = 0/0, the
+/// no-aiding set, not GPS. OI-Starnav.json drives STARNAV_ENABLE instead, which is the
+/// control the current script actually supports.
+///
+/// An operator's copy is deleted only when it is byte-for-byte the one we shipped, so an
+/// edited file is never touched. The fingerprint is taken with CR stripped: the resource is
+/// embedded from the working tree, which is CRLF on Windows and LF elsewhere.
+constexpr const char *kLegacyActionsFileName = "OI-Actions.json";
+constexpr const char *kLegacyActionsSha256 =
+    "5030e54dd99493ea7d8b4305c0eaaf18954b0b9b9f138e293246eb57c58ed591";
+constexpr const char *kLegacyActionsRetiredKey = "OI/retiredLegacyActionsFile";
 
 /// One cell of the OI telemetry bar. Fact names use the capitalised spelling that
 /// InstrumentValueData expects (the same spelling QGC writes to its settings file).
@@ -159,10 +187,16 @@ void OIPlugin::init()
 {
     QGCCorePlugin::init();
     _deployBundledActions();
+    _retireLegacyActionsFile();
 
-    // Created here, after SettingsManager::init(), because its settings group needs the
-    // settings system. Registered before the QML engine exists so FlyViewCustomLayer can
-    // "import OI.Controls" and use the OIKeyboard singleton.
+    // Created after SettingsManager::init() because it reads QSettings, and
+    // registered before the QML engine exists so the Maps settings section can
+    // "import OI.Controls" and reach the manager.
+    _mapOverlays = new OIMapOverlayManager(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIMapOverlays", _mapOverlays);
+
+    // Installs an application-wide key filter, so it must exist before the QML
+    // engine does. It stays disarmed until an operator arms it.
     _keyboard = new OIKeyboardController(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
 }
@@ -172,17 +206,52 @@ QString OIPlugin::stableDownloadLocation() const
     return QStringLiteral("github.com/Overhead-Intelligence/oi-qgroundcontrol/releases");
 }
 
-bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
+const QmlObjectListModel *OIPlugin::customMapItems()
 {
-    Q_UNUSED(link);
+    // init() has always run by the time the Fly view map asks for these. Fall back
+    // to the stock empty model if that ever stops being true.
+    return _mapOverlays ? _mapOverlays->markers() : QGCCorePlugin::customMapItems();
+}
 
-    if (_keyboard && (message.msgid == MAVLINK_MSG_ID_NAV_CONTROLLER_OUTPUT)) {
-        mavlink_nav_controller_output_t navControllerOutput{};
-        mavlink_msg_nav_controller_output_decode(&message, &navControllerOutput);
-        _keyboard->setAltitudeError(vehicle, static_cast<double>(navControllerOutput.alt_error));
+/*===========================================================================*/
+
+const QVariantList &OIPlugin::analyzePages()
+{
+    if (_analyzePages.isEmpty()) {
+        // Start from the stock list so upstream additions keep showing up, then
+        // append the OI page. requiresVehicle = true makes AnalyzeView show
+        // "Requires a connected vehicle" instead of the browser until one is
+        // connected, and unload it again on disconnect; FTPController has no
+        // vehicle to talk to otherwise.
+        _analyzePages = QGCCorePlugin::analyzePages();
+        _analyzePages.append(QVariant::fromValue(new QmlComponentInfo(
+            tr("Onboard Files"),
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIOnboardFilesPage.qml")),
+            QUrl::fromUserInput(QStringLiteral("qrc:/InstrumentValueIcons/folder.svg")),
+            nullptr,
+            true /* requiresVehicle */)));
     }
 
-    return true;    // let the vehicle process the message as usual
+    return _analyzePages;
+}
+
+/*===========================================================================*/
+
+const QVariantList &OIPlugin::toolBarIndicators()
+{
+    if (_toolBarIndicators.isEmpty()) {
+        // Start from the stock list so upstream additions keep appearing, then add
+        // the keyboard readout. It hides itself unless keyboard control is enabled.
+        _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
+        // Beside it rather than inside it: the gimbal readout hides itself when the
+        // aircraft has no gimbal, and its warnings must not disturb the flying one.
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIGimbalIndicator.qml"))));
+    }
+
+    return _toolBarIndicators;
 }
 
 /*===========================================================================*/
@@ -311,36 +380,102 @@ void OIPlugin::_deployBundledActions()
         return;
     }
 
-    QFile bundled(QString::fromLatin1(kActionsResource));
-    if (!bundled.open(QIODevice::ReadOnly)) {
-        qCWarning(OILog) << "Bundled actions resource missing:" << kActionsResource;
-        return;
-    }
-    const QByteArray bundledBytes = bundled.readAll();
-
     if (!QDir().mkpath(saveDir)) {
         qCWarning(OILog) << "Could not create" << saveDir;
         return;
     }
 
-    const QString targetPath = QDir(saveDir).filePath(QString::fromLatin1(kActionsFileName));
-    QFile target(targetPath);
-    if (target.exists() && target.open(QIODevice::ReadOnly)) {
-        const bool unchanged = (target.readAll() == bundledBytes);
+    for (const char *const fileName : kActionsFileNames) {
+        const QString resourcePath = QStringLiteral(":/custom/") + QString::fromLatin1(fileName);
+        QFile bundled(resourcePath);
+        if (!bundled.open(QIODevice::ReadOnly)) {
+            qCWarning(OILog) << "Bundled actions resource missing:" << resourcePath;
+            continue;
+        }
+        const QByteArray bundledBytes = bundled.readAll();
+
+        // Overwrite our own copy so a fixed action reaches the operator, but only when it
+        // has actually changed - rewriting it every start would churn the file's mtime and
+        // make an edited copy indistinguishable from ours at a glance.
+        const QString targetPath = QDir(saveDir).filePath(QString::fromLatin1(fileName));
+        QFile target(targetPath);
+        if (target.exists() && target.open(QIODevice::ReadOnly)) {
+            const bool unchanged = (target.readAll() == bundledBytes);
+            target.close();
+            if (unchanged) {
+                qCDebug(OILog) << "OI actions already current at" << targetPath;
+                continue;
+            }
+        }
+
+        if (!target.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            qCWarning(OILog) << "Could not write" << targetPath << target.errorString();
+            continue;
+        }
+        target.write(bundledBytes);
         target.close();
-        if (unchanged) {
-            qCDebug(OILog) << "OI actions already current at" << targetPath;
-            return;
+        qCInfo(OILog) << "Deployed OI actions to" << targetPath;
+    }
+}
+
+/*===========================================================================*/
+
+void OIPlugin::_retireLegacyActionsFile()
+{
+    QSettings settings;
+    const QString retiredKey = QString::fromLatin1(kLegacyActionsRetiredKey);
+    if (settings.contains(retiredKey)) {
+        return;
+    }
+
+    const QString saveDir = SettingsManager::instance()->appSettings()->mavlinkActionsSavePath();
+    if (saveDir.isEmpty()) {
+        return;
+    }
+
+    const QString legacyName = QString::fromLatin1(kLegacyActionsFileName);
+    const QString legacyPath = QDir(saveDir).filePath(legacyName);
+    QFile legacy(legacyPath);
+    if (!legacy.exists()) {
+        settings.setValue(retiredKey, QStringLiteral("not present"));
+        return;
+    }
+
+    if (!legacy.open(QIODevice::ReadOnly)) {
+        qCWarning(OILog) << "Could not read" << legacyPath << "- leaving it alone";
+        return;
+    }
+    QByteArray contents = legacy.readAll();
+    legacy.close();
+    contents.replace('\r', "");
+
+    const QByteArray digest = QCryptographicHash::hash(contents, QCryptographicHash::Sha256).toHex();
+    if (digest != QByteArray(kLegacyActionsSha256)) {
+        // The operator has edited it. Their file, their call - leave it in place and stop
+        // asking, so this never silently eats work.
+        qCInfo(OILog) << legacyPath << "has been edited, keeping it";
+        settings.setValue(retiredKey, QStringLiteral("kept, edited by operator"));
+        return;
+    }
+
+    if (!QFile::remove(legacyPath)) {
+        qCWarning(OILog) << "Could not remove" << legacyPath;
+        return;
+    }
+
+    // Drop it from both menus, through the facts rather than QSettings directly so the
+    // in-memory value and any MavlinkActionManager already watching it stay in step.
+    MavlinkActionsSettings *const actionsSettings = SettingsManager::instance()->mavlinkActionsSettings();
+    Fact *const facts[] = { actionsSettings->flyViewActionsFile(), actionsSettings->joystickActionsFile() };
+    for (Fact *const fact : facts) {
+        QStringList names = MavlinkActionManager::fileNamesFromSettingValue(fact->rawValue().toString());
+        if (names.removeAll(legacyName) > 0) {
+            fact->setRawValue(names.join(QStringLiteral(";")));
         }
     }
 
-    if (!target.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qCWarning(OILog) << "Could not write" << targetPath << target.errorString();
-        return;
-    }
-    target.write(bundledBytes);
-    target.close();
-    qCDebug(OILog) << "OI actions deployed to" << targetPath;
+    settings.setValue(retiredKey, QStringLiteral("removed, unmodified"));
+    qCInfo(OILog) << "Retired" << legacyPath << "in favour of the per-capability actions files";
 }
 
 /*===========================================================================*/

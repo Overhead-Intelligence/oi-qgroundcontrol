@@ -17,6 +17,13 @@ class FTPManager : public QObject
 public:
     FTPManager(Vehicle* vehicle);
 
+    /// True while an operation still owns the manager - including the burst drain
+    /// after a cancelled download, which can run for minutes on a slow link. No
+    /// second operation can start until this clears, because the vehicle is not
+    /// reading new FTP requests while its burst loop runs. Callers use this to tell
+    /// "the vehicle is busy, try again" apart from a genuine failure.
+    bool inProgress() const { return !_rgStateMachine.isEmpty(); }
+
 	/// Downloads the specified file.
     ///     @param fromCompId Component id of the component to download from. If fromCompId is MAV_COMP_ID_ALL, then MAV_COMP_ID_AUTOPILOT1 is used.
     ///     @param fromURI    File to download from component, fully qualified path. May be in the format "mftp://[;comp=<id>]..." where the component id
@@ -117,15 +124,19 @@ private:
         QFile                   file;
         int                     retryCount;
         bool                    checksize;
+        bool                    cancelled;              ///< operator asked to stop; burst is draining
+        int                     drainPacketCount;       ///< burst packets discarded since the cancel
 
         bool inProgress() const { return fileSize > 0; }
 
         void reset() {
-            sessionId       = 0;
-            expectedOffset  = 0;
-            bytesWritten    = 0;
-            retryCount      = 0;
-            fileSize        = 0;
+            sessionId           = 0;
+            expectedOffset      = 0;
+            bytesWritten        = 0;
+            retryCount          = 0;
+            fileSize            = 0;
+            cancelled           = false;
+            drainPacketCount    = 0;
             fullPathOnVehicle.clear();
             fileName.clear();
             rgMissingData.clear();
@@ -248,6 +259,24 @@ private:
     void    _terminateSessionTimeout    (void);
     void    _terminateComplete          (void);
 
+    /// Cancelling a download cannot stop the vehicle mid-burst. ArduPilot answers a
+    /// BurstReadFile by sending up to 2000 packets from one blocking loop with a
+    /// bandwidth-pacing delay() between them, and never reads incoming FTP requests
+    /// inside it - so a TerminateSession sent during the burst is simply not seen.
+    /// The old cancel path sent it anyway, burned its retries against a vehicle that
+    /// could not answer, reported "Download failed" while the file was still
+    /// arriving, and left every FTP request failing until the burst drained.
+    /// These states wait for the stream to go quiet, then terminate.
+    ///
+    /// The quiet detector is the existing ack timeout: burst packets arrive far
+    /// faster than it (they are paced to a fraction of link bandwidth), so one
+    /// timeout with no packet means the loop has ended. It deliberately reuses the
+    /// timer's configured interval rather than passing one to start(), because
+    /// QTimer::start(int) would change the interval for every other user of it.
+    void    _drainBurstBegin            (void);
+    void    _drainBurstAckOrNak         (const MavlinkFTP::Request* ackOrNak);
+    void    _drainBurstTimeout          (void);
+
     Vehicle*                _vehicle;
     uint8_t                 _ftpCompId = MAV_COMP_ID_AUTOPILOT1;
     QList<StateFunctions_t> _rgStateMachine;
@@ -262,6 +291,11 @@ private:
 
     static const int _ackOrNakTimeoutMsecs  = 1000;
     static const int _maxRetry              = 3;
+
+    /// Hard stop on the drain wait, so a vehicle that never stops talking cannot
+    /// wedge the manager. ArduPilot's loop is bounded at 2000 packets per burst
+    /// request, so this only ever fires on genuinely broken behaviour.
+    static const int _maxDrainPackets       = 4000;
 
 public:
     /// Ack timeout used in unit tests (much shorter for faster tests)

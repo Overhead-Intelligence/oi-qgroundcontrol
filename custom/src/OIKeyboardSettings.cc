@@ -13,7 +13,29 @@ DECLARE_SETTINGGROUP(OIKeyboard, "OIKeyboard")
 {
 }
 
+DECLARE_SETTINGSFACT(OIKeyboardSettings, enabled)
+
+DECLARE_SETTINGSFACT(OIKeyboardSettings, headingLeftKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, headingRightKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, headingStep)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, headingBankLimit)
+
+DECLARE_SETTINGSFACT(OIKeyboardSettings, altitudeUpKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, altitudeDownKey)
 DECLARE_SETTINGSFACT(OIKeyboardSettings, altitudeStep)
-DECLARE_SETTINGSFACT(OIKeyboardSettings, turnRate)
-DECLARE_SETTINGSFACT(OIKeyboardSettings, turnBankLimit)
-DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalRate)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, altitudeLead)
+
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalPitchUpKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalPitchDownKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalPitchStep)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalYawLeftKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalYawRightKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalYawStep)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, zoomInKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, zoomOutKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, zoomStep)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalNextModeKey)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, gimbalPrevModeKey)
+
+DECLARE_SETTINGSFACT(OIKeyboardSettings, modeHotkeysEnabled)
+DECLARE_SETTINGSFACT(OIKeyboardSettings, modeConfirmTimeout)

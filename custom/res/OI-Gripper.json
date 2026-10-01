@@ -1,0 +1,20 @@
+{
+    "fileType": "MavlinkActions",
+    "version": 1,
+    "actions": [
+        {
+            "label": "Gripper Release",
+            "description": "Open the gripper (DO_GRIPPER instance 1, action RELEASE)",
+            "mavCmd": 211,
+            "param1": 1,
+            "param2": 0
+        },
+        {
+            "label": "Gripper Grab",
+            "description": "Close the gripper (DO_GRIPPER instance 1, action GRAB)",
+            "mavCmd": 211,
+            "param1": 1,
+            "param2": 1
+        }
+    ]
+}

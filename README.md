@@ -6,7 +6,7 @@ Overhead Intelligence's build of [QGroundControl](https://github.com/mavlink/qgr
 - **Fleet defaults on first launch**: metric units, the OI telemetry bar (8 columns, rangefinder included), guided-mode limits (50 m floor, 914 m ceiling, 3048 m go-to range, 200 m forward-flight loiter radius), the trimmed ArduPlane flight-mode list, gimbal on-screen control.
 - **Your existing settings come along**: on its first start the build imports the telemetry bar, fleet links, units, video and Fly view settings from the previous OI build (or from stock QGC). Nobody rebuilds a telemetry bar after installing.
 - **OI custom actions** in the Fly view: wingtip lights, gripper, EK3 PosXY source. Loaded automatically.
-- **Keyboard guided control**: W/S bump the target altitude, A/D fly a standard-rate turn, arrow keys move the gimbal. Off by default, behind a switch.
+- **Hazard overlays**: import an FAA obstacle file (`.Dat`) or a KML and see the obstacles on the Fly view map, filtered by height and by distance from where you are flying. Settings -> Maps -> Map Overlays.
 
 Current version: 1.0.1 (2026-09-17). Built on upstream QGroundControl **v5.1.4**.
 
@@ -20,7 +20,7 @@ Every pull request and every push to `development` also produces an installer: o
 
 ## What is in this fork
 
-All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build overlay, so upstream releases merge cleanly. Nothing under `src/` is modified.
+Nearly all OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build overlay, so upstream releases merge cleanly. A few changes do reach into `src/`, where QGC offers no hook: settings pages are code-generated from JSON that lives there, and a handful of core behaviours — guided altitude framing, the MAVLink actions list, map click handling — have no plugin surface at all. Each one is called out in its `CHANGELOG.md` entry, because those are what conflict on the next upstream sync.
 
 | Area | Where to look |
 |---|---|
@@ -28,26 +28,11 @@ All OI code lives in [`custom/`](custom/README.md), QGC's supported custom-build
 | Default settings on first launch | `custom/res/OI-defaults.ini` (change a value there, rebuild, done) |
 | Telemetry bar layout | `custom/src/OIPlugin.cc`, `factValueGridCreateDefaultSettings` |
 | Import of an operator's previous settings | `custom/src/OIPlugin.cc`, `_importLegacySettings` (runs once per settings file) |
-| Custom actions | `custom/res/OI-Actions.json` (copied to `Documents\QGroundControl-OI\MavlinkActions` at startup) |
-| Keyboard guided control | `custom/src/OIKeyboardController.cc`, `custom/src/qml/FlyViewCustomLayer.qml` |
-| Aircraft-side helper scripts | `custom/ardupilot-scripts/` |
+| Custom actions | `custom/res/OI-*.json`, one file per capability (copied to `Documents\QGroundControl-OI\MavlinkActions` at startup; tick the ones a bird has under Fly View Settings) |
+| Hazard overlays (FAA DOF + KML import, filters, map markers) | `custom/src/OIMapOverlays.{h,cc}`, `custom/src/qml/OIMapOverlay*.qml` |
 | CI and releases | `.github/workflows/oi-windows.yml` |
 
 Defaults are only defaults: an operator can still change any setting in the app, and "Reset to defaults" comes back to the OI values.
-
-## Keyboard guided control
-
-Read this before flying with it.
-
-- Switch it on with the **Keyboard** checkbox at the bottom of the Fly view. It is off every time the app starts, and turns itself off when the vehicle disconnects or you press **Esc**.
-- It only works on ArduPlane in **GUIDED** mode. In any other mode the panel says "Switch to GUIDED" and the keys do nothing. It never changes the flight mode for you.
-- **W / S**: climb / descend by the altitude step (default 15 m / 50 ft), clamped to the guided minimum and maximum altitude settings. Holding the key repeats. The panel shows the autopilot's own altitude target ("target 165 m", relative to home) as it moves.
-- **No GPS needed.** Heading uses ArduPlane's compass-heading type, not course over ground. Altitude changes are sent as a relative offset that ArduPlane adds to its current guided target, in whatever altitude frame that target already has (relative, AMSL or terrain); no absolute altitude or frame is ever sent, and the aircraft flies it on the barometer. Terrain frame only matters for Go To Location, which is tracked separately.
-- **A / D**: standard-rate turn (3 deg/s) for as long as the key is held. Release the key and the aircraft holds the new heading (ArduPlane's guided heading hold). The **Release** button in the panel hands it back to the guided loiter point.
-- **Arrow keys**: gimbal tilt (up/down) and pan (left/right) while held.
-- Keys are ignored while a text field has focus, so typing a mission altitude never steers the aircraft.
-- A held heading persists until Release, a new guided target, or a mode change. Install `custom/ardupilot-scripts/heading_hold_timeout.lua` on the aircraft as a watchdog: it drops the aircraft to LOITER after `HHT_TIMEOUT` seconds (default 120) without a new heading command.
-- The step and rates are settings (gear button in the panel): altitude step, turn rate, bank limit, gimbal rate.
 
 ## Working on this repo
 
@@ -55,7 +40,7 @@ Same flow as `oi-raspi-toolkit`:
 
 1. `main` is what has been released. `development` is where work lands. Nobody pushes to either directly.
 2. Branch off `development` (`feat/...`, `fix/...`, `docs/...`, `chore/...`), commit with Conventional Commits, add a line to `CHANGELOG.md` under `[Unreleased]`, open a PR against `development`. CI builds the installer (about 25 minutes) and attaches it to the run. A human reviews and merges (merge commit).
-3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]` and writes `custom/VERSION`. After it merges, `main` is fast-forwarded to `development`, the `vX.Y.Z` tag is pushed, and CI attaches the installer to the GitHub release. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
+3. Release: a `chore/vX.Y.Z-release-finalize` PR promotes `[Unreleased]` to `[X.Y.Z]`, writes `custom/VERSION`, and rewrites the What's New tab (`custom/src/qml/OIWhatsNewPage.qml`) for the new release — that page describes one release rather than a history, and its `releaseVersion` must match `custom/VERSION`. After it merges, a second PR takes `development` into `main` (`main`'s ruleset requires a PR and allows merge commits only, so it cannot be fast-forwarded - both releases so far went in this way), the GitHub release for `vX.Y.Z` is created with notes from the changelog, and then the tag is pushed. Create the release *before* the tag build finishes: the workflow attaches the installer with `generate_release_notes: false` and will not write notes for you. The OI developer workspace tools (`start-release.cmd`, `finish-release.cmd`) expect the version file at the repo root, which this repo cannot have (a root `VERSION` shadows the C++ `<version>` header on Windows), so these steps are done by hand until the tools learn the new location.
 
 No local Qt toolchain is needed to contribute: CI builds every PR. To iterate faster, build on your own Windows PC with the three scripts in `custom/scripts/` (`install-qt.cmd` once, then `build-local.cmd` and `run-local.cmd`); see [custom/README.md](custom/README.md#building-on-your-own-pc-minutes-instead-of-a-ci-run). CMake picks up the `custom/` directory automatically.
 

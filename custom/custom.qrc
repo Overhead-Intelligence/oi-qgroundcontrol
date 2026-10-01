@@ -11,7 +11,18 @@
     <qresource prefix="/Custom/qml">
         <file alias="QGroundControl/Controls/QGCToolBarButton.qml">src/qml/QGCToolBarButton.qml</file>
         <file alias="QGroundControl/Toolbar/SelectViewDropdown.qml">src/qml/SelectViewDropdown.qml</file>
-        <file alias="QGroundControl/FlyView/FlyViewCustomLayer.qml">src/qml/FlyViewCustomLayer.qml</file>
+        <file alias="QGroundControl/AppSettings/LinkConfigurationManager.qml">src/qml/LinkConfigurationManager.qml</file>
+    </qresource>
+
+    <!-- OI-only QML that adds to QGC rather than replacing a stock file. Loaded by
+         its own qrc:/custom/qml/<File>.qml URL, so the interceptor never rewrites it
+         (it only prefixes /Custom, and :/Custom/custom/... does not exist). These
+         files are outside every QML module, so they must import what they use. -->
+    <qresource prefix="/custom/qml">
+        <file alias="OIGimbalIndicator.qml">src/qml/OIGimbalIndicator.qml</file>
+        <file alias="OIKeyboardIndicator.qml">src/qml/OIKeyboardIndicator.qml</file>
+        <file alias="OIMapOverlayMarker.qml">src/qml/OIMapOverlayMarker.qml</file>
+        <file alias="OIOnboardFilesPage.qml">src/qml/OIOnboardFilesPage.qml</file>
     </qresource>
 
     <!-- Settings groups: SettingsGroup loads :/json/<Name>.SettingsGroup.json -->
@@ -22,7 +33,9 @@
     <!-- OI-only resources, read by OIPlugin.cc -->
     <qresource prefix="/custom">
         <file alias="OI-defaults.ini">res/OI-defaults.ini</file>
-        <file alias="OI-Actions.json">res/OI-Actions.json</file>
+        <file alias="OI-Gripper.json">res/OI-Gripper.json</file>
+        <file alias="OI-Starnav.json">res/OI-Starnav.json</file>
+        <file alias="OI-WingtipLights.json">res/OI-WingtipLights.json</file>
         <file alias="OILogoMark.svg">res/Images/OILogoMark.svg</file>
         <file alias="OILogoMarkWhite.svg">res/Images/OILogoMarkWhite.svg</file>
     </qresource>

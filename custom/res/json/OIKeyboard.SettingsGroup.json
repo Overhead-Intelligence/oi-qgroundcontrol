@@ -3,30 +3,40 @@
     "fileType": "FactMetaData",
     "QGC.MetaData.Facts": [
         {
-            "name": "altitudeStep",
-            "shortDesc": "Altitude change per W or S key press. Holding the key repeats the step.",
+            "name": "enabled",
+            "shortDesc": "Let the keyboard send guided commands. Stays as you leave it across flights and restarts; only this switch turns it off. Keys still do nothing unless the vehicle is flying in Guided.",
+            "type": "bool",
+            "default": false,
+            "label": "Keyboard control"
+        },
+        {
+            "name": "headingLeftKey",
+            "shortDesc": "Key that turns the aircraft left by one heading step.",
+            "type": "string",
+            "default": "A",
+            "label": "Turn left"
+        },
+        {
+            "name": "headingRightKey",
+            "shortDesc": "Key that turns the aircraft right by one heading step.",
+            "type": "string",
+            "default": "D",
+            "label": "Turn right"
+        },
+        {
+            "name": "headingStep",
+            "shortDesc": "Size of the heading grid. Each press moves the target to the next multiple of this value, so targets are always round headings. Restricted to factors of 360 so the grid stays exact across the 360/0 wrap.",
             "type": "double",
-            "units": "vertical m",
-            "min": 1,
-            "max": 150,
+            "units": "deg",
             "decimalPlaces": 0,
-            "default": 15.24,
-            "label": "Altitude step"
+            "default": 15,
+            "label": "Heading step",
+            "enumStrings": "1,2,5,10,15,30,45,90",
+            "enumValues": "1,2,5,10,15,30,45,90"
         },
         {
-            "name": "turnRate",
-            "shortDesc": "Heading change rate while A or D is held. 3 deg/s is a standard-rate turn.",
-            "type": "double",
-            "units": "deg/s",
-            "min": 0.5,
-            "max": 15,
-            "decimalPlaces": 1,
-            "default": 3,
-            "label": "Turn rate"
-        },
-        {
-            "name": "turnBankLimit",
-            "shortDesc": "Maximum bank angle the aircraft may use to follow a keyboard turn (sent to ArduPlane as an acceleration limit).",
+            "name": "headingBankLimit",
+            "shortDesc": "Largest bank angle the aircraft may use to follow a keyboard turn. Sent as the acceleration limit on GUIDED_CHANGE_HEADING, which ArduPlane converts back to a bank limit and then clamps to ROLL_LIMIT_DEG.",
             "type": "double",
             "units": "deg",
             "min": 5,
@@ -36,15 +46,147 @@
             "label": "Turn bank limit"
         },
         {
-            "name": "gimbalRate",
-            "shortDesc": "Gimbal pan and tilt rate while an arrow key is held.",
+            "name": "altitudeUpKey",
+            "shortDesc": "Key that raises the target altitude by one step.",
+            "type": "string",
+            "default": "W",
+            "label": "Climb"
+        },
+        {
+            "name": "altitudeDownKey",
+            "shortDesc": "Key that lowers the target altitude by one step.",
+            "type": "string",
+            "default": "S",
+            "label": "Descend"
+        },
+        {
+            "name": "altitudeStep",
+            "shortDesc": "Size of the altitude grid. Each press moves the target to the next multiple of this value above home, so targets are always round altitudes.",
             "type": "double",
-            "units": "deg/s",
-            "min": 1,
-            "max": 90,
+            "units": "vertical m",
             "decimalPlaces": 0,
-            "default": 15,
-            "label": "Gimbal rate"
+            "default": 10,
+            "label": "Altitude step",
+            "enumStrings": "1,2,5,10",
+            "enumValues": "1,2,5,10"
+        },
+        {
+            "name": "altitudeLead",
+            "shortDesc": "How far the commanded altitude target may run ahead of where the aircraft actually is. Stops a held key from queueing a descent the aircraft has not started yet.",
+            "type": "double",
+            "units": "vertical m",
+            "min": 5,
+            "max": 200,
+            "decimalPlaces": 0,
+            "default": 30,
+            "label": "Maximum target lead"
+        },
+        {
+            "name": "gimbalPitchUpKey",
+            "shortDesc": "Key that tilts the gimbal up by one step.",
+            "type": "string",
+            "default": "Up",
+            "label": "Gimbal up"
+        },
+        {
+            "name": "gimbalPitchDownKey",
+            "shortDesc": "Key that tilts the gimbal down by one step.",
+            "type": "string",
+            "default": "Down",
+            "label": "Gimbal down"
+        },
+        {
+            "name": "gimbalPitchStep",
+            "shortDesc": "Gimbal pitch change per key press.",
+            "type": "double",
+            "units": "deg",
+            "min": 1,
+            "max": 45,
+            "decimalPlaces": 0,
+            "default": 5,
+            "label": "Gimbal pitch step"
+        },
+        {
+            "name": "gimbalYawLeftKey",
+            "shortDesc": "Key that pans the gimbal left by one step.",
+            "type": "string",
+            "default": "Left",
+            "label": "Gimbal left"
+        },
+        {
+            "name": "gimbalYawRightKey",
+            "shortDesc": "Key that pans the gimbal right by one step.",
+            "type": "string",
+            "default": "Right",
+            "label": "Gimbal right"
+        },
+        {
+            "name": "gimbalYawStep",
+            "shortDesc": "Gimbal pan change per key press.",
+            "type": "double",
+            "units": "deg",
+            "min": 1,
+            "max": 45,
+            "decimalPlaces": 0,
+            "default": 5,
+            "label": "Gimbal pan step"
+        },
+        {
+            "name": "zoomInKey",
+            "shortDesc": "Key that zooms the camera in.",
+            "type": "string",
+            "default": "PgUp",
+            "label": "Zoom in"
+        },
+        {
+            "name": "zoomOutKey",
+            "shortDesc": "Key that zooms the camera out.",
+            "type": "string",
+            "default": "PgDown",
+            "label": "Zoom out"
+        },
+        {
+            "name": "zoomStep",
+            "shortDesc": "Camera zoom change per key press, as a percentage of the full range. The camera reports its own level back, so the keys always step from where it actually is.",
+            "type": "double",
+            "units": "%",
+            "decimalPlaces": 0,
+            "default": 5,
+            "label": "Zoom step",
+            "enumStrings": "1,2,5,10",
+            "enumValues": "1,2,5,10"
+        },
+        {
+            "name": "gimbalNextModeKey",
+            "shortDesc": "Key that steps forward through the gimbal modes.",
+            "type": "string",
+            "default": "+",
+            "label": "Next gimbal mode"
+        },
+        {
+            "name": "gimbalPrevModeKey",
+            "shortDesc": "Key that steps back through the gimbal modes.",
+            "type": "string",
+            "default": "-",
+            "label": "Previous gimbal mode"
+        },
+        {
+            "name": "modeHotkeysEnabled",
+            "shortDesc": "Allow single keys to change flight mode. Each press opens a confirmation that a second press of the same key accepts and Esc cancels.",
+            "type": "bool",
+            "default": true,
+            "label": "Flight mode hotkeys"
+        },
+        {
+            "name": "modeConfirmTimeout",
+            "shortDesc": "How long the flight mode confirmation waits for the second key press before cancelling itself.",
+            "type": "double",
+            "units": "s",
+            "min": 1,
+            "max": 30,
+            "decimalPlaces": 0,
+            "default": 5,
+            "label": "Confirmation timeout"
         }
     ]
 }

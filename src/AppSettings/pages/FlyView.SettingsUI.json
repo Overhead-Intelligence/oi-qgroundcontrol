@@ -9,7 +9,16 @@
     "groups": [
         {
             "heading": "General",
-            "keywords": ["checklist", "preflight", "multi vehicle", "center map", "log replay", "camera control", "home position", "mission popup"],
+            "keywords": [
+                "checklist",
+                "preflight",
+                "multi vehicle",
+                "center map",
+                "log replay",
+                "camera control",
+                "home position",
+                "mission popup"
+            ],
             "controls": [
                 {
                     "setting": "appSettings.useChecklist",
@@ -42,8 +51,23 @@
         },
         {
             "heading": "Guided Commands",
-            "keywords": ["altitude", "guided", "minimum", "maximum", "goto", "go to", "loiter radius", "confirmation"],
+            "keywords": [
+                "agl",
+                "altitude",
+                "altitude reference",
+                "confirmation",
+                "go to",
+                "goto",
+                "guided",
+                "loiter radius",
+                "maximum",
+                "minimum",
+                "terrain"
+            ],
             "controls": [
+                {
+                    "setting": "flyViewSettings.guidedAltitudeFrame"
+                },
                 {
                     "setting": "flyViewSettings.guidedMinimumAltitude"
                 },
@@ -73,7 +97,13 @@
         },
         {
             "heading": "Virtual Joystick",
-            "keywords": ["joystick", "virtual stick", "throttle", "left handed", "auto center"],
+            "keywords": [
+                "joystick",
+                "virtual stick",
+                "throttle",
+                "left handed",
+                "auto center"
+            ],
             "controls": [
                 {
                     "setting": "appSettings.virtualJoystick"
@@ -90,7 +120,13 @@
         },
         {
             "heading": "Instrument Panel",
-            "keywords": ["compass", "indicators", "hud", "instrument", "nose up"],
+            "keywords": [
+                "compass",
+                "indicators",
+                "hud",
+                "instrument",
+                "nose up"
+            ],
             "controls": [
                 {
                     "setting": "flyViewSettings.showAdditionalIndicatorsCompass"

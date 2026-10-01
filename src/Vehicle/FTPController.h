@@ -63,6 +63,12 @@ public:
     Q_INVOKABLE bool deleteFile(const QString &uri, int componentId = MAV_COMP_ID_AUTOPILOT1);
     Q_INVOKABLE void cancelActiveOperation();
 
+    /// True while the vehicle's FTP manager is still finishing something - notably
+    /// the drain after a cancelled download. A UI that gets a false return from
+    /// listDirectory() can use this to say "still busy, retrying" rather than
+    /// reporting a failure the operator can do nothing about.
+    Q_INVOKABLE bool vehicleBusy() const;
+
     /// Browse the contents of a downloaded archive file
     /// @param archivePath Path to the archive file (use lastDownloadFile after download)
     /// @return true if archive was opened successfully

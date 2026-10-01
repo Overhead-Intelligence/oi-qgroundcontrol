@@ -18,6 +18,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QUrl>
+#include <QtCore/QVariantList>
 #include <QtQml/QQmlAbstractUrlInterceptor>
 
 #include "QGCCorePlugin.h"
@@ -25,6 +26,7 @@
 class FactMetaData;
 class FactValueGrid;
 class OIKeyboardController;
+class OIMapOverlayManager;
 class QQmlApplicationEngine;
 class QSettings;
 
@@ -69,27 +71,38 @@ public:
     /// Shown to the operator as the place to get builds (the update check itself is off in custom builds).
     QString stableDownloadLocation() const final;
 
+    /// The imported hazard markers. CustomMapItems.qml draws these, Fly view only.
+    const QmlObjectListModel *customMapItems() final;
+
+    /// Stock Analyze pages plus the OI "Onboard Files" MAVLink FTP browser.
+    const QVariantList &analyzePages() final;
+
+    /// Stock toolbar indicators plus the keyboard control target readout.
+    const QVariantList &toolBarIndicators() final;
+
     /// No first-run "Preferences" prompt: the OI defaults already answer the vehicle and units
     /// questions (both false makes firstRunPromptStdIds() empty).
     bool showInitialSetupVehiclePreferences() const final { return false; }
     bool showInitialSetupMeasurementUnits() const final { return false; }
-
-    /// Feeds NAV_CONTROLLER_OUTPUT altitude error to the keyboard controller (altitude target display and clamp).
-    bool mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message) final;
-
-    /// The keyboard guided-control singleton (also exposed to QML as OI.Controls/OIKeyboard).
-    OIKeyboardController *keyboard() const { return _keyboard; }
 
 private:
     /// One-time import of the telemetry bar, links, units, video and Fly view settings from the
     /// previous OI build (or stock QGC) into a fresh settings file. Runs from the constructor.
     void _importLegacySettings();
 
-    /// Copies custom/res/OI-Actions.json into the MavlinkActions save folder (overwrites the OI copy only).
+    /// Copies the bundled per-capability actions files into the MavlinkActions save folder
+    /// (overwrites the OI copies only). None is enabled by default; a kit ticks what it has.
     void _deployBundledActions();
 
+    /// Removes the combined OI-Actions.json shipped up to 1.0.1, but only if the operator has
+    /// not edited it, and drops its name from both actions settings. Runs once per settings file.
+    void _retireLegacyActionsFile();
+
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
+    OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers
+    OIKeyboardController *_keyboard = nullptr;      ///< keyboard guided control
+    QVariantList _analyzePages;                     ///< built once on the first analyzePages() call
+    QVariantList _toolBarIndicators;                ///< built once on the first toolBarIndicators() call
     QQmlApplicationEngine *_qmlEngine = nullptr;
     OIUrlInterceptor *_urlInterceptor = nullptr;
-    OIKeyboardController *_keyboard = nullptr;
 };

@@ -25,6 +25,7 @@ set(_generated_qml_names
     CommLinksSettings.qml
     FlyViewSettings.qml
     GeneralSettings.qml
+    KeyboardSettings.qml
     LoggingSettings.qml
     MapsSettings.qml
     NTRIPSettings.qml
@@ -35,6 +36,7 @@ set(_generated_qml_names
     TelemetrySettings.qml
     VideoSettings.qml
     Viewer3DSettings.qml
+    WhatsNewSettings.qml
 )
 
 qgc_add_qml_codegen(GenerateSettingsQml

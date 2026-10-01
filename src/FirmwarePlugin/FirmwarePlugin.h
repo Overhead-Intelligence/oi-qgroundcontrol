@@ -236,6 +236,17 @@ public:
     ///     @param pauseVehicle true: pause vehicle prior to altitude change
     virtual void guidedModeChangeAltitude(Vehicle *vehicle, double altitudeChange, bool pauseVehicle);
 
+    /// Command an ABSOLUTE altitude in an explicit MAV_FRAME.
+    ///     @param altitude Target altitude, measured in the given frame
+    ///     @param mavFrame MAV_FRAME the altitude is measured in
+    /// Absolute rather than relative on purpose: the relative path sends a delta that
+    /// the autopilot adds to *its own* target, which matches the number the operator
+    /// chose only while the vehicle is settled at that target. The base implementation
+    /// converts back to a relative change, so a firmware with no frame-aware command
+    /// still behaves correctly for a relative-altitude frame. Callers must not offer
+    /// other frames unless the firmware plugin overrides this.
+    virtual void guidedModeChangeAltitudeInFrame(Vehicle *vehicle, double altitude, int mavFrame, bool pauseVehicle);
+
     /// Command vehicle to change groundspeed
     ///     @param groundspeed Groundspeed in m/s
     virtual void guidedModeChangeGroundSpeedMetersSecond(Vehicle *vehicle, double groundspeed) const;

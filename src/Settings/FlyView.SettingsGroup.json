@@ -21,6 +21,16 @@
             "keywords": "altitude,guided,maximum"
         },
         {
+            "name": "guidedAltitudeFrame",
+            "shortDesc": "Altitudes that guided actions (e.g. keyboard control, altitude slider) are measured from. Above Ground Level requires parameters configured for guided terrain following + usable terrain data for the current flight area. Relative to Home will be applied if those conditions are not met.",
+            "type": "uint32",
+            "enumStrings": "Relative to Home,Above Ground Level",
+            "enumValues": "0,1",
+            "default": 0,
+            "label": "Altitude Reference",
+            "keywords": "altitude,guided,frame,terrain,agl,reference"
+        },
+        {
             "name": "showLogReplayStatusBar",
             "shortDesc": "Show the playback control bar during telemetry log replay.",
             "type": "bool",

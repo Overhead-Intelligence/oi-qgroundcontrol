@@ -46,7 +46,7 @@ APMFlightModesComponentController::APMFlightModesComponentController(QObject *pa
         return;
     }
 
-    for (int i = 0; i < _cChannelOptions; i++) {
+    for (int i = 0; i < _cRcChannels; i++) {
         _rgChannelOptionEnabled.append(QVariant(false));
     }
 
@@ -83,12 +83,14 @@ void APMFlightModesComponentController::channelValuesChanged(QVector<int> channe
     }
     emit activeFlightModeChanged(_activeFlightMode);
 
-    for (int i = 0; i < _cChannelOptions; i++) {
-        _rgChannelOptionEnabled[i] = QVariant(false);
-        channelValue = channelValues[i + 5];
-        if (channelValue > 1800) {
-            _rgChannelOptionEnabled[i] = QVariant(true);
-        }
+    // Indexed by channel - 1. channelValues is sized to however many channels the
+    // vehicle actually reports, which is often fewer than 16, so the read has to be
+    // guarded: the previous version indexed channelValues[i + 5] up to 15
+    // unconditionally and read past the end on any vehicle reporting fewer.
+    const int reportedChannels = static_cast<int>(channelValues.size());
+    for (int i = 0; i < _cRcChannels; i++) {
+        const bool haveValue = (i < reportedChannels);
+        _rgChannelOptionEnabled[i] = QVariant(haveValue && (channelValues[i] > 1800));
     }
     emit channelOptionEnabledChanged();
 }
