@@ -129,9 +129,52 @@ void LinkManager::disconnectLinkConfiguration(LinkConfiguration *config)
     }
 }
 
+QString LinkManager::_udpPortHolder(quint16 port, const LinkConfiguration *excluding)
+{
+    // Port 0 asks the OS for any free port, so two of them never collide.
+    if (port == 0) {
+        return QString();
+    }
+
+    QMutexLocker locker(&_linksMutex);
+
+    for (const SharedLinkInterfacePtr &link : _rgLinks) {
+        const SharedLinkConfigurationPtr linkConfig = link->linkConfiguration();
+        if (!linkConfig || (linkConfig.get() == excluding) || (linkConfig->type() != LinkConfiguration::TypeUdp)) {
+            continue;
+        }
+
+        const UDPConfiguration *const otherConfig = qobject_cast<const UDPConfiguration*>(linkConfig.get());
+        if (otherConfig && (otherConfig->localPort() == port)) {
+            return linkConfig->name();
+        }
+    }
+
+    return QString();
+}
+
 bool LinkManager::createConnectedLink(SharedLinkConfigurationPtr &config)
 {
     config->setSuppressAutoReconnect(false);
+
+    // Refuse a second listener on a port some other link already holds. bind() now refuses
+    // this too, but only the OS error comes back from there; checking here is what lets the
+    // message name the link responsible and say what to do about it. Operators who key the
+    // port to the pilot rather than to the aircraft hit this with every link they own.
+    if (config->type() == LinkConfiguration::TypeUdp) {
+        const UDPConfiguration *const udpConfig = qobject_cast<const UDPConfiguration*>(config.get());
+        const QString holder = udpConfig ? _udpPortHolder(udpConfig->localPort(), config.get()) : QString();
+        if (!holder.isEmpty()) {
+            const QString error = tr("Cannot connect '%1': link '%2' is already listening on UDP port %3. "
+                                     "Disconnect '%2' first, or - to work with both aircraft at once - add this "
+                                     "link's server address to '%2' instead of connecting a second link.")
+                                      .arg(config->name(), holder)
+                                      .arg(udpConfig->localPort());
+            qCWarning(LinkManagerLog) << "UDP port" << udpConfig->localPort() << "already held by" << holder;
+            QGC::showAppMessage(error, tr("UDP Port In Use"));
+            return false;
+        }
+    }
 
     SharedLinkInterfacePtr link = nullptr;
 

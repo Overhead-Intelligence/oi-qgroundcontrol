@@ -181,6 +181,9 @@ private:
     bool _allowAutoConnectToBoard(QGCSerialPortInfo::BoardType_t boardType) const;
     void _addSerialAutoConnectLink();
     bool _portAlreadyConnected(const QString &portName);
+    /// Name of a connected UDP link already listening on @p port, or empty if none.
+    /// @p excluding is the configuration being connected, so it never matches itself.
+    QString _udpPortHolder(quint16 port, const LinkConfiguration *excluding);
     void _filterCompositePorts(QList<QGCSerialPortInfo> &portList);
 
     QMap<QString, int> _autoconnectPortWaitList;   ///< key: QGCSerialPortInfo::systemLocation, value: wait count

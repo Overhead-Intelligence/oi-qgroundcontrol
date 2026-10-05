@@ -347,19 +347,29 @@ void UDPWorker::connectLink()
     _udpConfig->resolveHosts();
 
     qCDebug(UDPLinkLog) << "Attempting to bind to port:" << _udpConfig->localPort();
-    const bool bindSuccess = _socket->bind(QHostAddress::AnyIPv4, _udpConfig->localPort(), QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress);
+    // DontShareAddress, not ReuseAddressHint. Two sockets on one UDP port is not a shared
+    // subscription: the OS hands each datagram to exactly one of them, so the loser binds
+    // successfully, transmits fine and never receives - a live-looking link with no
+    // telemetry on it. ReuseAddressHint (SO_REUSEADDR) is what permitted that, and only
+    // because every QGC link set it; measured on Windows, the second binder took 0 of 10
+    // datagrams. DontShareAddress is SO_EXCLUSIVEADDRUSE here and plain exclusive binding
+    // elsewhere, so a collision now fails at bind, loudly, the way other GCS software does.
+    const bool bindSuccess = _socket->bind(QHostAddress::AnyIPv4, _udpConfig->localPort(), QAbstractSocket::DontShareAddress);
     if (!bindSuccess) {
-        qCWarning(UDPLinkLog) << "Failed to bind UDP socket to port" << _udpConfig->localPort();
+        qCWarning(UDPLinkLog) << "Failed to bind UDP socket to port" << _udpConfig->localPort() << _socket->errorString();
 
         if (!_errorEmitted) {
-            emit errorOccurred(tr("Failed to bind UDP socket to port"));
+            emit errorOccurred(tr("Could not listen on UDP port %1: %2. Another link or application is using it.")
+                                   .arg(_udpConfig->localPort()).arg(_socket->errorString()));
             _errorEmitted = true;
         }
 
-        // Disconnecting here on autoconnect will cause continuous error popups
-        /*if (!_udpConfig->isAutoConnect()) {
-            _onSocketDisconnected();
-        }*/
+        // Must report the failure, not just log it. LinkManager drops a link - and the UI
+        // re-enables Connect - only on `disconnected`, so a bind that failed silently left
+        // the link wedged in _rgLinks, shown as connected, refusing to disconnect or retry
+        // until the app was restarted. The popup storm this guarded against is handled in
+        // LinkManager::_communicationError, which suppresses repeats for retrying links.
+        _onSocketDisconnected();
 
         return;
     }
@@ -374,17 +384,33 @@ void UDPWorker::connectLink()
 
 void UDPWorker::disconnectLink()
 {
-    if (!isConnected()) {
-        qCDebug(UDPLinkLog) << "Already disconnected";
-        return;
+    // Deliberately not gated on isConnected(). That gate, paired with the identical one in
+    // UDPLink::disconnect(), meant a link that failed to bind could never be torn down:
+    // nothing closed the socket and nothing emitted `disconnected`, so the configuration
+    // kept pointing at a dead link for the rest of the session. close() on an unbound
+    // socket is a no-op, so running unconditionally costs nothing.
+    const bool wasConnected = _isConnected;
+    _isConnected = false;
+
+    qCDebug(UDPLinkLog) << "Disconnecting UDP link (was connected:" << wasConnected << ")";
+
+    if (_socket) {
+        if (wasConnected) {
+            (void) _socket->leaveMulticastGroup(_multicastGroup);
+        }
+        _socket->close();
     }
 
-    qCDebug(UDPLinkLog) << "Disconnecting UDP link";
+    {
+        // Shared with the writeData() path on this same thread, but the mutex is what
+        // guards it there; clearing it unlocked was a latent race.
+        QMutexLocker locker(&_sessionTargetsMutex);
+        _sessionTargets.clear();
+    }
 
-    (void) _socket->leaveMulticastGroup(_multicastGroup);
-    _socket->close();
+    _errorEmitted = false;
 
-    _sessionTargets.clear();
+    emit disconnected();
 }
 
 void UDPWorker::writeData(const QByteArray &data)
@@ -558,9 +584,9 @@ bool UDPLink::_connect()
 
 void UDPLink::disconnect()
 {
-    if (isConnected()) {
-        (void) QMetaObject::invokeMethod(_worker, "disconnectLink", Qt::QueuedConnection);
-    }
+    // Unconditional: see UDPWorker::disconnectLink. A link that never bound still has to be
+    // disconnectable, otherwise the UI offers a Disconnect button that does nothing.
+    (void) QMetaObject::invokeMethod(_worker, "disconnectLink", Qt::QueuedConnection);
 }
 
 void UDPLink::_onConnected()
