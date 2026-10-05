@@ -34,7 +34,16 @@ ColumnLayout {
         }
     }
 
-    QGCLabel { text: qsTr("Server Addresses (optional)") }
+    QGCLabel { text: qsTr("Server Addresses") }
+
+    QGCLabel {
+        Layout.preferredWidth:  _secondColumnWidth
+        Layout.fillWidth:       true
+        font.pointSize:         ScreenTools.smallFontPointSize
+        wrapMode:               Text.WordWrap
+        text:                   qsTr("This link only accepts telemetry from the addresses listed here. Changes apply the next time it connects.")
+        visible:                !acceptAnySenderCheckBox.checked
+    }
 
     Repeater {
         model: subEditConfig ? subEditConfig.hostList : []
@@ -71,4 +80,23 @@ ColumnLayout {
             }
         }
     }
+
+    QGCCheckBox {
+        id:                 acceptAnySenderCheckBox
+        text:               qsTr("Accept data from any sender")
+        checked:            subEditConfig ? subEditConfig.acceptAnySender : false
+        onCheckedChanged:   { if (subEditConfig) subEditConfig.acceptAnySender = checked }
+    }
+
+    QGCLabel {
+        Layout.preferredWidth:  _secondColumnWidth
+        Layout.fillWidth:       true
+        font.pointSize:         ScreenTools.smallFontPointSize
+        wrapMode:               Text.WordWrap
+        color:                  qgcPal.warningText
+        text:                   qsTr("Any aircraft reaching this port will be shown, including ones belonging to another link or another operator.")
+        visible:                acceptAnySenderCheckBox.checked
+    }
+
+    QGCPalette { id: qgcPal; colorGroupEnabled: true }
 }

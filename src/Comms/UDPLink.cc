@@ -91,6 +91,7 @@ void UDPConfiguration::copyFrom(const LinkConfiguration *source)
     const UDPConfiguration *udpSource = qobject_cast<const UDPConfiguration*>(source);
 
     setLocalPort(udpSource->localPort());
+    setAcceptAnySender(udpSource->acceptAnySender());
     _targetHosts.clear();
 
     for (const std::shared_ptr<UDPClient> &target : udpSource->targetHosts()) {
@@ -107,6 +108,7 @@ void UDPConfiguration::loadSettings(QSettings &settings, const QString &root)
     settings.beginGroup(root);
 
     setLocalPort(static_cast<quint16>(settings.value("port", SettingsManager::instance()->autoConnectSettings()->udpListenPort()->rawValue().toUInt()).toUInt()));
+    setAcceptAnySender(settings.value("acceptAnySender", false).toBool());
 
     _targetHosts.clear();
     const qsizetype hostCount = settings.value("hostCount", 0).toUInt();
@@ -129,6 +131,7 @@ void UDPConfiguration::saveSettings(QSettings &settings, const QString &root) co
 
     settings.setValue(QStringLiteral("hostCount"), _targetHosts.size());
     settings.setValue(QStringLiteral("port"), _localPort);
+    settings.setValue(QStringLiteral("acceptAnySender"), _acceptAnySender);
 
     for (qsizetype i = 0; i < _targetHosts.size(); i++) {
         const std::shared_ptr<UDPClient> target = _targetHosts.at(i);
@@ -275,8 +278,6 @@ QString UDPConfiguration::_getIpAddress(const QString &address)
 
 /*===========================================================================*/
 
-const QHostAddress UDPWorker::_multicastGroup = QHostAddress(QStringLiteral("224.0.0.1"));
-
 UDPWorker::UDPWorker(const UDPConfiguration *config, QObject *parent)
     : QObject(parent)
     , _udpConfig(config)
@@ -345,6 +346,7 @@ void UDPWorker::connectLink()
     _errorEmitted = false;
 
     _udpConfig->resolveHosts();
+    _snapshotAcceptedAddresses();
 
     qCDebug(UDPLinkLog) << "Attempting to bind to port:" << _udpConfig->localPort();
     // DontShareAddress, not ReuseAddressHint. Two sockets on one UDP port is not a shared
@@ -374,12 +376,6 @@ void UDPWorker::connectLink()
         return;
     }
 
-    qCDebug(UDPLinkLog) << "Attempting to join multicast group:" << _multicastGroup.toString();
-    const bool joinSuccess = _socket->joinMulticastGroup(_multicastGroup);
-    if (!joinSuccess) {
-        qCWarning(UDPLinkLog) << "Failed to join multicast group" << _multicastGroup.toString();
-    }
-
 }
 
 void UDPWorker::disconnectLink()
@@ -395,11 +391,11 @@ void UDPWorker::disconnectLink()
     qCDebug(UDPLinkLog) << "Disconnecting UDP link (was connected:" << wasConnected << ")";
 
     if (_socket) {
-        if (wasConnected) {
-            (void) _socket->leaveMulticastGroup(_multicastGroup);
-        }
         _socket->close();
     }
+
+    _acceptedAddresses.clear();
+    _rejectedSenders.clear();
 
     {
         // Shared with the writeData() path on this same thread, but the mutex is what
@@ -446,6 +442,34 @@ void UDPWorker::writeData(const QByteArray &data)
     emit dataSent(data);
 }
 
+void UDPWorker::_snapshotAcceptedAddresses()
+{
+    _acceptedAddresses.clear();
+    _rejectedSenders.clear();
+    _acceptAnySender = _udpConfig->acceptAnySender();
+
+    for (const std::shared_ptr<UDPClient> &target : _udpConfig->targetHosts()) {
+        if (target->address.isNull()) {
+            continue;
+        }
+        // Normalised the way an arriving sender is below, so a target on this machine -
+        // SITL on loopback, say - still compares equal to what the socket reports.
+        const bool targetLocal = target->address.isLoopback() || _localAddresses.contains(target->address);
+        (void) _acceptedAddresses.insert(targetLocal ? QHostAddress(QHostAddress::SpecialAddress::LocalHost) : target->address);
+    }
+
+    if (_acceptedAddresses.isEmpty() && !_acceptAnySender) {
+        qCWarning(UDPLinkLog) << "Link" << _udpConfig->name() << "has no resolved server address;"
+                              << "it will ignore all incoming data. Add a server address, or enable"
+                              << "'Accept data from any sender'.";
+    }
+}
+
+bool UDPWorker::_isAcceptedSender(const QHostAddress &sender) const
+{
+    return _acceptAnySender || _acceptedAddresses.contains(sender);
+}
+
 void UDPWorker::_onSocketConnected()
 {
     qCDebug(UDPLinkLog) << "UDP connected to" << _udpConfig->localPort();
@@ -486,6 +510,23 @@ void UDPWorker::_onSocketReadyRead()
             continue;
         }
 
+        const bool ipLocal = datagramIn.senderAddress().isLoopback() || _localAddresses.contains(datagramIn.senderAddress());
+        const QHostAddress senderAddress = ipLocal ? QHostAddress(QHostAddress::SpecialAddress::LocalHost) : datagramIn.senderAddress();
+
+        // The socket is bound to 0.0.0.0, so it hears every aircraft using this port and not
+        // only this link's. The hostname was already resolved to decide where to transmit;
+        // this applies that same identity to the receive side, where it never was applied.
+        // Matching is on address alone, so an aircraft answering from a different source port
+        // is still heard, while a different aircraft is not.
+        if (!_isAcceptedSender(senderAddress)) {
+            if (!_rejectedSenders.contains(senderAddress)) {
+                (void) _rejectedSenders.insert(senderAddress);
+                qCWarning(UDPLinkLog) << "Link" << _udpConfig->name() << "ignoring data from" << senderAddress
+                                      << "- not one of its server addresses" << _udpConfig->hostList();
+            }
+            continue;
+        }
+
         (void) buffer.append(datagramIn.data());
 
         if ((buffer.size() > BUFFER_TRIGGER_SIZE) || (timer.elapsed() > RECEIVE_TIME_LIMIT_MS)) {
@@ -494,9 +535,6 @@ void UDPWorker::_onSocketReadyRead()
             buffer.clear();
             (void) timer.restart();
         }
-
-        const bool ipLocal = datagramIn.senderAddress().isLoopback() || _localAddresses.contains(datagramIn.senderAddress());
-        const QHostAddress senderAddress = ipLocal ? QHostAddress(QHostAddress::SpecialAddress::LocalHost) : datagramIn.senderAddress();
 
         QMutexLocker locker(&_sessionTargetsMutex);
         if (!containsTarget(_sessionTargets, senderAddress, datagramIn.senderPort())) {
