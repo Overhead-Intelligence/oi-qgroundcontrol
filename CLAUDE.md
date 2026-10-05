@@ -266,6 +266,24 @@ open a PR. Never merge `upstream/master` (daily builds).
 
 ## Gotchas
 
+- **UDP links diverge from upstream in three ways, all deliberate.** They bind
+  `DontShareAddress`, so a second link on a port another link already holds fails
+  instead of binding successfully and silently receiving nothing (two sockets on
+  one UDP port is not a shared subscription - the OS picks one). They accept
+  datagrams only from their own configured server addresses, matched on address so
+  an aircraft answering from a different source port still works, unless `Accept
+  data from any sender` is ticked. And they no longer join multicast `224.0.0.1`.
+  Our ports are assigned per pilot rather than per aircraft, so every link an
+  operator owns shares a port by design; without the first two changes they
+  collide, and whichever bound first received every aircraft on that port.
+- **There is no vehicle auto-discovery.** `autoConnectUDP`, `autoConnectPixhawk`,
+  `autoConnectSiKRadio`, `autoConnectLibrePilot` and the `udpListenPort` /
+  `udpTargetHost*` settings are gone, along with the AutoConnect section in Comm
+  Links and in the no-vehicle status drawer. What survives in the `AutoConnect`
+  settings group is NMEA GPS and RTK GPS - peripherals, not vehicles - and the
+  group keeps its name so saved keys still load. A per-link `Automatically
+  Connect on Start` also survives; it is explicit, and it no longer rewrites the
+  link's port the way `UDPConfiguration::setAutoConnect` used to.
 - The GCS system ID stays at QGC's default 255 (Roger's live setting on
   2026-09-16; the May export had 254). ArduPilot gates `MANUAL_CONTROL`, RC
   override and the GCS failsafe on `MAV_GCS_SYSID`; guided commands are not gated.

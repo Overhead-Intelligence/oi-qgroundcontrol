@@ -62,6 +62,7 @@ class UDPConfiguration : public LinkConfiguration
 
     Q_PROPERTY(QStringList hostList READ hostList NOTIFY hostListChanged)
     Q_PROPERTY(quint16 localPort READ localPort WRITE setLocalPort NOTIFY localPortChanged)
+    Q_PROPERTY(bool acceptAnySender READ acceptAnySender WRITE setAcceptAnySender NOTIFY acceptAnySenderChanged)
 
 public:
     explicit UDPConfiguration(const QString &name, QObject *parent = nullptr);
@@ -74,7 +75,6 @@ public:
     Q_INVOKABLE void removeHost(const QString &host, quint16 port);
 
     LinkType type() const override { return LinkConfiguration::TypeUdp; }
-    void setAutoConnect(bool autoc = true) override;
     void copyFrom(const LinkConfiguration *source) override;
     void loadSettings(QSettings &settings, const QString &root) override;
     void saveSettings(QSettings &settings, const QString &root) const override;
@@ -87,9 +87,16 @@ public:
     quint16 localPort() const { return _localPort; }
     void setLocalPort(quint16 port) { if (port != _localPort) { _localPort = port; emit localPortChanged(); } }
 
+    /// When false - the default - the link accepts datagrams only from its configured server
+    /// addresses. The socket binds 0.0.0.0, so without this a link hears every aircraft that
+    /// shares its port, which is how connecting one aircraft brings up another.
+    bool acceptAnySender() const { return _acceptAnySender; }
+    void setAcceptAnySender(bool accept) { if (accept != _acceptAnySender) { _acceptAnySender = accept; emit acceptAnySenderChanged(); } }
+
 signals:
     void hostListChanged();
     void localPortChanged();
+    void acceptAnySenderChanged();
 
 private:
     void _updateHostList();
@@ -99,6 +106,7 @@ private:
     QStringList _hostList;
     QList<std::shared_ptr<UDPClient>> _targetHosts;
     quint16 _localPort = 0;
+    bool _acceptAnySender = false;
 };
 
 /*===========================================================================*/
@@ -134,6 +142,11 @@ private slots:
     void _onSocketErrorOccurred(QAbstractSocket::SocketError socketError);
 
 private:
+    /// True if @p sender is an address this link is allowed to hear from.
+    bool _isAcceptedSender(const QHostAddress &sender) const;
+    /// Resolves the configured hosts into _acceptedAddresses. Call on the worker thread.
+    void _snapshotAcceptedAddresses();
+
     const UDPConfiguration *_udpConfig = nullptr;
     QUdpSocket *_socket = nullptr;
     QMutex _sessionTargetsMutex;
@@ -141,8 +154,13 @@ private:
     bool _isConnected = false;
     bool _errorEmitted = false;
     QSet<QHostAddress> _localAddresses;
-
-    static const QHostAddress _multicastGroup;
+    /// Taken once per connect rather than read per datagram: the configuration belongs to the
+    /// GUI thread and is rewritten in place when a link is edited. Host changes made while
+    /// connected therefore apply on the next connect, which is already true of the port.
+    QSet<QHostAddress> _acceptedAddresses;
+    bool _acceptAnySender = false;
+    /// Senders already reported as rejected, so one misrouted aircraft cannot flood the log.
+    QSet<QHostAddress> _rejectedSenders;
 };
 
 /*===========================================================================*/
