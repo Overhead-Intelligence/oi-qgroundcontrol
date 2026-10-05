@@ -314,12 +314,24 @@ GstElement* buildRtspSource(const QString& uri, const QUrl& sourceUrl, const Con
     constexpr GstRTSPLowerTrans kRtspProtocols =
         static_cast<GstRTSPLowerTrans>(GST_RTSP_LOWER_TRANS_UDP | GST_RTSP_LOWER_TRANS_TCP);
 
-    // do-retransmission forwards to rtspsrc's internal rtpjitterbuffer (added 1.6);
-    // drop-on-latency=TRUE unless jitterBuffer==Buffered (opt out of bounded playout).
-    const gboolean dropOnLatency = (config.jitterBuffer == JitterBuffer::Buffered) ? FALSE : TRUE;
+    // do-retransmission forwards to rtspsrc's internal rtpjitterbuffer (added 1.6).
+    //
+    // drop-on-latency stays FALSE, rtspsrc's own default and what 5.0.x ran with - it set only
+    // location and latency and left the rest alone. TRUE promotes `latency` from a playout
+    // target the buffer may grow past into a hard ceiling, discarding anything later than it.
+    // Those discards are not free on H.265: a hole in the reference chain smears or freezes the
+    // picture until the next IDR, which on the Siyi payloads is two seconds out. Reported from
+    // the field as "mega lag, terrible quality" over a link whose jitter alone exceeds the
+    // default 80 ms budget.
+    //
+    // Deliberately not driven by config.jitterBuffer. That enum cannot express the choice here:
+    // rtspsrc owns its jitterbuffer so None is unavailable, and Buffered - the only value that
+    // produced FALSE - is unreachable, because the only assignment to GstVideoReceiver::_buffer
+    // is `lowLatency() ? -1 : 0`. Every RTSP stream therefore got the cap regardless of
+    // settings. Operators who do want one should lower rtpJitterLatencyMs.
     g_object_set(source, "location", cleanLocation.constData(), "latency", latencyMs, "do-rtcp", TRUE,
                  "do-retransmission", config.doRetransmission ? TRUE : FALSE, "tcp-timeout", kRtspTcpTimeoutUs,
-                 "udp-reconnect", TRUE, "drop-on-latency", dropOnLatency, "retry", kRtspRetry, "protocols",
+                 "udp-reconnect", TRUE, "drop-on-latency", FALSE, "retry", kRtspRetry, "protocols",
                  kRtspProtocols, nullptr);
 
     const QString rtspUser = sourceUrl.userName(QUrl::FullyDecoded);
