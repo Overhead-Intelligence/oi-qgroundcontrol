@@ -12,14 +12,6 @@ ColumnLayout {
         // No need
     }
 
-    QGCLabel {
-        Layout.preferredWidth: _secondColumnWidth
-        Layout.fillWidth:       true
-        font.pointSize:         ScreenTools.smallFontPointSize
-        wrapMode:               Text.WordWrap
-        text:                   qsTr("Note: For best perfomance, please disable AutoConnect to UDP devices on the General page.")
-    }
-
     RowLayout {
         spacing: _colSpacing
 

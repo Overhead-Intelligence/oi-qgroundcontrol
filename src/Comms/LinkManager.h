@@ -128,7 +128,6 @@ private:
     bool _connectionsSuspendedMsg() const;
     void _updateAutoConnectLinks();
     void _removeConfiguration(const LinkConfiguration *config);
-    void _addUDPAutoConnectLink();
     void _addMAVLinkForwardingLink();
     void _reconnectAutoConnectLinks();
     void _createDynamicForwardLink(const char *linkName, const QString &hostName);
@@ -178,8 +177,7 @@ signals:
 private:
     bool _isSerialPortConnected();
     void _updateSerialPorts();
-    bool _allowAutoConnectToBoard(QGCSerialPortInfo::BoardType_t boardType) const;
-    void _addSerialAutoConnectLink();
+    void _updateSerialPeripherals();
     bool _portAlreadyConnected(const QString &portName);
     /// Name of a connected UDP link already listening on @p port, or empty if none.
     /// @p excluding is the configuration being connected, so it never matches itself.

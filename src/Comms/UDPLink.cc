@@ -1,8 +1,6 @@
 #include "UDPLink.h"
-#include "AutoConnectSettings.h"
 #include "QGCLoggingCategory.h"
 #include "QGCNetworkHelper.h"
-#include "SettingsManager.h"
 
 #include <QtCore/QMutexLocker>
 #include <QtCore/QThread>
@@ -15,6 +13,10 @@
 QGC_LOGGING_CATEGORY(UDPLinkLog, "Comms.UDPLink")
 
 namespace {
+    /// Port a link gets when its settings carry none. Only a starting value for the field in
+    /// the UI - every link stores its own, and nothing binds this implicitly.
+    constexpr quint16 kDefaultUdpPort = 14550;
+
     constexpr int BUFFER_TRIGGER_SIZE = 10 * 1024;
     constexpr int RECEIVE_TIME_LIMIT_MS = 50;
 
@@ -63,27 +65,6 @@ UDPConfiguration::~UDPConfiguration()
     qCDebug(UDPLinkLog) << this;
 }
 
-void UDPConfiguration::setAutoConnect(bool autoc)
-{
-    if (isAutoConnect() != autoc) {
-        AutoConnectSettings *const settings = SettingsManager::instance()->autoConnectSettings();
-        const QString targetHostIP = settings->udpTargetHostIP()->rawValue().toString();
-        const quint16 targetHostPort = settings->udpTargetHostPort()->rawValue().toUInt();
-        if (autoc) {
-            setLocalPort(settings->udpListenPort()->rawValue().toInt());
-            if (!targetHostIP.isEmpty()) {
-                addHost(targetHostIP, targetHostPort);
-            }
-        } else {
-            setLocalPort(0);
-            if (!targetHostIP.isEmpty()) {
-                removeHost(targetHostIP, targetHostPort);
-            }
-        }
-        LinkConfiguration::setAutoConnect(autoc);
-    }
-}
-
 void UDPConfiguration::copyFrom(const LinkConfiguration *source)
 {
     LinkConfiguration::copyFrom(source);
@@ -107,7 +88,7 @@ void UDPConfiguration::loadSettings(QSettings &settings, const QString &root)
 {
     settings.beginGroup(root);
 
-    setLocalPort(static_cast<quint16>(settings.value("port", SettingsManager::instance()->autoConnectSettings()->udpListenPort()->rawValue().toUInt()).toUInt()));
+    setLocalPort(static_cast<quint16>(settings.value("port", kDefaultUdpPort).toUInt()));
     setAcceptAnySender(settings.value("acceptAnySender", false).toBool());
 
     _targetHosts.clear();

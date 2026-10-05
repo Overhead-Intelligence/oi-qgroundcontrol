@@ -49,33 +49,9 @@ DECLARE_SETTINGGROUP(AutoConnect, "AutoConnect")
     settings.endGroup();
 }
 
-DECLARE_SETTINGSFACT(AutoConnectSettings, autoConnectUDP)
-DECLARE_SETTINGSFACT(AutoConnectSettings, udpListenPort)
-DECLARE_SETTINGSFACT(AutoConnectSettings, udpTargetHostIP)
-DECLARE_SETTINGSFACT(AutoConnectSettings, udpTargetHostPort)
 DECLARE_SETTINGSFACT(AutoConnectSettings, nmeaUdpPort)
 
-DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectPixhawk)
-{
-    if (!_autoConnectPixhawkFact) {
-        _autoConnectPixhawkFact = _createSettingsFact(autoConnectPixhawkName);
-#ifdef Q_OS_IOS
-        _autoConnectPixhawkFact->setUserVisible(false);
-#endif
-    }
-    return _autoConnectPixhawkFact;
-}
 
-DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectSiKRadio)
-{
-    if (!_autoConnectSiKRadioFact) {
-        _autoConnectSiKRadioFact = _createSettingsFact(autoConnectSiKRadioName);
-#ifdef Q_OS_IOS
-        _autoConnectSiKRadioFact->setUserVisible(false);
-#endif
-    }
-    return _autoConnectSiKRadioFact;
-}
 
 DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectRTKGPS)
 {
@@ -88,16 +64,6 @@ DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectRTKGPS)
     return _autoConnectRTKGPSFact;
 }
 
-DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, autoConnectLibrePilot)
-{
-    if (!_autoConnectLibrePilotFact) {
-        _autoConnectLibrePilotFact = _createSettingsFact(autoConnectLibrePilotName);
-#ifdef Q_OS_IOS
-        _autoConnectLibrePilotFact->setUserVisible(false);
-#endif
-    }
-    return _autoConnectLibrePilotFact;
-}
 
 DECLARE_SETTINGSFACT_NO_FUNC(AutoConnectSettings, nmeaSource)
 {
