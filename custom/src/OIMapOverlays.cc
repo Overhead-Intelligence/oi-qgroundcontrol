@@ -9,6 +9,7 @@
 
 #include "OIMapOverlays.h"
 
+#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QIODevice>
@@ -18,15 +19,23 @@
 #include <QtCore/QTimer>
 #include <QtCore/QXmlStreamReader>
 
+#include "AppSettings.h"
 #include "MultiVehicleManager.h"
+#include "QGCLoggingCategory.h"
 #include "QGroundControlQmlGlobal.h"
 #include "QmlObjectListModel.h"
+#include "SettingsManager.h"
 #include "Vehicle.h"
+
+QGC_LOGGING_CATEGORY(OIMapOverlaysLog, "OI.MapOverlays")
 
 namespace {
 
 constexpr const char *kMarkerQml = "qrc:/custom/qml/OIMapOverlayMarker.qml";
 constexpr const char *kSettingsArray = "OI/MapOverlays";
+/// Subdirectory of the application save path, alongside Missions, Logs and the
+/// rest, so an imported overlay is found where an operator already looks.
+constexpr const char *kStorageDirName = "MapOverlays";
 constexpr const char *kKeyPath = "path";
 constexpr const char *kKeyEnabled = "enabled";
 constexpr const char *kKeyMinHeightM = "minHeightM";
@@ -35,6 +44,34 @@ constexpr const char *kKeyLegacyMinHeightFt = "minHeightFt";
 constexpr const char *kKeyRadiusKm = "radiusKm";
 
 constexpr double kFeetToMeters = 0.3048;
+
+/// Byte-for-byte comparison, used to recognise a file already imported. Matching
+/// on content rather than on name catches the same obstacle file re-imported from
+/// a different folder, and avoids rejecting two different files that happen to
+/// share a name.
+bool filesIdentical(const QString &leftPath, const QString &rightPath)
+{
+    QFileInfo leftInfo(leftPath);
+    QFileInfo rightInfo(rightPath);
+    if (!leftInfo.exists() || !rightInfo.exists() || (leftInfo.size() != rightInfo.size())) {
+        return false;
+    }
+
+    QFile left(leftPath);
+    QFile right(rightPath);
+    if (!left.open(QIODevice::ReadOnly) || !right.open(QIODevice::ReadOnly)) {
+        return false;
+    }
+
+    constexpr qint64 kChunk = 64 * 1024;
+    while (!left.atEnd()) {
+        if (left.read(kChunk) != right.read(kChunk)) {
+            return false;
+        }
+    }
+
+    return right.atEnd();
+}
 
 /// FAA Digital Obstacle File record layout, 0-based half-open slices. Verified
 /// against 12-FL.Dat (2026-08-02 currency), all 43,893 records parsing clean.
@@ -380,6 +417,74 @@ int OIMapOverlayManager::markerCount() const
     return _markers->count();
 }
 
+QString OIMapOverlayManager::_storageDir()
+{
+    const QString rootPath = SettingsManager::instance()->appSettings()->savePath()->rawValue().toString();
+    if (rootPath.isEmpty()) {
+        return QString();
+    }
+
+    QDir dir(rootPath);
+    if (!dir.exists() && !QDir().mkpath(rootPath)) {
+        return QString();
+    }
+    if (!dir.exists(QString::fromLatin1(kStorageDirName)) && !dir.mkpath(QString::fromLatin1(kStorageDirName))) {
+        return QString();
+    }
+
+    return dir.filePath(QString::fromLatin1(kStorageDirName));
+}
+
+bool OIMapOverlayManager::_isInStorage(const QString &filePath)
+{
+    const QString storage = _storageDir();
+    if (storage.isEmpty() || filePath.isEmpty()) {
+        return false;
+    }
+
+    // Canonical on both sides so a path reached through a symlink or a different
+    // spelling of the same directory still resolves to one answer.
+    const QString canonicalFile = QFileInfo(filePath).canonicalFilePath();
+    const QString canonicalStorage = QFileInfo(storage).canonicalFilePath();
+    if (canonicalFile.isEmpty() || canonicalStorage.isEmpty()) {
+        return false;
+    }
+
+    return (QFileInfo(canonicalFile).absolutePath() == canonicalStorage);
+}
+
+QString OIMapOverlayManager::_adoptIntoStorage(const QString &sourcePath)
+{
+    if (_isInStorage(sourcePath)) {
+        return sourcePath;
+    }
+
+    const QString storage = _storageDir();
+    if (storage.isEmpty() || !QFileInfo::exists(sourcePath)) {
+        return sourcePath;
+    }
+
+    const QDir storageDir(storage);
+    const QFileInfo sourceInfo(sourcePath);
+
+    QString destination = storageDir.filePath(sourceInfo.fileName());
+    // A name already taken by a different file gets a suffix rather than being
+    // overwritten: two states' obstacle files can easily arrive as the same name.
+    for (int attempt = 2; QFileInfo::exists(destination) && (attempt < 1000); attempt++) {
+        const QString suffix = sourceInfo.suffix().isEmpty() ? QString() : (QStringLiteral(".") + sourceInfo.suffix());
+        destination = storageDir.filePath(QStringLiteral("%1 (%2)%3").arg(sourceInfo.completeBaseName()).arg(attempt).arg(suffix));
+    }
+
+    if (QFileInfo::exists(destination) || !QFile::copy(sourcePath, destination)) {
+        // Referencing the original is worse than copying it, but better than
+        // refusing the import outright.
+        qCWarning(OIMapOverlaysLog) << "Could not copy" << sourcePath << "into" << storage << "- referencing it in place";
+        return sourcePath;
+    }
+
+    return destination;
+}
+
 bool OIMapOverlayManager::addLayer(const QString &fileUrlOrPath)
 {
     _lastError.clear();
@@ -397,20 +502,28 @@ bool OIMapOverlayManager::addLayer(const QString &fileUrlOrPath)
         return false;
     }
 
+    // Compared by content, not by path: the layer now holds a copy, so the path the
+    // operator picked never matches an existing layer even when it is the same file.
     for (int i = 0; i < _layers->count(); i++) {
         const OIMapOverlayLayer *existing = qobject_cast<OIMapOverlayLayer *>((*_layers)[i]);
-        if (existing && (existing->filePath() == path)) {
+        if (existing && ((existing->filePath() == path) || filesIdentical(existing->filePath(), path))) {
             _lastError = tr("%1 is already imported").arg(QFileInfo(path).fileName());
             return false;
         }
     }
 
+    const QString storedPath = _adoptIntoStorage(path);
+
     OIMapOverlayLayer *layer = new OIMapOverlayLayer(
-        path, true, OIMapOverlayLayer::kDefaultMinHeightM, OIMapOverlayLayer::kDefaultRadiusKm, this);
+        storedPath, true, OIMapOverlayLayer::kDefaultMinHeightM, OIMapOverlayLayer::kDefaultRadiusKm, this);
     if (layer->totalPointCount() == 0) {
         _lastError = layer->errorString().isEmpty() ? tr("No points found in %1").arg(QFileInfo(path).fileName())
                                                     : layer->errorString();
         layer->deleteLater();
+        // Nothing was imported, so leave no copy behind.
+        if (_isInStorage(storedPath)) {
+            (void) QFile::remove(storedPath);
+        }
         return false;
     }
 
@@ -429,6 +542,12 @@ void OIMapOverlayManager::removeLayer(int index)
 
     QObject *removed = _layers->removeAt(index);
     if (removed) {
+        // Only ever our own copy. A layer imported before copying existed still
+        // points at the operator's file, which is not ours to delete.
+        const OIMapOverlayLayer *layer = qobject_cast<OIMapOverlayLayer *>(removed);
+        if (layer && _isInStorage(layer->filePath())) {
+            (void) QFile::remove(layer->filePath());
+        }
         removed->deleteLater();
     }
 
@@ -543,6 +662,7 @@ void OIMapOverlayManager::_connectLayer(OIMapOverlayLayer *layer)
 void OIMapOverlayManager::_load()
 {
     QSettings settings;
+    bool migrated = false;
     const int count = settings.beginReadArray(QString::fromLatin1(kSettingsArray));
     for (int i = 0; i < count; i++) {
         settings.setArrayIndex(i);
@@ -561,10 +681,17 @@ void OIMapOverlayManager::_load()
             minHeightM = qRound(settings.value(QString::fromLatin1(kKeyLegacyMinHeightFt)).toInt() * kFeetToMeters);
         }
 
+        // Layers imported before copying existed still point into Downloads or
+        // wherever the operator had the file. Adopt them now, while the file is
+        // still there to adopt; one that has already gone away keeps its old path
+        // and reports the error, which is the same thing it did before.
+        const QString storedPath = _adoptIntoStorage(path);
+        migrated = migrated || (storedPath != path);
+
         // A layer whose file has gone missing is kept rather than dropped: the
         // operator sees why it stopped drawing instead of the row vanishing.
         OIMapOverlayLayer *layer = new OIMapOverlayLayer(
-            path,
+            storedPath,
             settings.value(QString::fromLatin1(kKeyEnabled), true).toBool(),
             minHeightM,
             settings.value(QString::fromLatin1(kKeyRadiusKm), OIMapOverlayLayer::kDefaultRadiusKm).toDouble(),
@@ -573,6 +700,10 @@ void OIMapOverlayManager::_load()
         _layers->append(layer);
     }
     settings.endArray();
+
+    if (migrated) {
+        _save();
+    }
 }
 
 void OIMapOverlayManager::_save() const
