@@ -43,7 +43,11 @@ public:
     bool communicationLostEnabled() const { return _communicationLostEnabled; }
     void setPrimaryLinkByName(const QString &name);
     void setCommunicationLostEnabled(bool communicationLostEnabled);
-    void closeVehicle();
+    /// Drops every link reference and signals the vehicle away. With
+    /// @p keepLinksConnected the links themselves stay connected, so a vehicle that
+    /// is coming back - a commanded reboot - reappears on its own rather than
+    /// needing the operator to reconnect.
+    void closeVehicle(bool keepLinksConnected = false);
 
 signals:
     void primaryLinkChanged();
@@ -60,7 +64,7 @@ private slots:
 private:
     int _containsLinkIndex(const LinkInterface *link);
     void _addLink(LinkInterface *link);
-    void _removeLink(LinkInterface *link);
+    void _removeLink(LinkInterface *link, bool keepConnected = false);
     void _linkDisconnected();
     bool _updatePrimaryLink();
     SharedLinkInterfacePtr _bestActivePrimaryLink();

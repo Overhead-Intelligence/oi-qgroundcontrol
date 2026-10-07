@@ -161,11 +161,15 @@ void LinkInterface::sendMessageThreadSafe(mavlink_message_t &message)
     writeBytesThreadSafe(reinterpret_cast<const char *>(buffer), len);
 }
 
-void LinkInterface::removeVehicleReference()
+void LinkInterface::removeVehicleReference(bool allowAutoDisconnect)
 {
     if (_vehicleReferenceCount != 0) {
         _vehicleReferenceCount--;
-        _connectionRemoved();
+        if (allowAutoDisconnect) {
+            _connectionRemoved();
+        }
+        // Otherwise the link is left connected with no vehicles on it, which is the
+        // same state it is in between connecting and the first heartbeat arriving.
     } else {
         qCWarning(LinkInterfaceLog) << "called with no vehicle references";
     }

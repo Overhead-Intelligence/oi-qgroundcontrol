@@ -42,7 +42,11 @@ public:
     /// outbound mavlink_message_t sends must route through here so signing can't be bypassed.
     void sendMessageThreadSafe(mavlink_message_t &message);
     void addVehicleReference() { ++_vehicleReferenceCount; }
-    void removeVehicleReference();
+    /// Drops one vehicle's claim on this link. With @p allowAutoDisconnect the link
+    /// disconnects itself once the last vehicle goes, which is right when the vehicle
+    /// is gone for good; pass false when it is expected back, such as across a
+    /// commanded reboot, and the link stays up waiting for it.
+    void removeVehicleReference(bool allowAutoDisconnect = true);
     /// Called for each received v1 message which QGC drops. The warning is deferred by a grace
     /// period since ArduPilot starts links in v1 and upgrades to v2 on first v2 message from QGC.
     void reportMavlinkV1Traffic();
