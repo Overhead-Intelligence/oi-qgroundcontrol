@@ -90,17 +90,35 @@ Item {
                         }
                     }
 
-                    QGCButton {
-                        id:         disconnectButton
-                        text:       qsTr("Disconnect")
-                        onClicked:  _activeVehicle.closeVehicle()
-                        visible:    _activeVehicle && _communicationLost
-                    }
-
                     FlightModeIndicator {
                         objectName:         "toolbar_flightModeIndicator"
                         Layout.fillHeight:  true
                         visible:            _activeVehicle
+                    }
+
+                    QGCButton {
+                        id:         disconnectButton
+                        objectName: "toolbar_disconnectButton"
+                        text:       qsTr("Disconnect")
+                        // Offered whenever there is a vehicle, not only once comms are already
+                        // lost. Deliberately leaving an aircraft is an ordinary thing to want,
+                        // and a control that appears only after something has gone wrong is
+                        // missing at exactly the moment it is reached for.
+                        visible:    _activeVehicle
+                        onClicked: {
+                            if (_activeVehicle.flying) {
+                                QGroundControl.showMessageDialog(
+                                    control,
+                                    qsTr("Disconnect"),
+                                    qsTr("Drone is currently flying. Are you sure you want to disconnect?"),
+                                    Dialog.Yes | Dialog.No,
+                                    // Re-checked rather than captured: the aircraft can go away
+                                    // on its own while the question is still on screen.
+                                    function() { if (_activeVehicle) _activeVehicle.closeVehicle() })
+                            } else {
+                                _activeVehicle.closeVehicle()
+                            }
+                        }
                     }
                 }
             }
