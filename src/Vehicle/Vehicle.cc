@@ -1616,6 +1616,7 @@ void Vehicle::_flightTimerStart()
 {
     _flightTimer.start();
     _flightTimeUpdater.start();
+    _flightTimeOffsetSecs = 0;
     _flightDistanceFact.setRawValue(0);
     _flightTimeFact.setRawValue(0);
 }
@@ -1627,7 +1628,33 @@ void Vehicle::_flightTimerStop()
 
 void Vehicle::_updateFlightTime()
 {
-    _flightTimeFact.setRawValue((double)_flightTimer.elapsed() / 1000.0);
+    _flightTimeFact.setRawValue(_flightTimeOffsetSecs + ((double)_flightTimer.elapsed() / 1000.0));
+}
+
+void Vehicle::syncFlightStats(double flightTimeSecs, double flightDistanceM, bool force)
+{
+    // The totals only run between arm and disarm - that is the invariant the stock timer
+    // keeps, and the counters are polled continuously, including on the ground. Without
+    // this guard a poll arriving while disarmed restarts the 1 Hz updater: harmless before
+    // arming, since arming zeroes everything, but after landing it starts the clock running
+    // again on a flight that has already finished.
+    if (!_armed) {
+        return;
+    }
+
+    if (force || (flightTimeSecs > _flightTimeFact.rawValue().toDouble())) {
+        // Restarted rather than left alone: it has been running since this Vehicle saw the
+        // aircraft armed, which for a reconnect is the moment the link came back, not the
+        // moment the flight began.
+        _flightTimeOffsetSecs = flightTimeSecs;
+        _flightTimer.start();
+        _flightTimeUpdater.start();
+        _updateFlightTime();
+    }
+
+    if (force || (flightDistanceM > _flightDistanceFact.rawValue().toDouble())) {
+        _flightDistanceFact.setRawValue(flightDistanceM);
+    }
 }
 
 void Vehicle::_gotProgressUpdate(float progressValue)

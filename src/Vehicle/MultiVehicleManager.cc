@@ -5,6 +5,7 @@
 #include "SettingsManager.h"
 #include "MavlinkSettings.h"
 #include "FirmwareUpgradeSettings.h"
+#include "FlightStatsResume.h"
 #include "QGCCorePlugin.h"
 #include "QGCOptions.h"
 #include "LinkManager.h"
@@ -54,6 +55,11 @@ void MultiVehicleManager::init()
     _offlineEditingVehicle = new Vehicle(Vehicle::MAV_AUTOPILOT_TRACK, Vehicle::MAV_TYPE_TRACK, this);
 
     (void) connect(MAVLinkProtocol::instance(), &MAVLinkProtocol::vehicleHeartbeatInfo, this, &MultiVehicleManager::_vehicleHeartbeatInfo);
+
+    // Has to outlive the Vehicle it is tracking: a link teardown deletes the Vehicle,
+    // and the flight totals it was holding are exactly what needs to survive that.
+    _flightStatsResume = new FlightStatsResume(this);
+    (void) connect(this, &MultiVehicleManager::vehicleAdded, _flightStatsResume, &FlightStatsResume::vehicleAdded);
 
     _gcsHeartbeatTimer->setInterval(kGCSHeartbeatRateMSecs);
     _gcsHeartbeatTimer->setSingleShot(false);

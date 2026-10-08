@@ -424,6 +424,13 @@ public:
 
     void updateFlightDistance(double distance);
 
+    /// Set the flight totals from the aircraft's own counters and keep counting from there.
+    /// With `force` the values are applied outright, for a flight the ground side has not
+    /// been following; otherwise they only correct *forward*, so the smoother local timer
+    /// wins between reads and the display never runs backwards. Ignored while disarmed, so
+    /// polling on the ground cannot restart a finished flight. See FlightStatsResume.
+    void syncFlightStats(double flightTimeSecs, double flightDistanceM, bool force);
+
     void sendJoystickDataThreadSafe (float roll, float pitch, float yaw, float thrust, quint16 buttons, quint16 buttons2, float pitchExtension, float rollExtension, float aux1, float aux2, float aux3, float aux4, float aux5, float aux6);
     /// Sends RC_CHANNELS_OVERRIDE for joystick aux axes mapped to RC channels 5–10 only.
     static constexpr int kAuxRcOverrideChannelCount = 6; ///< Number of RC channels overridden (channels 5–10)
@@ -1004,6 +1011,9 @@ private:
 
     QElapsedTimer                   _flightTimer;
     QTimer                          _flightTimeUpdater;
+    /// Added to the elapsed timer, so a flight resumed after a reconnect continues from
+    /// where it was instead of from zero. Reset by _flightTimerStart().
+    double                          _flightTimeOffsetSecs = 0;
     TrajectoryPoints*               _trajectoryPoints = nullptr;
     std::unique_ptr<QmlObjectListModel> _cameraTriggerPoints;
     //QMap<QString, ADSBVehicle*>     _trafficVehicleMap;
