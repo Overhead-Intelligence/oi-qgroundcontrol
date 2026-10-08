@@ -27,6 +27,25 @@ SetupPage {
     /// would be worse than none, since the operator checks it against a physical arm.
     readonly property var _layout: controller.vehicle.motorLayout
 
+    /// True while a sweep started here is still expected to be running. QGC gets no progress
+    /// report back from a motor test, so this is timed rather than observed - see sweepTimer.
+    readonly property bool _sweepRunning: sweepTimer.running
+
+    /// How long the autopilot will take to walk @p count motors at @p secs each.
+    ///
+    /// It runs a motor for the full duration, then holds all motors at minimum for half that
+    /// again before stepping to the next; the last motor has no trailing gap because the count
+    /// has reached one and the test simply stops. So the sweep lasts secs * (1.5n - 0.5) - for
+    /// four motors at 3 s, 16.5 s rather than the 12 s a naive count would give.
+    function sweepDurationMs(secs, count) {
+        return secs * ((1.5 * count) - 0.5) * 1000
+    }
+
+    Timer {
+        id:         sweepTimer
+        repeat:     false
+    }
+
     function motorIndexToString(motorIndex) {
         let asciiA = 65;
         if (userLetterMotorIndices) {
@@ -126,6 +145,10 @@ SetupPage {
                         QGCButton {
                             Layout.alignment:   Qt.AlignHCenter
                             text:               motorPage.motorIndexToString(index)
+                            // Spinning one motor while the sweep is mid-way through another
+                            // just retargets the running test, which leaves the sweep counting
+                            // down against a motor nobody asked for.
+                            enabled:            !motorPage._sweepRunning
                             onClicked:          controller.vehicle.motorTest(
                                                     index + 1,
                                                     throttleField.throttlePercent(),
@@ -153,24 +176,37 @@ SetupPage {
                 QGCButton {
                     Layout.alignment:   Qt.AlignTop
                     text:               qsTr("All")
+                    enabled:            !motorPage._sweepRunning
                     // One command, not one per motor. The autopilot walks the sequence itself and
                     // keeps the motors armed throughout; the old loop sent a command per motor
                     // back to back, each overwriting the last before the autopilot had run a
                     // cycle, so only the final one was ever tested.
-                    onClicked:          controller.vehicle.motorTest(
-                                            1,
-                                            throttleField.throttlePercent(),
-                                            throttleField.throttlePercent() === 0 ? 0 : durationField.durationSecs(),
-                                            true,
-                                            motorPage._buttonCount)
+                    onClicked: {
+                        var throttle = throttleField.throttlePercent()
+                        if (throttle === 0) {
+                            // Nothing will spin, and the autopilot stops the test immediately on a
+                            // zero timeout, so there is no sweep to lock the buttons against.
+                            controller.vehicle.motorTest(1, 0, 0, true)
+                            return
+                        }
+                        var secs = durationField.durationSecs()
+                        controller.vehicle.motorTest(1, throttle, secs, true, motorPage._buttonCount)
+                        sweepTimer.interval = motorPage.sweepDurationMs(secs, motorPage._buttonCount)
+                        sweepTimer.restart()
+                    }
                 }
 
                 QGCButton {
                     Layout.alignment:   Qt.AlignTop
                     text:               qsTr("Stop")
+                    // Never locked out. It is the one control that has to work while something is
+                    // already spinning.
                     // A zero timeout ends the running test on the next autopilot cycle, whichever
                     // motor it was on, and disarms. One command does it.
-                    onClicked:          controller.vehicle.motorTest(1, 0, 0, true)
+                    onClicked: {
+                        sweepTimer.stop()
+                        controller.vehicle.motorTest(1, 0, 0, true)
+                    }
                 }
             }
 
@@ -181,6 +217,11 @@ SetupPage {
                     id: safetySwitch
                     onClicked: {
                         if (!checked) {
+                            // Switching off disables the whole row, Stop included, so it has to
+                            // stop the test itself - otherwise it is a way to lock out the one
+                            // control that was being kept available on purpose.
+                            sweepTimer.stop()
+                            controller.vehicle.motorTest(1, 0, 0, true)
                             throttleField.text = "0"
                         }
                     }
