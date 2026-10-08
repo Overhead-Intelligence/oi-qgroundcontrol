@@ -78,7 +78,7 @@ Item {
                     SettingsGroupLayout {
                         Layout.fillWidth:   true
                         heading:            qsTr("EKF Variances")
-                        headingDescription: OIEkfStatus.valid ? OIEkfStatus.summary
+                        headingDescription: OIEkfStatus.valid ? OIEkfStatus.varianceSummary
                                                               : qsTr("No EKF report from the aircraft.")
 
                         Repeater {
@@ -106,10 +106,7 @@ Item {
                     SettingsGroupLayout {
                         Layout.fillWidth:   true
                         heading:            qsTr("EKF Flags")
-                        // Nine of these report a capability by being present and three report a
-                        // fault the same way, so "set" alone does not say whether a row is good
-                        // news. The tick is what the row should read, not what the bit says.
-                        headingDescription: qsTr("Shown as healthy or not, since some flags are faults when set.")
+                        headingDescription: qsTr("Status color indicates a flag's current flight risk.")
 
                         Repeater {
                             model: OIEkfStatus.flags
@@ -126,12 +123,14 @@ Item {
                                 }
 
                                 QGCLabel {
-                                    // An unhealthy flag that carries no severity still reads as a
-                                    // cross, just an uncoloured one: the aircraft may simply not
-                                    // have the sensor, and that is information rather than alarm.
+                                    // The word states the bit; the colour states the risk. A flag
+                                    // that is unhealthy but carries no severity therefore reads in
+                                    // the normal colour - the aircraft may simply not have the
+                                    // sensor, which is information rather than alarm.
                                     color:  modelData.healthy ? qgcPal.text
                                                               : control.severityColor(modelData.severity)
-                                    text:   modelData.healthy ? qsTr("OK") : qsTr("NO")
+                                    text:   modelData.faultWhenSet ? (modelData.set ? qsTr("Yes") : qsTr("No"))
+                                                                   : (modelData.set ? qsTr("On") : qsTr("Off"))
                                 }
                             }
                         }

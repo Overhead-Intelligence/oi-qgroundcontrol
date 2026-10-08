@@ -54,8 +54,11 @@ class OIEkfStatus : public QObject
     /// One entry per flag: { name, set, healthy, severity }. `healthy` is whether the flag is
     /// in the state it should be, which for three of them means *clear* rather than set.
     Q_PROPERTY(QVariantList flags               READ flags              NOTIFY changed)
-    /// Short summary for the indicator popup heading.
-    Q_PROPERTY(QString      summary             READ summary            NOTIFY changed)
+    /// Severity of the variances alone, with no flag contribution - the variance table
+    /// describes its own contents rather than the aircraft's overall state.
+    Q_PROPERTY(int          varianceSeverity    READ varianceSeverity   NOTIFY changed)
+    /// That severity in words: Normal, Risky, Dangerous.
+    Q_PROPERTY(QString      varianceSummary     READ varianceSummary    NOTIFY changed)
 
 public:
     /// Matches the colour steps the operator asked for: white, orange, red.
@@ -82,7 +85,8 @@ public:
     double worstVariance() const { return _worstVariance; }
     QVariantList variances() const { return _variances; }
     QVariantList flags() const { return _flags; }
-    QString summary() const { return _summary; }
+    int varianceSeverity() const { return _worstVarianceSeverity; }
+    QString varianceSummary() const { return _varianceSummary; }
 
 signals:
     void changed();
@@ -101,7 +105,8 @@ private:
     double          _worstVariance = 0;
     QVariantList    _variances;
     QVariantList    _flags;
-    QString         _summary;
+    int             _worstVarianceSeverity = SeverityNominal;
+    QString         _varianceSummary;
 
     /// EXTRA3 arrives at 1-3 Hz, so silence for this long means the aircraft has stopped
     /// reporting rather than that nothing has changed. Showing a stale estimate as current is

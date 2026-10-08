@@ -130,7 +130,8 @@ void OIEkfStatus::_clear()
     _worstVariance = 0;
     _variances.clear();
     _flags.clear();
-    _summary = tr("No EKF report");
+    _worstVarianceSeverity = SeverityNominal;
+    _varianceSummary = tr("No EKF report");
     _lastReport.invalidate();
 }
 
@@ -169,12 +170,12 @@ void OIEkfStatus::_rebuild(const mavlink_ekf_status_report_t &report)
 
     _variances.clear();
     _worstVariance = 0;
-    int severity = SeverityNominal;
+    int worstVarianceSeverity = SeverityNominal;
 
     for (const VarianceDef &definition : definitions) {
         const double value = static_cast<double>(definition.value);
         const int varianceSeverity = _varianceSeverity(value);
-        severity = qMax(severity, varianceSeverity);
+        worstVarianceSeverity = qMax(worstVarianceSeverity, varianceSeverity);
         if (qIsFinite(value)) {
             _worstVariance = qMax(_worstVariance, value);
         }
@@ -187,7 +188,7 @@ void OIEkfStatus::_rebuild(const mavlink_ekf_status_report_t &report)
     }
 
     _flags.clear();
-    QStringList faults;
+    int severity = worstVarianceSeverity;
 
     for (const FlagDef &flag : kFlags) {
         const bool set = (report.flags & flag.bit) != 0;
@@ -195,28 +196,34 @@ void OIEkfStatus::_rebuild(const mavlink_ekf_status_report_t &report)
         const int flagSeverity = healthy ? SeverityNominal : flag.severityIfWrong;
         severity = qMax(severity, flagSeverity);
 
-        if (!healthy && (flagSeverity != SeverityNominal)) {
-            faults.append(tr(flag.label));
-        }
-
         _flags.append(QVariantMap {
-            { QStringLiteral("name"),     tr(flag.label) },
-            { QStringLiteral("set"),      set },
-            { QStringLiteral("healthy"),  healthy },
-            { QStringLiteral("severity"), flagSeverity },
+            { QStringLiteral("name"),         tr(flag.label) },
+            { QStringLiteral("set"),          set },
+            { QStringLiteral("healthy"),      healthy },
+            { QStringLiteral("severity"),     flagSeverity },
+            // Decides the wording, not the colour: a capability flag reads On/Off because that
+            // is what the bit says, while a fault flag reads Yes/No because "On" for something
+            // called GPS glitching invites exactly the wrong reading.
+            { QStringLiteral("faultWhenSet"), flag.faultWhenSet },
         });
     }
 
+    _worstVarianceSeverity = worstVarianceSeverity;
     _severity = severity;
     _valid = true;
 
-    // Names the reason rather than restating the colour: an operator who opens the popup
-    // because the icon went orange wants to know which of the two kinds of problem it was.
-    if (!faults.isEmpty()) {
-        _summary = faults.join(QStringLiteral(", "));
-    } else if (_severity != SeverityNominal) {
-        _summary = tr("Variance %1").arg(_worstVariance, 0, 'f', 2);
-    } else {
-        _summary = tr("Nominal");
+    // Describes the variance table only. The flags have their own table and their own
+    // severities, and a heading that mixed the two would say "Dangerous" over a set of numbers
+    // that were all nominal.
+    switch (_worstVarianceSeverity) {
+    case SeverityCritical:
+        _varianceSummary = tr("Dangerous");
+        break;
+    case SeverityWarning:
+        _varianceSummary = tr("Risky");
+        break;
+    default:
+        _varianceSummary = tr("Normal");
+        break;
     }
 }
