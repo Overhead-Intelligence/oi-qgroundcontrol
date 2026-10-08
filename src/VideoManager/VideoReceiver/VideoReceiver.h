@@ -116,7 +116,12 @@ protected:
     bool _recording = false;
     bool _streaming = false;
     bool _lowLatency = false;
-    int _rtpJitterLatencyMs = 80;
+    /// RTSP jitterbuffer latency. Must be low enough to prevent latency accumulation
+    /// from sender/receiver clock skew; 25 ms matches QGC v5.0.8 behavior and the
+    /// CubePilot Herelink fix (PR #62). The internal rtspsrc jitterbuffer latency
+    /// is a floor that only ever grows under clock skew and never shrinks back,
+    /// so video lag accumulates monotonically without drop-on-latency.
+    int _rtpJitterLatencyMs = 25;
     // Written live on the GUI thread, read on the receiver worker thread.
     std::atomic<bool> _autoReconnect = true;     ///< RTSP/UDP auto-reconnect with exponential backoff on watchdog/error.
     bool _resetVideoSink = false;
