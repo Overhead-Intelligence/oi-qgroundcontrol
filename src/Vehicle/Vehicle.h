@@ -172,6 +172,7 @@ public:
     Q_PROPERTY(VehicleSupports*     supports                    READ supports                                                       CONSTANT)
     Q_PROPERTY(QString              prearmError                 READ prearmError                WRITE setPrearmError                NOTIFY prearmErrorChanged)
     Q_PROPERTY(int                  motorCount                  READ motorCount                                                     CONSTANT)
+    Q_PROPERTY(QVariantList         motorLayout                 READ motorLayout                                                    CONSTANT)
     Q_PROPERTY(bool                 coaxialMotors               READ coaxialMotors                                                  CONSTANT)
     Q_PROPERTY(bool                 xConfigMotors               READ xConfigMotors                                                  CONSTANT)
     Q_PROPERTY(bool                 isOfflineEditingVehicle     READ isOfflineEditingVehicle                                        CONSTANT)
@@ -373,7 +374,10 @@ public:
     ///     @param motor Motor number, 1-based
     ///     @param percent 0-no power, 100-full power
     ///     @param timeoutSec Disabled motor after this amount of time
-    Q_INVOKABLE void motorTest(int motor, int percent, int timeoutSecs, bool showError);
+    /// Spin one motor, or - with @p motorCount above 1 - that many consecutively starting at
+    /// @p motor. The sequence is run by the autopilot rather than by sending a command per
+    /// motor, which keeps the motors armed throughout; see the note in the implementation.
+    Q_INVOKABLE void motorTest(int motor, int percent, int timeoutSecs, bool showError, int motorCount = 0);
 
     enum PIDTuningTelemetryMode {
         ModeDisabled,
@@ -687,6 +691,11 @@ public:
 
     /// @return -1 = Unknown, Number of motors on vehicle
     int motorCount();
+    /// One entry per test sequence, in order: { sequence, motorNumber, clockwise }. Empty when
+    /// the frame is not tabulated, which the UI shows as sequence letters alone.
+    QVariantList motorLayout();
+    /// Reads Q_FRAME_CLASS/Q_FRAME_TYPE, else FRAME_CLASS/FRAME_TYPE. False when neither exists.
+    bool _frameClassAndType(int &frameClass, int &frameType);
 
     /// @return true: Motors are coaxial like an X8 config, false: Quadcopter for example
     bool coaxialMotors();

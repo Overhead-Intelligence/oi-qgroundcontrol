@@ -42,6 +42,7 @@
 #include "MAVLinkProtocol.h"
 #include "MissionCommandTree.h"
 #include "MissionManager.h"
+#include "MotorLayout.h"
 #include "MultiVehicleManager.h"
 #include "ParameterManager.h"
 #include "PlanMasterController.h"
@@ -1401,13 +1402,72 @@ bool Vehicle::sendMessageOnLinkThreadSafe(LinkInterface* link, mavlink_message_t
     return true;
 }
 
+bool Vehicle::_frameClassAndType(int &frameClass, int &frameType)
+{
+    ParameterManager *const params = parameterManager();
+    if (!params) {
+        return false;
+    }
+
+    // Q_ first: a quadplane carries both its plane identity and a lift-motor matrix, and it is
+    // the matrix that is being tested. FRAME_CLASS exists on copters only.
+    const char *const classNames[] = { "Q_FRAME_CLASS", "FRAME_CLASS" };
+    const char *const typeNames[]  = { "Q_FRAME_TYPE",  "FRAME_TYPE"  };
+    for (int i = 0; i < 2; i++) {
+        if (!params->parameterExists(_compID, QLatin1String(classNames[i]))) {
+            continue;
+        }
+        frameClass = params->getParameter(_compID, QLatin1String(classNames[i]))->rawValue().toInt();
+        frameType = params->parameterExists(_compID, QLatin1String(typeNames[i]))
+                        ? params->getParameter(_compID, QLatin1String(typeNames[i]))->rawValue().toInt()
+                        : 0;
+        return true;
+    }
+
+    return false;
+}
+
 int Vehicle::motorCount()
 {
-    uint8_t frameType = 0;
-    if (_vehicleType == MAV_TYPE_SUBMARINE) {
-        frameType = parameterManager()->getParameter(_compID, "FRAME_CONFIG")->rawValue().toInt();
+    // The frame class is the only thing that knows. MAV_TYPE cannot: a quadplane reports
+    // MAV_TYPE_FIXED_WING whatever its lift motors are, which used to leave this returning -1
+    // and the test page drawing a fixed eight buttons with a warning.
+    int frameClass = 0;
+    int frameType = 0;
+    if (_frameClassAndType(frameClass, frameType)) {
+        const int count = MotorLayout::motorCountForClass(frameClass);
+        if (count > 0) {
+            return count;
+        }
     }
-    return QGCMAVLink::motorCount(_vehicleType, frameType);
+
+    uint8_t subFrameType = 0;
+    if (_vehicleType == MAV_TYPE_SUBMARINE) {
+        subFrameType = parameterManager()->getParameter(_compID, "FRAME_CONFIG")->rawValue().toInt();
+    }
+    return QGCMAVLink::motorCount(_vehicleType, subFrameType);
+}
+
+QVariantList Vehicle::motorLayout()
+{
+    QVariantList layout;
+
+    int frameClass = 0;
+    int frameType = 0;
+    if (!_frameClassAndType(frameClass, frameType)) {
+        return layout;
+    }
+
+    const QList<MotorLayout::Motor> motors = MotorLayout::forFrame(frameClass, frameType);
+    for (int i = 0; i < motors.count(); i++) {
+        layout.append(QVariantMap {
+            { QStringLiteral("sequence"),    i + 1 },
+            { QStringLiteral("motorNumber"), motors.at(i).motorNumber },
+            { QStringLiteral("clockwise"),   motors.at(i).clockwise },
+        });
+    }
+
+    return layout;
 }
 
 bool Vehicle::coaxialMotors()
@@ -2431,9 +2491,23 @@ void Vehicle::setSoloFirmware(bool soloFirmware)
     }
 }
 
-void Vehicle::motorTest(int motor, int percent, int timeoutSecs, bool showError)
+void Vehicle::motorTest(int motor, int percent, int timeoutSecs, bool showError, int motorCount)
 {
-    sendMavCommand(_defaultComponentId, MAV_CMD_DO_MOTOR_TEST, showError, motor, MOTOR_TEST_THROTTLE_PERCENT, percent, timeoutSecs, 0, MOTOR_TEST_ORDER_BOARD);
+    // param5 is the number of motors to run consecutively, and handing the autopilot a count
+    // rather than sending a command per motor is the difference between a reliable sweep and an
+    // unreliable one. ArduPilot steps the sequence itself, holding the motors armed across the
+    // whole run with a brief stop between each; a command per motor instead ends each test with
+    // motor_test_stop(), which disarms, so every motor gets only its timeout to both arm its ESC
+    // and spin. Slow ESCs lose that race, which is why a sweep used to skip motors depending on
+    // the order they were pressed in.
+    //
+    // param6 is the test order. It was MOTOR_TEST_ORDER_BOARD, which ArduPilot's plane and copter
+    // handlers ignore outright - they treat param1 as a sequence number regardless - and which
+    // would be actively wrong if honoured, since a quadplane's lift motors are not on the first
+    // outputs. DEFAULT says what actually happens.
+    sendMavCommand(_defaultComponentId, MAV_CMD_DO_MOTOR_TEST, showError,
+                   motor, MOTOR_TEST_THROTTLE_PERCENT, percent, timeoutSecs,
+                   motorCount, MOTOR_TEST_ORDER_DEFAULT);
 }
 
 void Vehicle::setOfflineEditingDefaultComponentId(int defaultComponentId)

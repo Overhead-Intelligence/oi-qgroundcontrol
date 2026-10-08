@@ -1,6 +1,6 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
+import QtQuick.Layouts
 
 import QGroundControl
 import QGroundControl.Controls
@@ -11,10 +11,21 @@ SetupPage {
 
     property bool userLetterMotorIndices: false
 
-    readonly property int _barHeight:           10
-    readonly property int _barWidth:            5
-    readonly property int _sliderWidth:         15
-    readonly property int _motorTimeoutSecs:    3
+    /// ArduPilot caps a motor test at 30 s (MOTOR_TEST_TIMEOUT_MS_MAX); asking for more is
+    /// silently truncated, so the field refuses it instead.
+    readonly property int _maxDurationSecs:      30
+    readonly property int _defaultDurationSecs:  3
+
+    /// -1 is "could not tell", which is still possible for a vehicle that reports no frame
+    /// class at all. The buttons then fall back to a fixed eight, as they always did.
+    readonly property int  _motorCount:     controller.vehicle.motorCount
+    readonly property bool _countKnown:     _motorCount > 0
+    readonly property int  _buttonCount:    _countKnown ? _motorCount : 8
+
+    /// One entry per test sequence: { sequence, motorNumber, clockwise }. Empty for a frame
+    /// that is not tabulated, in which case only the sequence is named - a wrong motor number
+    /// would be worse than none, since the operator checks it against a physical arm.
+    readonly property var _layout: controller.vehicle.motorLayout
 
     function motorIndexToString(motorIndex) {
         let asciiA = 65;
@@ -38,25 +49,53 @@ SetupPage {
             QGCLabel {
                 text:       qsTr("Warning: Unable to determine motor count")
                 color:      qgcPal.warningText
-                visible:    controller.vehicle.motorCount == -1
+                visible:    !motorPage._countKnown
             }
 
-            Row {
-                id:         motorSlider
+            RowLayout {
                 enabled:    safetySwitch.checked
-                spacing:    ScreenTools.defaultFontPixelWidth * 4
+                spacing:    ScreenTools.defaultFontPixelWidth * 2
 
-                ValueSlider {
-                    id:                 sliderThrottle
-                    width:              motorButtons.width
-                    label:              qsTr("Throttle")
-                    from:               0
-                    to:                 100
-                    majorTickStepSize:  5
-                    decimalPlaces: 0
-                    unitsString: qsTr("%")
+                QGCLabel { text: qsTr("Throttle") }
+
+                QGCTextField {
+                    id:                     throttleField
+                    Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
+                    text:                   "0"
+                    unitsLabel:             qsTr("%")
+                    showUnits:              true
+                    inputMethodHints:       Qt.ImhFormattedNumbersOnly
+                    validator:              IntValidator { bottom: 0; top: 100 }
+
+                    /// Parsed rather than read raw: an empty or half-typed field must mean "do
+                    /// not spin", not NaN into a motor command.
+                    function throttlePercent() {
+                        var value = parseInt(text)
+                        return isNaN(value) ? 0 : Math.max(0, Math.min(100, value))
+                    }
                 }
-            } // Row
+
+                QGCLabel {
+                    Layout.leftMargin:  ScreenTools.defaultFontPixelWidth * 2
+                    text:               qsTr("Duration")
+                }
+
+                QGCTextField {
+                    id:                     durationField
+                    Layout.preferredWidth:  ScreenTools.defaultFontPixelWidth * 8
+                    text:                   motorPage._defaultDurationSecs.toString()
+                    unitsLabel:             qsTr("s")
+                    showUnits:              true
+                    inputMethodHints:       Qt.ImhFormattedNumbersOnly
+                    validator:              IntValidator { bottom: 1; top: motorPage._maxDurationSecs }
+
+                    function durationSecs() {
+                        var value = parseInt(text)
+                        return isNaN(value) ? motorPage._defaultDurationSecs
+                                            : Math.max(1, Math.min(motorPage._maxDurationSecs, value))
+                    }
+                }
+            }
 
             QGCLabel {
                 anchors.left:   parent.left
@@ -65,45 +104,75 @@ SetupPage {
                 text:           qsTr("Make sure you remove all props.")
             }
 
-            Row {
+            RowLayout {
                 id:         motorButtons
                 enabled:    safetySwitch.checked
-                spacing:    ScreenTools.defaultFontPixelWidth * 4
+                spacing:    ScreenTools.defaultFontPixelWidth * 3
 
                 Repeater {
-                    id:         buttonRepeater
-                    model:      controller.vehicle.motorCount === -1 ? 8 : controller.vehicle.motorCount
+                    id:     buttonRepeater
+                    model:  motorPage._buttonCount
 
-                    QGCButton {
-                        id:         button
-                        anchors.verticalCenter:     parent.verticalCenter
-                        text:       motorIndexToString(index)
-                        onClicked:  {
-                            controller.vehicle.motorTest(index + 1, sliderThrottle.value, sliderThrottle.value === 0 ? 0 : _motorTimeoutSecs, true)
+                    ColumnLayout {
+                        id:         motorColumn
+                        spacing:    ScreenTools.defaultFontPixelHeight / 4
+
+                        // The letter is the test sequence, which is what the button sends. The
+                        // motor number beside it is what the operator has to find on the
+                        // airframe, and the two are not the same: on a QUAD/X, sequence 2 is
+                        // motor 4. Naming only one of them sends people to the wrong arm.
+                        readonly property var _entry: index < motorPage._layout.length ? motorPage._layout[index] : null
+
+                        QGCButton {
+                            Layout.alignment:   Qt.AlignHCenter
+                            text:               motorPage.motorIndexToString(index)
+                            onClicked:          controller.vehicle.motorTest(
+                                                    index + 1,
+                                                    throttleField.throttlePercent(),
+                                                    throttleField.throttlePercent() === 0 ? 0 : durationField.durationSecs(),
+                                                    true)
                         }
-                    }
-                } // Repeater
 
-                QGCButton {
-                    id:         allButton
-                    text:       qsTr("All")
-                    onClicked:  {
-                        for (var motorIndex=0; motorIndex<buttonRepeater.count; motorIndex++) {
-                            controller.vehicle.motorTest(motorIndex + 1, sliderThrottle.value, sliderThrottle.value === 0 ? 0 : _motorTimeoutSecs, true)
+                        QGCLabel {
+                            Layout.alignment:   Qt.AlignHCenter
+                            font.pointSize:     ScreenTools.smallFontPointSize
+                            visible:            motorColumn._entry !== null
+                            text:               motorColumn._entry ? qsTr("Motor %1").arg(motorColumn._entry.motorNumber) : ""
+                        }
+
+                        QGCLabel {
+                            Layout.alignment:   Qt.AlignHCenter
+                            font.pointSize:     ScreenTools.smallFontPointSize
+                            color:              qgcPal.colorGrey
+                            visible:            motorColumn._entry !== null
+                            text:               motorColumn._entry ? (motorColumn._entry.clockwise ? qsTr("CW") : qsTr("CCW")) : ""
                         }
                     }
                 }
 
                 QGCButton {
-                    id:         allStopButton
-                    text:       qsTr("Stop")
-                    onClicked:  {
-                        for (var motorIndex=0; motorIndex<buttonRepeater.count; motorIndex++) {
-                            controller.vehicle.motorTest(motorIndex + 1, 0, 0, true)
-                        }
-                    }
+                    Layout.alignment:   Qt.AlignTop
+                    text:               qsTr("All")
+                    // One command, not one per motor. The autopilot walks the sequence itself and
+                    // keeps the motors armed throughout; the old loop sent a command per motor
+                    // back to back, each overwriting the last before the autopilot had run a
+                    // cycle, so only the final one was ever tested.
+                    onClicked:          controller.vehicle.motorTest(
+                                            1,
+                                            throttleField.throttlePercent(),
+                                            throttleField.throttlePercent() === 0 ? 0 : durationField.durationSecs(),
+                                            true,
+                                            motorPage._buttonCount)
                 }
-            } // Row
+
+                QGCButton {
+                    Layout.alignment:   Qt.AlignTop
+                    text:               qsTr("Stop")
+                    // A zero timeout ends the running test on the next autopilot cycle, whichever
+                    // motor it was on, and disarms. One command does it.
+                    onClicked:          controller.vehicle.motorTest(1, 0, 0, true)
+                }
+            }
 
             Row {
                 spacing: ScreenTools.defaultFontPixelWidth
@@ -112,17 +181,18 @@ SetupPage {
                     id: safetySwitch
                     onClicked: {
                         if (!checked) {
-                            sliderThrottle.setValue(0);
+                            throttleField.text = "0"
                         }
                     }
                 }
 
                 QGCLabel {
-                    anchors.verticalCenter:     parent.verticalCenter
+                    anchors.verticalCenter: parent.verticalCenter
                     color:  qgcPal.warningText
-                    text:   safetySwitch.checked ? qsTr("Careful : Motors are enabled") : qsTr("Propellers are removed - Enable slider and motors")
+                    text:   safetySwitch.checked ? qsTr("Careful : Motors are enabled")
+                                                : qsTr("Propellers are removed - enable the motor controls")
                 }
-            } // Row
+            }
         } // Column
     } // Component
 } // SetupPage
