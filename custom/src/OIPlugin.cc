@@ -28,6 +28,7 @@
 #include "InstrumentValueData.h"
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
+#include "OIEkfStatus.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
@@ -199,6 +200,25 @@ void OIPlugin::init()
     // engine does. It stays disarmed until an operator arms it.
     _keyboard = new OIKeyboardController(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
+
+    // Fed from mavlinkMessage() below rather than from a Vehicle fact group: QGC parses
+    // EKF_STATUS_REPORT and discards it, and reading it through the plugin hook keeps the whole
+    // feature in custom/ instead of adding a fact group to src/Vehicle.
+    _ekfStatus = new OIEkfStatus(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIEkfStatus", _ekfStatus);
+}
+
+bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
+{
+    Q_UNUSED(link);
+
+    if (_ekfStatus) {
+        // Filters on message id itself, so this stays one comparison for everything else on the
+        // link - the hook sees every message to every vehicle.
+        _ekfStatus->handleMessage(vehicle, message);
+    }
+
+    return QGCCorePlugin::mavlinkMessage(vehicle, link, message);
 }
 
 QString OIPlugin::stableDownloadLocation() const
@@ -245,6 +265,11 @@ const QVariantList &OIPlugin::toolBarIndicators()
         _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
+        // Ahead of the gimbal readout, and so ahead of every indicator the vehicle supplies,
+        // because EKF health is the thing an operator wants in the same place every flight -
+        // most of all on the flights where the rest of the toolbar is changing.
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIEkfIndicator.qml"))));
         // Beside it rather than inside it: the gimbal readout hides itself when the
         // aircraft has no gimbal, and its warnings must not disturb the flying one.
         _toolBarIndicators.append(QVariant::fromValue(

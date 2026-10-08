@@ -25,6 +25,7 @@
 
 class FactMetaData;
 class FactValueGrid;
+class OIEkfStatus;
 class OIKeyboardController;
 class OIMapOverlayManager;
 class QQmlApplicationEngine;
@@ -79,6 +80,9 @@ public:
 
     /// Stock toolbar indicators plus the keyboard control target readout.
     const QVariantList &toolBarIndicators() final;
+    /// Raw traffic, so EKF_STATUS_REPORT can be read without touching src/. Always returns
+    /// true: this only observes, and swallowing a message here would be invisible.
+    bool mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message) final;
 
     /// No first-run "Preferences" prompt: the OI defaults already answer the vehicle and units
     /// questions (both false makes firstRunPromptStdIds() empty).
@@ -101,6 +105,7 @@ private:
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
     OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers
     OIKeyboardController *_keyboard = nullptr;      ///< keyboard guided control
+    OIEkfStatus *_ekfStatus = nullptr;              ///< EKF health for the Fly view indicator
     QVariantList _analyzePages;                     ///< built once on the first analyzePages() call
     QVariantList _toolBarIndicators;                ///< built once on the first toolBarIndicators() call
     QQmlApplicationEngine *_qmlEngine = nullptr;
