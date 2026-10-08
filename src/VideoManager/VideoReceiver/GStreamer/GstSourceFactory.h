@@ -14,13 +14,15 @@ enum class JitterBuffer
     Buffered,       ///< `rtpjitterbuffer` with `drop-on-latency=FALSE`.
 };
 
-/// Source-bin construction parameters. Defaults match the drone-GCS profile: 80 ms playout
+/// Source-bin construction parameters. Defaults match the drone-GCS profile: 25 ms playout
 /// latency with RFC 4588 retransmission, leaving ~3× the 20 ms rtx-delay for packet recovery.
 /// Callers wanting sub-frame latency should use JitterBuffer::None.
+/// Note: 25 ms matches QGC v5.0.8 RTSP latency and prevents jitterbuffer latency accumulation
+/// from sender/receiver clock skew (see CubePilot/herelink PR #62).
 struct Config
 {
     JitterBuffer jitterBuffer = JitterBuffer::DropOnLatency;
-    int latencyMs = 80;
+    int latencyMs = 25;
     bool doRetransmission = true;
 };
 
