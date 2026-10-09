@@ -29,6 +29,7 @@
         <file alias="OIKeyboardIndicator.qml">src/qml/OIKeyboardIndicator.qml</file>
         <file alias="OIMapOverlayMarker.qml">src/qml/OIMapOverlayMarker.qml</file>
         <file alias="OIOnboardFilesPage.qml">src/qml/OIOnboardFilesPage.qml</file>
+        <file alias="OIVerticalTape.qml">src/qml/OIVerticalTape.qml</file>
     </qresource>
 
     <!-- Settings groups: SettingsGroup loads :/json/<Name>.SettingsGroup.json -->
