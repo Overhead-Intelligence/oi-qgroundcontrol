@@ -103,7 +103,15 @@ Item {
     }
 
     /// One cage mark: crosses the tube, and stops there.
+    ///
+    /// The angle is reached through this id rather than through `parent`. ShapePath is not an
+    /// Item - `parent` is an Item property - so inside it `parent` is undefined, both endpoints
+    /// evaluate to NaN and the mark is drawn from (0,0) to (0,0), which is to say not at all.
+    /// Nothing reports this: qmllint passes and the scene renders. OIBankScale's tick uses an
+    /// id for the same reason.
     component CageMark: Shape {
+        id: mark
+
         property real angle: 0
 
         anchors.fill: parent
@@ -112,12 +120,12 @@ Item {
             strokeColor: "black"
             strokeWidth: control._cageWidth
             fillColor:   "transparent"
-            startX:      control.pointX(parent.angle, control._arcRadius - (control._tubeWidth / 2))
-            startY:      control.pointY(parent.angle, control._arcRadius - (control._tubeWidth / 2))
+            startX:      control.pointX(mark.angle, control._arcRadius - (control._tubeWidth / 2))
+            startY:      control.pointY(mark.angle, control._arcRadius - (control._tubeWidth / 2))
 
             PathLine {
-                x: control.pointX(parent.angle, control._arcRadius + (control._tubeWidth / 2))
-                y: control.pointY(parent.angle, control._arcRadius + (control._tubeWidth / 2))
+                x: control.pointX(mark.angle, control._arcRadius + (control._tubeWidth / 2))
+                y: control.pointY(mark.angle, control._arcRadius + (control._tubeWidth / 2))
             }
         }
     }
