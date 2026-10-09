@@ -19,6 +19,7 @@
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QObject>
+#include <QtCore/QPointer>
 #include <QtCore/QTimer>
 
 #include "QGCMAVLink.h"
@@ -47,6 +48,14 @@ class OIFlightAngles : public QObject
     Q_PROPERTY(double   criticalFraction READ criticalFraction NOTIFY changed)
     Q_PROPERTY(double   criticalAngle   READ criticalAngle  CONSTANT)
 
+    /// The airframe's minimum airspeed, or NaN if it has not said. See the note on the getter:
+    /// this is here, rather than called from QML, because calling it from QML does not work.
+    Q_PROPERTY(double   minimumAirspeed READ minimumAirspeed NOTIFY changed)
+    /// Whether the aircraft is fast enough for the angles to mean anything.
+    Q_PROPERTY(bool     airspeedSufficient READ airspeedSufficient NOTIFY changed)
+    /// valid && airspeedSufficient - the single test a display should gate on.
+    Q_PROPERTY(bool     usable          READ usable         NOTIFY changed)
+
 public:
     /// Mission Planner's default, and there is no better source: ArduPilot exposes no critical
     /// angle parameter, because it does not compute one. Treated as a display reference only -
@@ -64,15 +73,35 @@ public:
     double criticalFraction() const;
     double criticalAngle() const { return kCriticalAngleDeg; }
 
+    /// Read live from the active vehicle every time, and deliberately not cached.
+    ///
+    /// **This cannot be done from QML.** `Vehicle::minimumEquivalentAirspeed()` is Q_INVOKABLE,
+    /// a method rather than a property, so a binding that calls it captures no dependency on
+    /// the parameter set - it evaluates once, when the vehicle is assigned, and never again.
+    /// The vehicle is assigned on its first heartbeat, seconds before the parameter download
+    /// finishes, so `AIRSPEED_MIN` does not exist yet and the binding locks in NaN for the
+    /// whole session. Measured in flight on 2026-10-09: the parameter was present and set to
+    /// 16, and the angle of attack indexer stayed greyed out the entire time.
+    ///
+    /// Reading it here instead works because this object emits changed() on every AOA_SSA, and
+    /// on parametersReadyChanged, so anything bound to it re-reads.
+    double minimumAirspeed() const;
+    bool airspeedSufficient() const;
+    bool usable() const { return _valid && airspeedSufficient(); }
+
 signals:
     void changed();
 
 private slots:
     void _activeVehicleChanged();
     void _checkStale();
+    void _parametersReadyChanged();
 
 private:
     void _clear();
+
+    /// Only to reach the parameter set and the airspeed fact; no ownership.
+    QPointer<Vehicle> _vehicle;
 
     bool    _valid = false;
     double  _aoa = 0;

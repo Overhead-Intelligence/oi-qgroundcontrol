@@ -64,11 +64,9 @@ Rectangle {
     // and a different word for the same quantity is a tax on every one of them.
     property string _speedLabel:     _airspeedUsable ? qsTr("Airspeed") : qsTr("Groundspeed")
 
-    // Read from the airframe, and allowed to be missing. The firmware plugin returns NaN when
-    // the aircraft has no AIRSPEED_MIN - a multirotor, or a vehicle whose parameters have not
-    // finished loading - and NaN silently poisons any comparison it reaches, so it is tested
-    // for here rather than left to propagate into a marker position.
-    property real   _minAirspeed:      _vehicle ? _vehicle.minimumEquivalentAirspeed() : NaN
+    // Taken from the singleton rather than from the vehicle directly: reading it here would
+    // bind to a Q_INVOKABLE and evaluate once, before the parameters exist.
+    property real   _minAirspeed:      OIFlightAngles.minimumAirspeed
     property bool   _minAirspeedKnown: !isNaN(_minAirspeed) && (_minAirspeed > 0)
 
     // Follows the altitude reference the rest of the build already uses rather than inventing a

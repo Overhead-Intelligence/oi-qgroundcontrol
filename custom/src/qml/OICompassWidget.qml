@@ -159,8 +159,15 @@ Rectangle {
             }
 
             transform: Translate {
-                property double _angle:       _headingToHome
-                property real   _labelOffset: root.width / 2 + ScreenTools.defaultFontPixelHeight / 2
+                property double _angle: _headingToHome
+
+                // Inside the rose, on the same ring the other pointers reach rather than hung
+                // off the rim. The stock widget puts it half a font height *outside* the edge,
+                // where it collides with whatever the panel places beside the compass - here
+                // that is the tapes, the vertical speed bar and the rate of turn arc. 0.62 of
+                // the radius clears the dial's number ring on the outside and the heading
+                // readout in the middle.
+                property real _labelOffset: (root.width / 2) * 0.62
 
                 x: translateCenterToAngleX(_labelOffset, _angle)
                 y: translateCenterToAngleY(_labelOffset, _angle)

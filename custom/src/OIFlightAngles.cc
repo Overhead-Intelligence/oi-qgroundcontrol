@@ -12,6 +12,7 @@
 #include <QtCore/QtMath>
 
 #include "MultiVehicleManager.h"
+#include "ParameterManager.h"
 #include "QGCLoggingCategory.h"
 #include "Vehicle.h"
 
@@ -28,6 +29,29 @@ OIFlightAngles::OIFlightAngles(QObject *parent)
     _staleTimer.setInterval(kStaleMs / 2);
     (void) connect(&_staleTimer, &QTimer::timeout, this, &OIFlightAngles::_checkStale);
     _staleTimer.start();
+
+    _activeVehicleChanged();
+}
+
+double OIFlightAngles::minimumAirspeed() const
+{
+    if (!_vehicle || !_vehicle->parameterManager()->parametersReady()) {
+        return qQNaN();
+    }
+
+    // NaN when the airframe has no AIRSPEED_MIN to read, which is the honest answer rather than
+    // a guessed floor: a stall indication tied to a number we invented is worse than none.
+    return _vehicle->minimumEquivalentAirspeed();
+}
+
+bool OIFlightAngles::airspeedSufficient() const
+{
+    const double minimum = minimumAirspeed();
+    if (!qIsFinite(minimum) || (minimum <= 0)) {
+        return false;
+    }
+
+    return _vehicle->airSpeed()->rawValue().toDouble() >= minimum;
 }
 
 void OIFlightAngles::handleMessage(const Vehicle *vehicle, const mavlink_message_t &message)
@@ -69,7 +93,28 @@ double OIFlightAngles::criticalFraction() const
 
 void OIFlightAngles::_activeVehicleChanged()
 {
+    if (_vehicle) {
+        (void) disconnect(_vehicle->parameterManager(), &ParameterManager::parametersReadyChanged,
+                          this, &OIFlightAngles::_parametersReadyChanged);
+    }
+
+    _vehicle = MultiVehicleManager::instance()->activeVehicle();
+
+    // The parameter download finishes seconds after the vehicle appears, and the minimum
+    // airspeed is not readable until it does. Without this the gate would stay shut until the
+    // next AOA_SSA happened to re-read it - which works, but only by accident.
+    if (_vehicle) {
+        (void) connect(_vehicle->parameterManager(), &ParameterManager::parametersReadyChanged,
+                       this, &OIFlightAngles::_parametersReadyChanged);
+    }
+
     _clear();
+    emit changed();
+}
+
+void OIFlightAngles::_parametersReadyChanged()
+{
+    qCDebug(OIFlightAnglesLog) << "parameters ready, minimum airspeed now" << minimumAirspeed();
     emit changed();
 }
 

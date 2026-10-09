@@ -30,16 +30,29 @@ Item {
     readonly property real _greenTo:  60
     readonly property real _yellowTo: 90
 
-    /// The airframe's own minimum, which may not exist: the firmware plugin returns NaN when
-    /// there is no AIRSPEED_MIN to read. Rather than let that NaN decide the gate by accident -
-    /// every comparison against it is false, so the indexer would grey out for an unstated
-    /// reason - it is tested explicitly, and an aircraft that cannot say where its envelope
-    /// starts does not get a stall indication.
-    readonly property real _minAirspeed:      vehicle ? vehicle.minimumEquivalentAirspeed() : NaN
-    readonly property bool _minAirspeedKnown: !isNaN(_minAirspeed) && (_minAirspeed > 0)
-    readonly property real _airspeed:         vehicle ? vehicle.airSpeed.rawValue : 0
-    readonly property bool _usable:           vehicle && OIFlightAngles.valid && _minAirspeedKnown &&
-                                              (_airspeed >= _minAirspeed)
+    /// The whole gate, in one place. Not assembled here from vehicle.minimumEquivalentAirspeed()
+    /// because that is a method rather than a property and a binding calling it never
+    /// re-evaluates - see the note on OIFlightAngles::minimumAirspeed().
+    readonly property bool _usable: vehicle && OIFlightAngles.usable
+
+    /// Which condition is shut. "Unavailable" on its own sent a flight test looking for a
+    /// blocked telemetry stream when the aircraft was simply slower than its own minimum, so
+    /// the greyed bar now says which of the three it is.
+    readonly property string _unavailableText: {
+        if (!vehicle) {
+            return qsTr("AOA - no vehicle")
+        }
+        if (isNaN(OIFlightAngles.minimumAirspeed)) {
+            return qsTr("AOA - waiting for parameters")
+        }
+        if (!OIFlightAngles.valid) {
+            return qsTr("AOA - no data")
+        }
+        var units = QGroundControl.unitsConversion
+        return qsTr("AOA - below %1 %2")
+                   .arg(units.metersSecondToAppSettingsSpeedUnits(OIFlightAngles.minimumAirspeed).toFixed(0))
+                   .arg(units.appSettingsSpeedUnitsString)
+    }
 
     /// Pointer position as a percentage across the bar. Zero AOA sits at the bottom of the
     /// green band and the critical angle at the bottom of the red, which is Mission Planner's
@@ -75,6 +88,6 @@ Item {
         font.pointSize:     ScreenTools.smallFontPointSize
         color:              qgcPal.text
         visible:            !control._usable
-        text:               qsTr("AOA unavailable")
+        text:               control._unavailableText
     }
 }
