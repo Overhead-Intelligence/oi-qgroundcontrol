@@ -124,10 +124,18 @@ Item {
         border.width:           1
 
         QGCLabel {
-            anchors.centerIn:   parent
-            font.bold:          true
-            color:              qgcPal.text
-            text:               control.valueText
+            anchors.centerIn:       parent
+            width:                  parent.width - (ScreenTools.defaultFontPixelWidth * 0.8)
+            horizontalAlignment:    Text.AlignHCenter
+            // The box is a fixed width but its contents are not: altitude in feet runs to five
+            // digits, and the unit string rides along with the number. Shrinking to fit keeps
+            // the one value that must always be readable readable.
+            fontSizeMode:           Text.HorizontalFit
+            font.pointSize:         ScreenTools.defaultFontPointSize
+            minimumPointSize:       ScreenTools.smallFontPointSize * 0.75
+            font.bold:              true
+            color:                  qgcPal.text
+            text:                   control.valueText
         }
     }
 }

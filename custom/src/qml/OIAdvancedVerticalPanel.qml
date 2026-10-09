@@ -32,7 +32,7 @@ Rectangle {
     property real extraValuesWidth: _outerRadius
 
     property real _centreWidth:  ScreenTools.defaultFontPixelHeight * 10
-    property real _tapeWidth:    ScreenTools.defaultFontPixelHeight * 4.5
+    property real _tapeWidth:    ScreenTools.defaultFontPixelHeight * 5
     property real _headerHeight: ScreenTools.defaultFontPixelHeight * 1.5
     property real _footerHeight: ScreenTools.defaultFontPixelHeight * 1.3
     property real _outerMargin:  (_centreWidth * 0.05) / 2
@@ -53,7 +53,9 @@ Rectangle {
     property real   _speedMetersSec: _vehicle ? (_airspeedUsable ? _vehicle.airSpeed.rawValue
                                                                  : _vehicle.groundSpeed.rawValue) : 0
     property real   _speedDisplay:   _units.metersSecondToAppSettingsSpeedUnits(_speedMetersSec)
-    property string _speedLabel:     _airspeedUsable ? qsTr("IAS") : qsTr("GS")
+    // Mission Planner's names, deliberately. Most of the fleet's pilots read that HUD first,
+    // and a different word for the same quantity is a tax on every one of them.
+    property string _speedLabel:     _airspeedUsable ? qsTr("AS") : qsTr("GS")
 
     // Read from the airframe, and allowed to be missing. The firmware plugin returns NaN when
     // the aircraft has no AIRSPEED_MIN - a multirotor, or a vehicle whose parameters have not
@@ -70,7 +72,7 @@ Rectangle {
     property real   _altMeters:  _vehicle ? (_aglUsable ? _vehicle.altitudeAboveTerr.rawValue
                                                         : _vehicle.altitudeRelative.rawValue) : 0
     property real   _altDisplay: _units.metersToAppSettingsVerticalDistanceUnits(_altMeters)
-    property string _altLabel:   _aglUsable ? qsTr("AGL") : qsTr("REL")
+    property string _altLabel:   _aglUsable ? qsTr("Alt (AGL)") : qsTr("Alt (Rel)")
 
     // Prevent all clicks from going through to lower layers
     DeadMouseArea {
@@ -94,7 +96,9 @@ Rectangle {
         width:          _tapeWidth
         ticksOnRight:   true
         value:          control._speedDisplay
-        valueText:      control._vehicle ? control._speedDisplay.toFixed(0) : "--"
+        valueText:      control._vehicle
+                            ? control._speedDisplay.toFixed(0) + " " + control._units.appSettingsSpeedUnitsString
+                            : "--"
         // Converted from a physical span so the window shows the same amount of speed whatever
         // the units: 26 m/s, which is Mission Planner's.
         span:           control._units.metersSecondToAppSettingsSpeedUnits(26)
@@ -134,7 +138,9 @@ Rectangle {
         width:          _tapeWidth
         ticksOnRight:   false
         value:          control._altDisplay
-        valueText:      control._vehicle ? control._altDisplay.toFixed(0) : "--"
+        valueText:      control._vehicle
+                            ? control._altDisplay.toFixed(0) + " " + control._units.appSettingsVerticalDistanceUnitsString
+                            : "--"
         span:           control._units.metersToAppSettingsVerticalDistanceUnits(40)
 
         // Commanded altitude, cyan: the operator asked for this, which is what cyan means and
@@ -223,8 +229,8 @@ Rectangle {
     }
 
     // Under each tape rather than beside it. The centre column is two tangent circles with no
-    // room to spare, and the label is static - it only has to be found once, so it does not
-    // need to be in the scan path.
+    // room to spare, and the source name is static - it only has to be found once, so it does
+    // not need to be in the scan path. The unit travels with the number instead, in the box.
     Item {
         id:             footerArea
         anchors.left:   parent.left
@@ -232,22 +238,30 @@ Rectangle {
         anchors.bottom: parent.bottom
         height:         _footerHeight
 
-        QGCLabel {
-            anchors.horizontalCenter: speedTape.horizontalCenter
-            anchors.verticalCenter:   parent.verticalCenter
-            font.pointSize:           ScreenTools.smallFontPointSize
-            color:                    QGroundControl.globalPalette.text
-            // Names the source as well as the unit: which of the two speeds this is matters as
-            // much as what it is measured in.
-            text:                     control._speedLabel + " " + control._units.appSettingsSpeedUnitsString
+        /// Centred over a tape by matching its geometry, not by anchoring to it. A tape is
+        /// this row's *sibling*, which makes it an uncle to these labels, and QML drops an
+        /// anchor to anything that is not a parent or a sibling - silently, apart from one
+        /// console warning. Both labels landed at x = 0, on top of each other.
+        component FooterLabel: QGCLabel {
+            anchors.verticalCenter: parent.verticalCenter
+            width:                  control._tapeWidth
+            horizontalAlignment:    Text.AlignHCenter
+            // Long in some languages and after a units change; shrinking beats overflowing
+            // into the centre column.
+            fontSizeMode:           Text.HorizontalFit
+            font.pointSize:         ScreenTools.smallFontPointSize
+            minimumPointSize:       ScreenTools.smallFontPointSize * 0.75
+            color:                  QGroundControl.globalPalette.text
         }
 
-        QGCLabel {
-            anchors.horizontalCenter: altTape.horizontalCenter
-            anchors.verticalCenter:   parent.verticalCenter
-            font.pointSize:           ScreenTools.smallFontPointSize
-            color:                    QGroundControl.globalPalette.text
-            text:                     control._altLabel + " " + control._units.appSettingsVerticalDistanceUnitsString
+        FooterLabel {
+            anchors.left:   parent.left
+            text:           control._speedLabel
+        }
+
+        FooterLabel {
+            anchors.right:  parent.right
+            text:           control._altLabel
         }
     }
 }
