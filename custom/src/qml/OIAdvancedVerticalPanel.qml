@@ -111,7 +111,7 @@ Rectangle {
         // Commanded airspeed. Magenta is the navigation-target colour, the same as the compass
         // pointer to the next waypoint - this is that same kind of thing on another axis.
         Rectangle {
-            width:   speedTape.width * 0.5
+            width:   speedTape.tickLength
             height:  Math.max(2, ScreenTools.defaultFontPixelHeight * 0.14)
             color:   "magenta"
             visible: control._flyViewSettings.showAdditionalIndicatorsAirspeed.rawValue &&
@@ -124,7 +124,7 @@ Rectangle {
         // The airframe's own minimum. Red because below it the wing stops flying: the one speed
         // on this tape that is a limit rather than a target.
         Rectangle {
-            width:   speedTape.width * 0.35
+            width:   speedTape.tickLength
             height:  Math.max(2, ScreenTools.defaultFontPixelHeight * 0.12)
             color:   QGroundControl.globalPalette.colorRed
             visible: control._flyViewSettings.showAdditionalIndicatorsAirspeed.rawValue &&
@@ -151,7 +151,7 @@ Rectangle {
         // Commanded altitude, cyan: the operator asked for this, which is what cyan means and
         // what the commanded heading on the compass already uses.
         Rectangle {
-            width:          altTape.width * 0.5
+            width:          altTape.tickLength
             height:         Math.max(2, ScreenTools.defaultFontPixelHeight * 0.14)
             color:          "cyan"
             anchors.right:  parent.right

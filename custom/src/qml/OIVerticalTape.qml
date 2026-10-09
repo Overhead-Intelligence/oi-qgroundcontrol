@@ -25,12 +25,14 @@ Item {
     property bool ticksOnRight: true
     /// Roughly how many numbered steps should fit in the span.
     property int targetLabelCount: 6
+    /// How far a tick reaches in from its edge. Public so a bug in the overlay can be drawn to
+    /// the same length: a marker wider than the ticks it sits opposite runs under the numbers.
+    readonly property real tickLength: width * 0.25
 
     readonly property real _pixelsPerUnit: span > 0 ? height / span : 0
     readonly property real _step:          niceStep(span / targetLabelCount)
     readonly property int  _tickCount:     Math.ceil(span / _step) + 2
     readonly property real _firstTick:     Math.floor((value - (span / 2)) / _step) * _step
-    readonly property real _tickLength:    width * 0.25
 
     /// Round the raw interval up to something a person would choose. Covers the range a speed
     /// or altitude tape needs in any unit QGC offers.
@@ -77,15 +79,15 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.right:          control.ticksOnRight ? parent.right : undefined
                     anchors.left:           control.ticksOnRight ? undefined : parent.left
-                    width:                  control._tickLength
+                    width:                  control.tickLength
                     height:                 Math.max(1, ScreenTools.defaultFontPixelHeight * 0.08)
                     color:                  qgcPal.text
                 }
 
                 QGCLabel {
                     anchors.verticalCenter:     parent.verticalCenter
-                    anchors.rightMargin:        control._tickLength * 1.4
-                    anchors.leftMargin:         control._tickLength * 1.4
+                    anchors.rightMargin:        control.tickLength * 1.4
+                    anchors.leftMargin:         control.tickLength * 1.4
                     anchors.right:              control.ticksOnRight ? parent.right : undefined
                     anchors.left:               control.ticksOnRight ? undefined : parent.left
                     font.pointSize:             ScreenTools.smallFontPointSize

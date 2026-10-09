@@ -4,15 +4,21 @@ import QtQuick.Shapes
 import QGroundControl
 import QGroundControl.Controls
 
-/// Fixed bank scale with a moving roll pointer, for the advanced attitude display.
+/// Rotating bank scale with a fixed roll pointer, for the advanced attitude display.
 ///
 /// The stock scale is `attitudeDial.svg`: 496 bytes, two paths, nine tick marks and no text at
 /// all. It rotates under a fixed pointer, so the geometry is sound, but with no labels and no
 /// emphasis there is nothing to read a deflection against - 20 and 30 degrees look the same.
 ///
-/// This fixes the scale and moves the pointer instead, which is what a glass cockpit does and
-/// the reason it can label anything: a rotating scale carries its numbers round with it and
-/// they end up sideways at exactly the bank angles worth reading.
+/// This keeps that arrangement and supplies what was missing. The scale turns with the horizon
+/// at -roll, the same rotation the pitch ladder and the stock dial use, and the pointer stays
+/// at the top. Mission Planner reads the same way, which is the point: a pilot who learned
+/// bank angle there should not have to re-learn which way the display moves.
+///
+/// The numbers counter-rotate so they stay upright wherever the scale carries them. A rotating
+/// scale normally cannot carry labels for exactly that reason - the figures end up sideways at
+/// the bank angles worth reading - and undoing the rotation per label buys the labels back
+/// without changing how the instrument moves.
 ///
 /// Marks at 10, 20, 30, 45 and 60 either side. Only 30, 45 and 60 are numbered - 10 and 20 are
 /// short ticks, as they are on most PFDs, because labelling all five crowds the arc at this
@@ -46,7 +52,7 @@ Item {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
-    /// One mark: `angle` is bank in degrees, signed, and `risk` picks the colour.
+    /// One mark: `angle` is bank in degrees, signed, and `stroke` picks the colour.
     component BankTick: Shape {
         id: tick
 
@@ -70,50 +76,58 @@ Item {
         }
     }
 
-    // Zero, and the two small angles: short, uncoloured, unnumbered.
-    BankTick { angle:   0; long: true }
-    BankTick { angle: -10 }
-    BankTick { angle:  10 }
-    BankTick { angle: -20 }
-    BankTick { angle:  20 }
-
-    // Thirty is the one a pilot references, so it is long and numbered but not coloured -
-    // nothing is wrong at 30 degrees.
-    BankTick { angle: -30; long: true }
-    BankTick { angle:  30; long: true }
-
-    BankTick { angle: -45; long: true; stroke: qgcPal.colorOrange }
-    BankTick { angle:  45; long: true; stroke: qgcPal.colorOrange }
-
-    BankTick { angle: -60; long: true; stroke: qgcPal.colorRed }
-    BankTick { angle:  60; long: true; stroke: qgcPal.colorRed }
-
     component BankLabel: QGCLabel {
         property real  angle: 0
 
         font.pointSize:         ScreenTools.smallFontPointSize
         horizontalAlignment:    Text.AlignHCenter
         verticalAlignment:      Text.AlignVCenter
-        // Upright regardless of where it sits on the arc. The whole reason for fixing the
-        // scale is that these stay readable.
         x:                      control.pointX(angle, control._labelRadius) - (width / 2)
         y:                      control.pointY(angle, control._labelRadius) - (height / 2)
+        // Undoes the group's rotation, so the figure stays upright while its position rides
+        // round with the scale.
+        rotation:               control.rollAngle
+        transformOrigin:        Item.Center
     }
 
-    BankLabel { angle: -30; text: "30"; color: qgcPal.text }
-    BankLabel { angle:  30; text: "30"; color: qgcPal.text }
-    BankLabel { angle: -45; text: "45"; color: qgcPal.colorOrange }
-    BankLabel { angle:  45; text: "45"; color: qgcPal.colorOrange }
-    BankLabel { angle: -60; text: "60"; color: qgcPal.colorRed }
-    BankLabel { angle:  60; text: "60"; color: qgcPal.colorRed }
+    /// Everything that turns. Rotated by -roll to match the horizon and the pitch ladder, both
+    /// of which the stock attitude widget also rotates by -roll.
+    Item {
+        anchors.fill:       parent
+        rotation:           -control.rollAngle
+        transformOrigin:    Item.Center
 
-    /// The pointer, rotating with the aircraft so it reads against the fixed scale. Positive
-    /// roll is a right bank and moves it clockwise, which keeps the same reading sense the
-    /// stock widget had when it rotated the scale by -roll under a fixed pointer.
+        // Zero, and the two small angles: short, uncoloured, unnumbered.
+        BankTick { angle:   0; long: true }
+        BankTick { angle: -10 }
+        BankTick { angle:  10 }
+        BankTick { angle: -20 }
+        BankTick { angle:  20 }
+
+        // Thirty is the one a pilot references, so it is long and numbered but not coloured -
+        // nothing is wrong at 30 degrees.
+        BankTick { angle: -30; long: true }
+        BankTick { angle:  30; long: true }
+
+        BankTick { angle: -45; long: true; stroke: qgcPal.colorOrange }
+        BankTick { angle:  45; long: true; stroke: qgcPal.colorOrange }
+
+        BankTick { angle: -60; long: true; stroke: qgcPal.colorRed }
+        BankTick { angle:  60; long: true; stroke: qgcPal.colorRed }
+
+        BankLabel { angle: -30; text: "30"; color: qgcPal.text }
+        BankLabel { angle:  30; text: "30"; color: qgcPal.text }
+        BankLabel { angle: -45; text: "45"; color: qgcPal.colorOrange }
+        BankLabel { angle:  45; text: "45"; color: qgcPal.colorOrange }
+        BankLabel { angle: -60; text: "60"; color: qgcPal.colorRed }
+        BankLabel { angle:  60; text: "60"; color: qgcPal.colorRed }
+    }
+
+    /// The pointer, fixed at the top. It marks the aircraft rather than the horizon, so it is
+    /// the one thing here that does not move: a right bank carries the scale anticlockwise
+    /// beneath it.
     Shape {
         anchors.fill: parent
-        rotation:     control.rollAngle
-        transformOrigin: Item.Center
 
         ShapePath {
             strokeColor: qgcPal.text
