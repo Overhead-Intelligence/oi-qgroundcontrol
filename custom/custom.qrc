@@ -20,6 +20,8 @@
          files are outside every QML module, so they must import what they use. -->
     <qresource prefix="/custom/qml">
         <file alias="OIAdvancedVerticalPanel.qml">src/qml/OIAdvancedVerticalPanel.qml</file>
+        <file alias="OIAttitudeWidget.qml">src/qml/OIAttitudeWidget.qml</file>
+        <file alias="OIBankScale.qml">src/qml/OIBankScale.qml</file>
         <file alias="OICompassWidget.qml">src/qml/OICompassWidget.qml</file>
         <file alias="OIGimbalIndicator.qml">src/qml/OIGimbalIndicator.qml</file>
         <file alias="OIKeyboardIndicator.qml">src/qml/OIKeyboardIndicator.qml</file>

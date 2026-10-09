@@ -71,7 +71,9 @@ Rectangle {
         width:          _tapeWidth
     }
 
-    QGCAttitudeWidget {
+    // OI's attitude display rather than the stock one: a fixed, labelled bank scale in place
+    // of the rotating unlabelled dial.
+    OIAttitudeWidget {
         id:                         attitude
         anchors.horizontalCenter:   parent.horizontalCenter
         anchors.topMargin:          _outerMargin
