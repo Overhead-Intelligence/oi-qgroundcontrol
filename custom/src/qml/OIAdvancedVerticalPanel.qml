@@ -32,7 +32,14 @@ Rectangle {
     property real extraValuesWidth: _outerRadius
 
     property real _centreWidth:  ScreenTools.defaultFontPixelHeight * 10
-    property real _tapeWidth:    ScreenTools.defaultFontPixelHeight * 5
+    /// Measured from the tape's own contents rather than set to a count of font heights.
+    /// The widest things it must hold are a footer label and a value with its unit, and how
+    /// wide those are depends on the font, the display scaling, the units in force and the
+    /// translation - none of which a fixed multiple of the font height tracks. See the
+    /// Measure block near the bottom of this file.
+    property real _tapeWidth:    Math.max(speedLabelWidth.width, altLabelWidth.width,
+                                          speedValueWidth.width, altValueWidth.width) +
+                                 (ScreenTools.defaultFontPixelWidth * 2)
     property real _headerHeight: ScreenTools.defaultFontPixelHeight * 1.5
     property real _footerHeight: ScreenTools.defaultFontPixelHeight * 1.3
     property real _outerMargin:  (_centreWidth * 0.05) / 2
@@ -55,7 +62,7 @@ Rectangle {
     property real   _speedDisplay:   _units.metersSecondToAppSettingsSpeedUnits(_speedMetersSec)
     // Mission Planner's names, deliberately. Most of the fleet's pilots read that HUD first,
     // and a different word for the same quantity is a tax on every one of them.
-    property string _speedLabel:     _airspeedUsable ? qsTr("AS") : qsTr("GS")
+    property string _speedLabel:     _airspeedUsable ? qsTr("Airspeed") : qsTr("Groundspeed")
 
     // Read from the airframe, and allowed to be missing. The firmware plugin returns NaN when
     // the aircraft has no AIRSPEED_MIN - a multirotor, or a vehicle whose parameters have not
@@ -72,7 +79,7 @@ Rectangle {
     property real   _altMeters:  _vehicle ? (_aglUsable ? _vehicle.altitudeAboveTerr.rawValue
                                                         : _vehicle.altitudeRelative.rawValue) : 0
     property real   _altDisplay: _units.metersToAppSettingsVerticalDistanceUnits(_altMeters)
-    property string _altLabel:   _aglUsable ? qsTr("Alt (AGL)") : qsTr("Alt (Rel)")
+    property string _altLabel:   _aglUsable ? qsTr("Altitude (AGL)") : qsTr("Altitude (Rel)")
 
     // Prevent all clicks from going through to lower layers
     DeadMouseArea {
@@ -97,7 +104,7 @@ Rectangle {
         ticksOnRight:   true
         value:          control._speedDisplay
         valueText:      control._vehicle
-                            ? control._speedDisplay.toFixed(0) + " " + control._units.appSettingsSpeedUnitsString
+                            ? control._speedDisplay.toFixed(1) + " " + control._units.appSettingsSpeedUnitsString
                             : "--"
         // Converted from a physical span so the window shows the same amount of speed whatever
         // the units: 26 m/s, which is Mission Planner's.
@@ -139,7 +146,7 @@ Rectangle {
         ticksOnRight:   false
         value:          control._altDisplay
         valueText:      control._vehicle
-                            ? control._altDisplay.toFixed(0) + " " + control._units.appSettingsVerticalDistanceUnitsString
+                            ? control._altDisplay.toFixed(1) + " " + control._units.appSettingsVerticalDistanceUnitsString
                             : "--"
         span:           control._units.metersToAppSettingsVerticalDistanceUnits(40)
 
@@ -263,5 +270,37 @@ Rectangle {
             anchors.right:  parent.right
             text:           control._altLabel
         }
+    }
+    /// Sizes the tapes. Deliberately measured against worst-case *sample* text and not against
+    /// the live value: binding the width to what is on screen would make the whole panel change
+    /// width as the altitude crosses a thousand, and everything to the left of it move.
+    component Measure: TextMetrics {
+        font.family: ScreenTools.normalFontFamily
+    }
+
+    Measure {
+        id:             speedLabelWidth
+        font.pointSize: ScreenTools.smallFontPointSize
+        text:           qsTr("Groundspeed")
+    }
+
+    Measure {
+        id:             altLabelWidth
+        font.pointSize: ScreenTools.smallFontPointSize
+        text:           qsTr("Altitude (AGL)")
+    }
+
+    Measure {
+        id:             speedValueWidth
+        font.pointSize: ScreenTools.defaultFontPointSize
+        font.bold:      true
+        text:           "-888.8 " + control._units.appSettingsSpeedUnitsString
+    }
+
+    Measure {
+        id:             altValueWidth
+        font.pointSize: ScreenTools.defaultFontPointSize
+        font.bold:      true
+        text:           "-8888.8 " + control._units.appSettingsVerticalDistanceUnitsString
     }
 }
