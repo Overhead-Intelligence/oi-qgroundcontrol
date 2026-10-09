@@ -24,7 +24,7 @@ Item {
     /// the ticks always face the instrument they belong to.
     property bool ticksOnRight: true
     /// Roughly how many numbered steps should fit in the span.
-    property int targetLabelCount: 5
+    property int targetLabelCount: 6
 
     readonly property real _pixelsPerUnit: span > 0 ? height / span : 0
     readonly property real _step:          niceStep(span / targetLabelCount)
@@ -104,5 +104,30 @@ Item {
         id:             overlay
         anchors.fill:   parent
         clip:           true
+    }
+
+    /// Current value, boxed on the centre line. This is the conventional place for it and the
+    /// reason the tape is wide enough to hold it: the number and the scale it sits on are read
+    /// together, so splitting them puts the operator's eye in two places. Empty hides the box.
+    ///
+    /// Declared last, so it covers the ticks and any bug at the present value - which is what
+    /// should happen, since the box is already showing that value more precisely.
+    property string valueText: ""
+
+    Rectangle {
+        anchors.verticalCenter: parent.verticalCenter
+        width:                  parent.width
+        height:                 ScreenTools.defaultFontPixelHeight * 1.5
+        visible:                control.valueText !== ""
+        color:                  qgcPal.window
+        border.color:           qgcPal.text
+        border.width:           1
+
+        QGCLabel {
+            anchors.centerIn:   parent
+            font.bold:          true
+            color:              qgcPal.text
+            text:               control.valueText
+        }
     }
 }

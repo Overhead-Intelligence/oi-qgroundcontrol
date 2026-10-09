@@ -30,9 +30,16 @@ Item {
     readonly property real _greenTo:  60
     readonly property real _yellowTo: 90
 
-    readonly property real _minAirspeed: vehicle ? Math.max(vehicle.minimumEquivalentAirspeed(), 1) : 1
-    readonly property real _airspeed:    vehicle ? vehicle.airSpeed.rawValue : 0
-    readonly property bool _usable:      vehicle && OIFlightAngles.valid && (_airspeed >= _minAirspeed)
+    /// The airframe's own minimum, which may not exist: the firmware plugin returns NaN when
+    /// there is no AIRSPEED_MIN to read. Rather than let that NaN decide the gate by accident -
+    /// every comparison against it is false, so the indexer would grey out for an unstated
+    /// reason - it is tested explicitly, and an aircraft that cannot say where its envelope
+    /// starts does not get a stall indication.
+    readonly property real _minAirspeed:      vehicle ? vehicle.minimumEquivalentAirspeed() : NaN
+    readonly property bool _minAirspeedKnown: !isNaN(_minAirspeed) && (_minAirspeed > 0)
+    readonly property real _airspeed:         vehicle ? vehicle.airSpeed.rawValue : 0
+    readonly property bool _usable:           vehicle && OIFlightAngles.valid && _minAirspeedKnown &&
+                                              (_airspeed >= _minAirspeed)
 
     /// Pointer position as a percentage across the bar. Zero AOA sits at the bottom of the
     /// green band and the critical angle at the bottom of the red, which is Mission Planner's

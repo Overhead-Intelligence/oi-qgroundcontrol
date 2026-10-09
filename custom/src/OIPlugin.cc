@@ -15,6 +15,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QIODevice>
 #include <QtCore/QMetaType>
+#include <QtCore/QtMath>
 #include <QtCore/QSettings>
 #include <QtCore/QStringList>
 #include <QtCore/QVariant>
@@ -35,6 +36,7 @@
 #include "QmlComponentInfo.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
+#include "Vehicle.h"
 
 QGC_LOGGING_CATEGORY(OILog, "OI.Plugin")
 
@@ -207,6 +209,46 @@ void OIPlugin::init()
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIFlightAngles", _flightAngles);
 }
 
+/// Fill in the body rate facts from ATTITUDE.
+///
+/// QGC populates rollRate/pitchRate/yawRate **only** from ATTITUDE_QUATERNION (id 31), and
+/// ArduPilot does not stream that message in any default group - ArduPlane's EXTRA1 carries
+/// plain ATTITUDE (id 30). VehicleFactGroup::_handleAttitude() decodes that message and uses
+/// three of its six fields, dropping rollspeed, pitchspeed and yawspeed on the floor. So the
+/// three rate facts sit at their initial zero for the whole flight, and everything that reads
+/// them - the panel's rate of turn arc, and the Yaw Rate value an operator can put in the
+/// telemetry bar - reads a steady zero that looks like a measurement.
+///
+/// Writing the stock facts rather than exposing new ones is deliberate: the data was always
+/// meant to be there, and anything already reading them starts working without knowing about
+/// this. If a vehicle ever does send ATTITUDE_QUATERNION, both paths write the same numbers at
+/// the same rate, so the duplication is harmless.
+static void populateBodyRates(Vehicle *vehicle, const mavlink_message_t &message)
+{
+    if (message.msgid != MAVLINK_MSG_ID_ATTITUDE) {
+        return;
+    }
+
+    // Same test the stock handler makes: only the vehicle's own flight controller, not a
+    // companion computer or a second autopilot sharing the link.
+    if (!vehicle || (message.sysid != vehicle->id()) || (message.compid != vehicle->compId())) {
+        return;
+    }
+
+    mavlink_attitude_t attitude{};
+    mavlink_msg_attitude_decode(&message, &attitude);
+
+    if (!qIsFinite(attitude.rollspeed) || !qIsFinite(attitude.pitchspeed) || !qIsFinite(attitude.yawspeed)) {
+        return;
+    }
+
+    // Degrees per second, which is what the facts' metadata declares and what QGC's own
+    // quaternion path converts to.
+    vehicle->rollRate()->setRawValue(qRadiansToDegrees(static_cast<double>(attitude.rollspeed)));
+    vehicle->pitchRate()->setRawValue(qRadiansToDegrees(static_cast<double>(attitude.pitchspeed)));
+    vehicle->yawRate()->setRawValue(qRadiansToDegrees(static_cast<double>(attitude.yawspeed)));
+}
+
 bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
 {
     Q_UNUSED(link);
@@ -216,6 +258,8 @@ bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavli
         // link - the hook sees every message to every vehicle.
         _flightAngles->handleMessage(vehicle, message);
     }
+
+    populateBodyRates(vehicle, message);
 
     return QGCCorePlugin::mavlinkMessage(vehicle, link, message);
 }

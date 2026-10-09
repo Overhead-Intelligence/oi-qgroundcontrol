@@ -44,10 +44,14 @@ Item {
 
     /// Below this the estimate is not worth drawing. Taken from the airframe where it knows -
     /// a stall indication tied to a hardcoded speed would be wrong on any other aircraft.
-    readonly property real _minAirspeed: vehicle ? Math.max(vehicle.minimumEquivalentAirspeed(), 1) : 1
-    readonly property real _airspeed:    vehicle ? vehicle.airSpeed.rawValue : 0
+    /// NaN when the airframe has no AIRSPEED_MIN, which is a real case rather than an error:
+    /// ArduPilot only computes these angles on Plane builds anyway. Tested rather than compared
+    /// against, so the symbol is hidden by a decision instead of by NaN semantics.
+    readonly property real _minAirspeed:      vehicle ? vehicle.minimumEquivalentAirspeed() : NaN
+    readonly property bool _minAirspeedKnown: !isNaN(_minAirspeed) && (_minAirspeed > 0)
+    readonly property real _airspeed:         vehicle ? vehicle.airSpeed.rawValue : 0
 
-    visible: vehicle && OIFlightAngles.valid && (_airspeed >= _minAirspeed)
+    visible: vehicle && OIFlightAngles.valid && _minAirspeedKnown && (_airspeed >= _minAirspeed)
 
     // Rotated with the ladder, because the displacement is in the aircraft's frame: slip is
     // sideways relative to the wings, not relative to the horizon.

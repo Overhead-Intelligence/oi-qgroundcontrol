@@ -22,7 +22,7 @@ import OI.Controls
 Rectangle {
     id:     control
     width:  _centreWidth + (_tapeWidth * 2)
-    height: _headerHeight + (_outerRadius * 4)
+    height: _headerHeight + (_outerRadius * 4) + _footerHeight
     color:  QGroundControl.globalPalette.window
 
     /// Reported back to the Fly view so the telemetry bar lays out beside the panel rather than
@@ -32,8 +32,9 @@ Rectangle {
     property real extraValuesWidth: _outerRadius
 
     property real _centreWidth:  ScreenTools.defaultFontPixelHeight * 10
-    property real _tapeWidth:    ScreenTools.defaultFontPixelHeight * 3.5
+    property real _tapeWidth:    ScreenTools.defaultFontPixelHeight * 4.5
     property real _headerHeight: ScreenTools.defaultFontPixelHeight * 1.5
+    property real _footerHeight: ScreenTools.defaultFontPixelHeight * 1.3
     property real _outerMargin:  (_centreWidth * 0.05) / 2
     property real _outerRadius:  _centreWidth / 2
     property real _innerRadius:  _outerRadius - _outerMargin
@@ -53,6 +54,13 @@ Rectangle {
                                                                  : _vehicle.groundSpeed.rawValue) : 0
     property real   _speedDisplay:   _units.metersSecondToAppSettingsSpeedUnits(_speedMetersSec)
     property string _speedLabel:     _airspeedUsable ? qsTr("IAS") : qsTr("GS")
+
+    // Read from the airframe, and allowed to be missing. The firmware plugin returns NaN when
+    // the aircraft has no AIRSPEED_MIN - a multirotor, or a vehicle whose parameters have not
+    // finished loading - and NaN silently poisons any comparison it reaches, so it is tested
+    // for here rather than left to propagate into a marker position.
+    property real   _minAirspeed:      _vehicle ? _vehicle.minimumEquivalentAirspeed() : NaN
+    property bool   _minAirspeedKnown: !isNaN(_minAirspeed) && (_minAirspeed > 0)
 
     // Follows the altitude reference the rest of the build already uses rather than inventing a
     // fourth notion of altitude. AGL falls back to relative when terrain height is unavailable,
@@ -81,11 +89,12 @@ Rectangle {
     OIVerticalTape {
         id:             speedTape
         anchors.top:    headerArea.bottom
-        anchors.bottom: parent.bottom
+        anchors.bottom: footerArea.top
         anchors.left:   parent.left
         width:          _tapeWidth
         ticksOnRight:   true
         value:          control._speedDisplay
+        valueText:      control._vehicle ? control._speedDisplay.toFixed(0) : "--"
         // Converted from a physical span so the window shows the same amount of speed whatever
         // the units: 26 m/s, which is Mission Planner's.
         span:           control._units.metersSecondToAppSettingsSpeedUnits(26)
@@ -110,21 +119,22 @@ Rectangle {
             height:  Math.max(2, ScreenTools.defaultFontPixelHeight * 0.12)
             color:   QGroundControl.globalPalette.colorRed
             visible: control._flyViewSettings.showAdditionalIndicatorsAirspeed.rawValue &&
-                     control._vehicle && control._airspeedUsable
+                     control._airspeedUsable && control._minAirspeedKnown
             x:       0
             y:       speedTape.yForValue(control._units.metersSecondToAppSettingsSpeedUnits(
-                         control._vehicle ? control._vehicle.minimumEquivalentAirspeed() : 0)) - (height / 2)
+                         control._minAirspeed)) - (height / 2)
         }
     }
 
     OIVerticalTape {
         id:             altTape
         anchors.top:    headerArea.bottom
-        anchors.bottom: parent.bottom
+        anchors.bottom: footerArea.top
         anchors.right:  parent.right
         width:          _tapeWidth
         ticksOnRight:   false
         value:          control._altDisplay
+        valueText:      control._vehicle ? control._altDisplay.toFixed(0) : "--"
         span:           control._units.metersToAppSettingsVerticalDistanceUnits(40)
 
         // Commanded altitude, cyan: the operator asked for this, which is what cyan means and
@@ -212,70 +222,32 @@ Rectangle {
         vehicle:                  control._vehicle
     }
 
-    /// Caption over value, used for both readouts.
-    ///
-    /// Carries its own backing panel because it sits over the edge of the attitude display,
-    /// where the background behind it is whatever the horizon happens to be doing - palette
-    /// text on sky blue is not reliably legible, and a readout that is sometimes hard to read
-    /// is worse than one placed less conveniently.
-    component Readout: Item {
-        id:     readout
-        width:  stack.implicitWidth + (ScreenTools.defaultFontPixelWidth * 1.2)
-        height: stack.implicitHeight
+    // Under each tape rather than beside it. The centre column is two tangent circles with no
+    // room to spare, and the label is static - it only has to be found once, so it does not
+    // need to be in the scan path.
+    Item {
+        id:             footerArea
+        anchors.left:   parent.left
+        anchors.right:  parent.right
+        anchors.bottom: parent.bottom
+        height:         _footerHeight
 
-        property string caption:    ""
-        property string reading:    ""
-        property bool   alignRight: false
-
-        Rectangle {
-            anchors.fill:   parent
-            radius:         ScreenTools.defaultFontPixelHeight * 0.15
-            color:          QGroundControl.globalPalette.window
-            opacity:        0.7
+        QGCLabel {
+            anchors.horizontalCenter: speedTape.horizontalCenter
+            anchors.verticalCenter:   parent.verticalCenter
+            font.pointSize:           ScreenTools.smallFontPointSize
+            color:                    QGroundControl.globalPalette.text
+            // Names the source as well as the unit: which of the two speeds this is matters as
+            // much as what it is measured in.
+            text:                     control._speedLabel + " " + control._units.appSettingsSpeedUnitsString
         }
 
-        Column {
-            id:                 stack
-            anchors.centerIn:   parent
-            spacing:            0
-
-            QGCLabel {
-                width:              stack.width
-                horizontalAlignment: readout.alignRight ? Text.AlignRight : Text.AlignLeft
-                font.pointSize:     ScreenTools.smallFontPointSize
-                color:              QGroundControl.globalPalette.text
-                opacity:            0.7
-                text:               readout.caption
-            }
-
-            QGCLabel {
-                width:              stack.width
-                horizontalAlignment: readout.alignRight ? Text.AlignRight : Text.AlignLeft
-                font.pointSize:     ScreenTools.defaultFontPointSize
-                font.bold:          true
-                color:              QGroundControl.globalPalette.text
-                text:               readout.reading
-            }
+        QGCLabel {
+            anchors.horizontalCenter: altTape.horizontalCenter
+            anchors.verticalCenter:   parent.verticalCenter
+            font.pointSize:           ScreenTools.smallFontPointSize
+            color:                    QGroundControl.globalPalette.text
+            text:                     control._altLabel + " " + control._units.appSettingsVerticalDistanceUnitsString
         }
-    }
-
-    // Placed where the two circles meet. They are tangent there, so both are at their narrowest
-    // and the numbers sit against the tape they belong to without covering an instrument.
-    // Declared after the instruments so they draw on top where the edges do meet.
-    Readout {
-        anchors.left:           speedTape.right
-        anchors.leftMargin:     _outerMargin
-        anchors.verticalCenter: attitude.bottom
-        caption:                control._speedLabel + " (" + control._units.appSettingsSpeedUnitsString + ")"
-        reading:                control._vehicle ? control._speedDisplay.toFixed(0) : "--"
-    }
-
-    Readout {
-        anchors.right:          vsiBar.left
-        anchors.rightMargin:    _outerMargin
-        anchors.verticalCenter: attitude.bottom
-        alignRight:             true
-        caption:                control._altLabel + " (" + control._units.appSettingsVerticalDistanceUnitsString + ")"
-        reading:                control._vehicle ? control._altDisplay.toFixed(0) : "--"
     }
 }
