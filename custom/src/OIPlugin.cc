@@ -28,6 +28,7 @@
 #include "InstrumentValueData.h"
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
+#include "OIFlightAngles.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
@@ -199,6 +200,24 @@ void OIPlugin::init()
     // engine does. It stays disarmed until an operator arms it.
     _keyboard = new OIKeyboardController(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
+
+    // Fed from mavlinkMessage() below. QGC parses AOA_SSA and discards it, and reading it
+    // through the plugin hook keeps the instrument panel's data path in custom/.
+    _flightAngles = new OIFlightAngles(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIFlightAngles", _flightAngles);
+}
+
+bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
+{
+    Q_UNUSED(link);
+
+    if (_flightAngles) {
+        // Filters on message id itself, so this stays one comparison for everything else on the
+        // link - the hook sees every message to every vehicle.
+        _flightAngles->handleMessage(vehicle, message);
+    }
+
+    return QGCCorePlugin::mavlinkMessage(vehicle, link, message);
 }
 
 QString OIPlugin::stableDownloadLocation() const

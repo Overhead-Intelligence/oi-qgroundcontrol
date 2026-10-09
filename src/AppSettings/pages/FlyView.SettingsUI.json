@@ -125,11 +125,20 @@
                 "indicators",
                 "hud",
                 "instrument",
-                "nose up"
+                "nose up",
+                "airspeed",
+                "altitude",
+                "tape"
             ],
             "controls": [
                 {
                     "setting": "flyViewSettings.showAdditionalIndicatorsCompass"
+                },
+                {
+                    "setting": "flyViewSettings.showAdditionalIndicatorsAirspeed"
+                },
+                {
+                    "setting": "flyViewSettings.showAdditionalIndicatorsAltitude"
                 },
                 {
                     "setting": "flyViewSettings.lockNoseUpCompass"
