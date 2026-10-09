@@ -47,6 +47,22 @@
             "keywords": "compass,indicators"
         },
         {
+            "name": "showAdditionalIndicatorsAirspeed",
+            "shortDesc": "Display additional speed reference indicators on the airspeed tape.",
+            "type": "bool",
+            "default": false,
+            "label": "Show additional indicators on Airspeed tape",
+            "keywords": "airspeed,indicators,tape"
+        },
+        {
+            "name": "showAdditionalIndicatorsAltitude",
+            "shortDesc": "Display additional altitude reference indicators on the altitude tape.",
+            "type": "bool",
+            "default": false,
+            "label": "Show additional indicators on Altitude tape",
+            "keywords": "altitude,indicators,tape"
+        },
+        {
             "name": "lockNoseUpCompass",
             "shortDesc": "Always show north pointing up on the compass instead of rotating with vehicle heading.",
             "type": "bool",
