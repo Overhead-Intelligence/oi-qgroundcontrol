@@ -80,7 +80,9 @@ Rectangle {
         vehicle:                    globals.activeVehicle
     }
 
-    QGCCompassWidget {
+    // OI's compass rather than the stock one: standard-code colours, the commanded heading,
+    // and rate of turn. Resolved as a sibling file - both live under qrc:/custom/qml.
+    OICompassWidget {
         id:                         compass
         anchors.horizontalCenter:   parent.horizontalCenter
         anchors.topMargin:          _outerMargin * 2
