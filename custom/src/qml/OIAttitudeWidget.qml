@@ -89,6 +89,15 @@ Item {
         border.width:   1
     }
 
+    // Where the aircraft is actually going, displaced from the crosshair by angle of attack
+    // and sideslip. Hides itself below a usable airspeed - see OIFlightPathVector.
+    OIFlightPathVector {
+        anchors.fill:   parent
+        vehicle:        root.vehicle
+        attitudeSize:   root.size
+        rollAngle:      _rollAngle
+    }
+
     // Outside the mask so the ticks and numbers sit on top of the horizon rather than being
     // clipped with it. Sibling file under qrc:/custom/qml.
     OIBankScale {

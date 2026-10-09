@@ -45,12 +45,13 @@ Rectangle {
     // Reserved for the angle of attack indexer, which spans the full width as a header: it is
     // the most direct stall indication available and reads as a banner rather than as another
     // instrument competing with the horizon.
-    Item {
+    OIAoaIndexer {
         id:                 headerArea
         anchors.top:        parent.top
         anchors.left:       parent.left
         anchors.right:      parent.right
         height:             _headerHeight
+        vehicle:            globals.activeVehicle
     }
 
     // Reserved for the airspeed tape.
