@@ -28,6 +28,7 @@ OIFlightAngles::OIFlightAngles(QObject *parent)
 
     _staleTimer.setInterval(kStaleMs / 2);
     (void) connect(&_staleTimer, &QTimer::timeout, this, &OIFlightAngles::_checkStale);
+    (void) connect(&_staleTimer, &QTimer::timeout, this, &OIFlightAngles::_checkAccelStale);
     _staleTimer.start();
 
     _activeVehicleChanged();
@@ -56,11 +57,28 @@ bool OIFlightAngles::airspeedSufficient() const
 
 void OIFlightAngles::handleMessage(const Vehicle *vehicle, const mavlink_message_t &message)
 {
-    if (message.msgid != MAVLINK_MSG_ID_AOA_SSA) {
+    if ((message.msgid != MAVLINK_MSG_ID_AOA_SSA) && (message.msgid != MAVLINK_MSG_ID_RAW_IMU)) {
         return;
     }
 
     if (!vehicle || (vehicle != MultiVehicleManager::instance()->activeVehicle())) {
+        return;
+    }
+
+    if (message.msgid == MAVLINK_MSG_ID_RAW_IMU) {
+        mavlink_raw_imu_t imu{};
+        mavlink_msg_raw_imu_decode(&message, &imu);
+
+        // Milli-g on the wire. QGC decodes this message already and keeps only the temperature.
+        //
+        // RAW_IMU is the primary IMU; SCALED_IMU2 carries the same field from the second one and
+        // agreed with it to 0.002 g across the 2026-10-09 flight, so it is available as a
+        // fallback if the primary is ever dropped from the stream.
+        _lateralAccel = imu.yacc / 1000.0;
+        _lateralAccelValid = true;
+        _lastAccelReport.start();
+
+        emit changed();
         return;
     }
 
@@ -131,10 +149,28 @@ void OIFlightAngles::_checkStale()
     }
 }
 
+void OIFlightAngles::_checkAccelStale()
+{
+    if (!_lateralAccelValid) {
+        return;
+    }
+
+    if (!_lastAccelReport.isValid() || (_lastAccelReport.elapsed() > kAccelStaleMs)) {
+        qCDebug(OIFlightAnglesLog) << "no RAW_IMU for" << kAccelStaleMs << "ms, dropping";
+        _lateralAccelValid = false;
+        _lateralAccel = 0;
+        emit changed();
+    }
+}
+
 void OIFlightAngles::_clear()
 {
     _valid = false;
     _aoa = 0;
     _ssa = 0;
     _lastReport.invalidate();
+
+    _lateralAccelValid = false;
+    _lateralAccel = 0;
+    _lastAccelReport.invalidate();
 }

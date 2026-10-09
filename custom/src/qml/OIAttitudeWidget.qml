@@ -105,4 +105,12 @@ Item {
         size:           root.size
         rollAngle:      _rollAngle
     }
+
+    // Bank at the top, coordination at the bottom - the two halves of the same question about
+    // a turn. Fixed, like the roll pointer above it, because an inclinometer is bolted to the
+    // panel and not painted on the sky.
+    OISlipIndicator {
+        anchors.fill:   parent
+        size:           root.size
+    }
 }

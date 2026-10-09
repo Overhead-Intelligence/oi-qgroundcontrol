@@ -2,7 +2,8 @@
  *
  * Overhead Intelligence QGroundControl custom build.
  *
- * Angle of attack and sideslip, from ArduPilot's AOA_SSA (id 11020).
+ * The flight quantities a primary flight display needs that QGC parses and throws away:
+ * angle of attack and sideslip from AOA_SSA (11020), and lateral acceleration from RAW_IMU.
  *
  * QGC parses the message and discards it - nothing in the stock tree reads it -
  * yet the fleet already streams it: AOA_SSA rides in the EXTRA1 group and
@@ -56,6 +57,10 @@ class OIFlightAngles : public QObject
     /// valid && airspeedSufficient - the single test a display should gate on.
     Q_PROPERTY(bool     usable          READ usable         NOTIFY changed)
 
+    /// Lateral specific force in g, positive toward the right wing - the slip/skid ball.
+    Q_PROPERTY(double   lateralAcceleration READ lateralAcceleration NOTIFY changed)
+    Q_PROPERTY(bool     lateralAccelerationValid READ lateralAccelerationValid NOTIFY changed)
+
 public:
     /// Mission Planner's default, and there is no better source: ArduPilot exposes no critical
     /// angle parameter, because it does not compute one. Treated as a display reference only -
@@ -89,12 +94,28 @@ public:
     bool airspeedSufficient() const;
     bool usable() const { return _valid && airspeedSufficient(); }
 
+    /// Body-frame lateral specific force, in g, positive toward the right wing.
+    ///
+    /// This is what a slip/skid ball actually shows, and it is **not** the sideslip angle the
+    /// flight path vector already displays. Sideslip is an aerodynamic angle; this is a force
+    /// balance, and the two disagree in normal flight - measured over a 15 minute sortie on
+    /// 2026-10-09, sideslip ran a median +3.4 deg while lateral acceleration ran a median
+    /// -0.036 g. A ball driven from sideslip would be a second drawing of a number already on
+    /// screen, and would be wrong.
+    ///
+    /// The sign convention was established against that flight rather than assumed: regressed
+    /// against the steady-turn coordination model (omega*V/g)*cos(phi) - sin(phi), it comes out
+    /// positively correlated (r = +0.35 in banked flight) with the means agreeing to 0.01 g.
+    double lateralAcceleration() const { return _lateralAccel; }
+    bool lateralAccelerationValid() const { return _lateralAccelValid; }
+
 signals:
     void changed();
 
 private slots:
     void _activeVehicleChanged();
     void _checkStale();
+    void _checkAccelStale();
     void _parametersReadyChanged();
 
 private:
@@ -106,6 +127,14 @@ private:
     bool    _valid = false;
     double  _aoa = 0;
     double  _ssa = 0;
+
+    bool    _lateralAccelValid = false;
+    double  _lateralAccel = 0;
+
+    /// RAW_IMU rides the RAW_SENS group, which the fleet runs at 2 Hz against EXTRA1's 4.2 -
+    /// so the 2 s window the angles use would be only four samples here. Three seconds is six.
+    static constexpr int kAccelStaleMs = 3000;
+    QElapsedTimer   _lastAccelReport;
 
     /// EXTRA1 runs at up to 10 Hz and AP_AHRS recomputes at 20 Hz, so a second of silence is
     /// already many missed updates. A flight path vector frozen on an old sideslip would sit
