@@ -19,6 +19,7 @@
          (it only prefixes /Custom, and :/Custom/custom/... does not exist). These
          files are outside every QML module, so they must import what they use. -->
     <qresource prefix="/custom/qml">
+        <file alias="OIAdvancedVerticalPanel.qml">src/qml/OIAdvancedVerticalPanel.qml</file>
         <file alias="OIGimbalIndicator.qml">src/qml/OIGimbalIndicator.qml</file>
         <file alias="OIKeyboardIndicator.qml">src/qml/OIKeyboardIndicator.qml</file>
         <file alias="OIMapOverlayMarker.qml">src/qml/OIMapOverlayMarker.qml</file>

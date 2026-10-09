@@ -4,7 +4,8 @@
     "bindings": {
         "hasChecklist": "QGroundControl.corePlugin.options.preFlightChecklistUrl.toString().length",
         "useChecklistValue": "QGroundControl.settingsManager.appSettings.useChecklist.value",
-        "virtualJoystickOn": "QGroundControl.settingsManager.appSettings.virtualJoystick.rawValue"
+        "virtualJoystickOn": "QGroundControl.settingsManager.appSettings.virtualJoystick.rawValue",
+        "advancedPanelSelected": "QGroundControl.settingsManager.flyViewSettings.instrumentQmlFile2.rawValue.indexOf('OIAdvancedVerticalPanel') !== -1"
     },
     "groups": [
         {
@@ -135,10 +136,12 @@
                     "setting": "flyViewSettings.showAdditionalIndicatorsCompass"
                 },
                 {
-                    "setting": "flyViewSettings.showAdditionalIndicatorsAirspeed"
+                    "setting": "flyViewSettings.showAdditionalIndicatorsAirspeed",
+                    "showWhen": "advancedPanelSelected"
                 },
                 {
-                    "setting": "flyViewSettings.showAdditionalIndicatorsAltitude"
+                    "setting": "flyViewSettings.showAdditionalIndicatorsAltitude",
+                    "showWhen": "advancedPanelSelected"
                 },
                 {
                     "setting": "flyViewSettings.lockNoseUpCompass"

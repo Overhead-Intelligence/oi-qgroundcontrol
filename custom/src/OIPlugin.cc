@@ -279,6 +279,14 @@ void OIPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData 
 {
     QGCCorePlugin::adjustSettingMetaData(settingsGroup, metaData, userVisible);
 
+    // The instrument panel is chosen from an enum of QML file paths, so a custom build can
+    // offer its own by appending to that enum - no stock QML or settings file has to name it,
+    // and the operator can switch back to a stock panel at any time.
+    if ((settingsGroup == QLatin1String("FlyView")) && (metaData.name() == QLatin1String("instrumentQmlFile2"))) {
+        metaData.addEnumInfo(tr("Advanced Large Vertical"),
+                             QStringLiteral("qrc:/custom/qml/OIAdvancedVerticalPanel.qml"));
+    }
+
     // Settings with an empty group name (App and MAVLink) sit in the [General] section of
     // the ini, which QSettings exposes as top-level keys (no "General/" prefix).
     const QString key = settingsGroup.isEmpty() ? metaData.name() : (settingsGroup + QLatin1Char('/') + metaData.name());
