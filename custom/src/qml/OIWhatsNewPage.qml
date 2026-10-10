@@ -68,6 +68,10 @@ Item {
         {
             name: qsTr("GCS Location Config"),
             text: qsTr("With an aircraft connected, you can now click on the map to move your GCS.")
+        },
+        {
+            name: qsTr("Hide Advanced Debug Features"),
+            text: qsTr("You can now hide advanced debug features like Mock Link, Debug window, and Palette Test from the Settings menu. Switch <b>Hide advanced debug features</b> on under <b>General</b> in Application Settings.")
         }
     ]
 

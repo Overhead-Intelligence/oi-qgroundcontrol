@@ -119,19 +119,19 @@
             "name": "Mock Link",
             "qml": "MockLink.qml",
             "icon": "qrc:/InstrumentValueIcons/drone.svg",
-            "visible": "ScreenTools.isDebug"
+            "visible": "!QGroundControl.settingsManager.appSettings.hideDebugFeatures"
         },
         {
             "name": "Debug",
             "qml": "DebugWindow.qml",
             "icon": "qrc:/InstrumentValueIcons/bug.svg",
-            "visible": "ScreenTools.isDebug"
+            "visible": "!QGroundControl.settingsManager.appSettings.hideDebugFeatures"
         },
         {
             "name": "Palette Test",
             "qml": "QmlTest.qml",
             "icon": "qrc:/InstrumentValueIcons/photo.svg",
-            "visible": "ScreenTools.isDebug"
+            "visible": "!QGroundControl.settingsManager.appSettings.hideDebugFeatures"
         }
     ]
 }
