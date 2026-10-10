@@ -389,6 +389,15 @@
             "default": true,
             "label": "Elapsed Timestamps",
             "keywords": "log,time,elapsed,timestamp,console"
+        },
+        {
+            "name": "hideDebugFeatures",
+            "shortDesc": "Hide advanced debug features",
+            "longDesc": "When enabled, advanced debug features like Mock Link, Debug window, and Palette Test are hidden from the Settings menu.",
+            "type": "bool",
+            "default": true,
+            "label": "Hide advanced debug features",
+            "keywords": "debug,advanced,hidden,developer"
         }
     ]
 }
