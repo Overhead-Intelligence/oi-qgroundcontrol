@@ -354,6 +354,21 @@ bool MissionController::multipleLandPatternsAllowed(void) const {
            !_masterController->managerVehicle()->px4Firmware();
 }
 
+VisualMissionItem* MissionController::insertReturnToLaunchItem(QGeoCoordinate coordinate, int visualItemIndex, bool makeCurrentItem)
+{
+    VisualMissionItem* rtlItem = _insertSimpleMissionItemWorker(coordinate, MAV_CMD_NAV_RETURN_TO_LAUNCH, visualItemIndex, makeCurrentItem);
+
+    // RTL carries no altitude, so _setDefaultsForCommand() leaves it on MAV_FRAME_MISSION.
+    // Framed above terrain instead, to match the rest of a terrain-referenced plan. ArduPilot
+    // ignores the frame on this command - the aircraft flies RTL_ALTITUDE either way - so this
+    // is for the plan's own consistency, not a change in how the return is flown.
+    if (SimpleMissionItem* simpleItem = qobject_cast<SimpleMissionItem*>(rtlItem)) {
+        simpleItem->missionItem().setFrame(MAV_FRAME_GLOBAL_TERRAIN_ALT);
+    }
+
+    return rtlItem;
+}
+
 VisualMissionItem* MissionController::insertLandItem(QGeoCoordinate coordinate, int visualItemIndex, bool makeCurrentItem)
 {
     if (_controllerVehicle->fixedWing()) {

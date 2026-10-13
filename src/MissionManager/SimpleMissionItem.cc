@@ -830,7 +830,12 @@ void SimpleMissionItem::_setDefaultsForCommand(void)
     emit altitudeFrameChanged();
     _amslAltAboveTerrainFact.setRawValue(qQNaN());
     if (specifiesAltitude()) {
-        double defaultAlt = SettingsManager::instance()->appSettings()->defaultMissionItemAltitude()->rawValue().toDouble();
+        // Takeoff gets its own default. A quadplane climbs to a fraction of the survey
+        // altitude on the VTOL leg and makes the rest up in forward flight, so sharing the
+        // waypoint altitude here meant editing it on every plan.
+        AppSettings* appSettings = SettingsManager::instance()->appSettings();
+        double defaultAlt = (isTakeoffItem() ? appSettings->defaultTakeoffItemAltitude()
+                                             : appSettings->defaultMissionItemAltitude())->rawValue().toDouble();
         _altitudeFact.setRawValue(defaultAlt);
         _missionItem._param7Fact.setRawValue(defaultAlt);
         // Note that setAltitudeFrame will also set MAV_FRAME correctly through signalling

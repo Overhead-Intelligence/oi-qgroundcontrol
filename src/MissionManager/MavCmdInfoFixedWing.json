@@ -25,7 +25,7 @@
             "param1": {
                 "label":            "Pitch",
                 "units":            "deg",
-                "default":          15,
+                "default":          0,
                 "decimalPlaces":    2,
                 "userMin":          0,
                 "userMax":          45
