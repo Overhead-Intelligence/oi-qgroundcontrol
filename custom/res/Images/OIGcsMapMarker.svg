@@ -1,0 +1,21 @@
+<!--
+  The OI mark as a map badge: white on an opaque black box.
+
+  Separate from OILogoMark.svg because the map is the only place the mark is drawn untinted.
+  Everywhere else it goes through QGCColoredImage, whose provider composites with
+  CompositionMode_SourceIn - it keeps the alpha and replaces every pixel's colour with one
+  flat tint. A two-tone badge there would come out as a solid filled square.
+
+  Geometry is OILogoMark.svg's paths at 0.87 about the centre, which leaves even padding
+  inside the box; keep the two in step if the mark is ever redrawn.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+  <rect x="0" y="0" width="1000" height="1000" rx="180" ry="180" fill="#000000"/>
+  <g transform="translate(500,500) scale(0.87) translate(-500,-500)" fill="#ffffff" fill-rule="nonzero">
+    <path d="M 720.49 165.06 A 401.0 401.0 0 0 0 278.93 165.44 L 326.37 233.58 A 318.0 318.0 0 0 1 673.16 233.28 Z"/>
+    <path d="M 262.92 176.59 A 401.0 401.0 0 0 0 263.49 823.83 L 310.82 755.60 A 318.0 318.0 0 0 1 310.37 244.73 Z"/>
+    <path d="M 279.51 834.94 A 401.0 401.0 0 0 0 721.07 834.56 L 673.63 766.42 A 318.0 318.0 0 0 1 326.84 766.72 Z"/>
+    <path d="M 737.08 823.41 A 401.0 401.0 0 0 0 736.51 176.17 L 689.18 244.40 A 318.0 318.0 0 0 1 689.63 755.27 Z"/>
+    <path d="M 462.00 100.80 H 538.00 V 899.20 H 462.00 Z"/>
+  </g>
+</svg>
