@@ -21,6 +21,7 @@
 #include "VideoBackend.h"
 #include "SurveyPlanCreator.h"
 #include "CorridorScanPlanCreator.h"
+#include "LoiterOverHomePlanCreator.h"
 #include "StructureScanPlanCreator.h"
 #include "SurveyComplexItem.h"
 #include "CorridorScanComplexItem.h"
@@ -421,6 +422,7 @@ QList<PlanCreator*> QGCCorePlugin::planCreators(PlanMasterController *planMaster
         new SurveyPlanCreator(planMasterController),
         new CorridorScanPlanCreator(planMasterController),
         new StructureScanPlanCreator(planMasterController),
+        new LoiterOverHomePlanCreator(planMasterController),
         new BlankPlanCreator(planMasterController),
     };
 }
