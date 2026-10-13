@@ -41,6 +41,7 @@ Rectangle {
     property real   _cameraMinTriggerInterval:  _missionItem.cameraCalc.minTriggerInterval.rawValue
     property string _doneAdjusting:             qsTr("Done")
     property bool   _presetsAvailable:          _missionItem.presetNames.length !== 0
+    property bool   _toolsExpanded:             true
     property bool   _tracing:                   transectAreaObject ? transectAreaObject.traceMode : false
     // Everything except the tools is hidden until there is an area to configure, and while a
     // trace is in progress - the same as the old behaviour, which hid the panel behind a help
@@ -66,62 +67,69 @@ Rectangle {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
-    Component {
-        id: transectAreaToolsComponent
+    /// The shape tools, instantiated twice - once above everything for when there is no area
+    /// yet, once above Statistics for when there is.
+    ///
+    /// Both instances exist at all times and are hidden with `visible`, rather than being
+    /// created and destroyed by a Loader. A Loader inside a ColumnLayout keeps contributing its
+    /// last implicit height after `active` goes false, which left a tall gap above the tab bar
+    /// until something else forced a relayout. An invisible item is excluded from the layout
+    /// outright, which is the behaviour this needs.
+    component TransectAreaTools: ColumnLayout {
+        spacing: _margin
+
+        SectionHeader {
+            id:                 toolsHeader
+            Layout.fillWidth:   true
+            text:               transectAreaToolsName
+            // Shared, so collapsing it in one position does not come back expanded in the other.
+            checked:            _root._toolsExpanded
+            onCheckedChanged:   _root._toolsExpanded = checked
+        }
 
         ColumnLayout {
-            spacing: _margin
+            Layout.fillWidth:   true
+            spacing:            _margin
+            // Forced open while tracing, otherwise a collapsed section would take the
+            // "Done Tracing" button away with it and leave no way to finish.
+            visible:            toolsHeader.checked || _tracing
 
-            SectionHeader {
-                id:                 toolsHeader
+            QGCLabel {
                 Layout.fillWidth:   true
-                text:               transectAreaToolsName
+                wrapMode:           Text.WordWrap
+                text:               _tracing ? qsTr("Click in the map to add vertices. Click 'Done Tracing' when finished.")
+                                             : transectAreaDefinitionHelp
+                visible:            _tracing || !transectAreaDefinitionComplete
             }
 
-            ColumnLayout {
+            QGCButton {
                 Layout.fillWidth:   true
-                spacing:            _margin
-                // Forced open while tracing, otherwise a collapsed section would take the
-                // "Done Tracing" button away with it and leave no way to finish.
-                visible:            toolsHeader.checked || _tracing
+                text:               qsTr("Basic")
+                visible:            !_tracing
+                onClicked:          transectAreaObject.requestBasicShape()
+            }
 
-                QGCLabel {
-                    Layout.fillWidth:   true
-                    wrapMode:           Text.WordWrap
-                    text:               _tracing ? qsTr("Click in the map to add vertices. Click 'Done Tracing' when finished.")
-                                                 : transectAreaDefinitionHelp
-                    visible:            _tracing || !transectAreaDefinitionComplete
-                }
+            QGCButton {
+                Layout.fillWidth:   true
+                text:               qsTr("Circular")
+                visible:            !_tracing && transectAreaSupportsCircle
+                onClicked:          transectAreaObject.requestCircularShape()
+            }
 
-                QGCButton {
-                    Layout.fillWidth:   true
-                    text:               qsTr("Basic")
-                    visible:            !_tracing
-                    onClicked:          transectAreaObject.requestBasicShape()
-                }
+            QGCButton {
+                Layout.fillWidth:   true
+                text:               _tracing ? qsTr("Done Tracing") : qsTr("Trace")
+                // Setting the property is the whole gesture: the map visuals save the
+                // existing vertices on the way in and restore them if the trace is
+                // abandoned, so there is nothing to coordinate from here.
+                onClicked:          transectAreaObject.traceMode = !transectAreaObject.traceMode
+            }
 
-                QGCButton {
-                    Layout.fillWidth:   true
-                    text:               qsTr("Circular")
-                    visible:            !_tracing && transectAreaSupportsCircle
-                    onClicked:          transectAreaObject.requestCircularShape()
-                }
-
-                QGCButton {
-                    Layout.fillWidth:   true
-                    text:               _tracing ? qsTr("Done Tracing") : qsTr("Trace")
-                    // Setting the property is the whole gesture: the map visuals save the
-                    // existing vertices on the way in and restore them if the trace is
-                    // abandoned, so there is nothing to coordinate from here.
-                    onClicked:          transectAreaObject.traceMode = !transectAreaObject.traceMode
-                }
-
-                QGCButton {
-                    Layout.fillWidth:   true
-                    text:               qsTr("Load KML/SHP...")
-                    visible:            !_tracing
-                    onClicked:          transectAreaLoadDialog.openForLoad()
-                }
+            QGCButton {
+                Layout.fillWidth:   true
+                text:               qsTr("Load KML/SHP...")
+                visible:            !_tracing
+                onClicked:          transectAreaLoadDialog.openForLoad()
             }
         }
     }
@@ -135,10 +143,9 @@ Rectangle {
 
         // Before there is an area - and while one is being traced - the tools are the only
         // thing in the panel. Once there is one they move down next to Statistics, below.
-        Loader {
+        TransectAreaTools {
             Layout.fillWidth:   true
-            active:             !_areaReady
-            sourceComponent:    transectAreaToolsComponent
+            visible:            !_areaReady
         }
 
         ColumnLayout {
@@ -195,10 +202,9 @@ Rectangle {
                     visible:            transectValuesHeader.checked
                 }
 
-                Loader {
+                TransectAreaTools {
                     Layout.fillWidth:   true
-                    active:             _areaReady
-                    sourceComponent:    transectAreaToolsComponent
+                    visible:            _areaReady
                 }
 
                 SectionHeader {

@@ -44,6 +44,10 @@ MissionController::MissionController(PlanMasterController* masterController, QOb
     , _planViewSettings     (SettingsManager::instance()->planViewSettings())
     , _appSettings          (SettingsManager::instance()->appSettings())
 {
+    // Before anything can create an item against it. A member initialiser cannot read this
+    // because the settings pointer is only valid once the initialiser list above has run.
+    _globalAltFrame = _defaultGlobalAltitudeFrame();
+
     _resetMissionFlightStatus();
 
     _updateTimer.setSingleShot(true);
@@ -154,8 +158,11 @@ void MissionController::_newMissionItemsAvailableFromVehicle(bool removeAllReque
             _visualItems->append(simpleItem);
         }
 
-        // We set Altitude frame to mixed, otherwise if we need a non relative altitude frame we won't be able to change it
-        setGlobalAltitudeFrame(weHaveItemsFromVehicle ? QGroundControlQmlGlobal::AltitudeFrameMixed : QGroundControlQmlGlobal::AltitudeFrameRelative);
+        // Mixed when the vehicle actually sent items, so that a plan holding several frames can
+        // still be edited. With nothing to read back from, this is a new plan and starts in the
+        // configured default rather than a hardcoded Relative - that hardcode is what kept
+        // overriding the setting.
+        setGlobalAltitudeFrame(weHaveItemsFromVehicle ? QGroundControlQmlGlobal::AltitudeFrameMixed : _defaultGlobalAltitudeFrame());
 
         MissionController::_scanForAdditionalSettings(_visualItems, _masterController);
 
@@ -2418,6 +2425,12 @@ MissionController::SendToVehiclePreCheckState MissionController::sendToVehiclePr
         return SendToVehiclePreCheckStateFirwmareVehicleMismatch;
     }
     return SendToVehiclePreCheckStateOk;
+}
+
+QGroundControlQmlGlobal::AltitudeFrame MissionController::_defaultGlobalAltitudeFrame(void) const
+{
+    return static_cast<QGroundControlQmlGlobal::AltitudeFrame>(
+                _planViewSettings->defaultMissionAltitudeFrame()->rawValue().toUInt());
 }
 
 QGroundControlQmlGlobal::AltitudeFrame MissionController::globalAltitudeFrame(void)

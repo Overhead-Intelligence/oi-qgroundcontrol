@@ -298,6 +298,9 @@ public:
 
     QGroundControlQmlGlobal::AltitudeFrame globalAltitudeFrame(void);
     QGroundControlQmlGlobal::AltitudeFrame globalAltitudeFrameDefault(void);
+
+    /// The frame a plan starts in, from settings.
+    QGroundControlQmlGlobal::AltitudeFrame _defaultGlobalAltitudeFrame(void) const;
     void setGlobalAltitudeFrame(QGroundControlQmlGlobal::AltitudeFrame altFrame);
 
     // Top-level group row indices in _visualItemsTree (must match _setupTreeModel order)
@@ -458,9 +461,9 @@ private:
     double                      _maxAMSLAltitude =              0;
     bool                        _missionContainsVTOLTakeoff =   false;
 
-    // OI: AGL by default. The fleet flies terrain-referenced surveys, and starting in
-    // Relative meant every plan had to be switched by hand before the first waypoint.
-    QGroundControlQmlGlobal::AltitudeFrame _globalAltFrame = QGroundControlQmlGlobal::AltitudeFrameTerrain;
+    /// Set from planViewSettings()->defaultMissionAltitudeFrame() in the constructor and reset
+    /// to it whenever an empty mission arrives; see _defaultGlobalAltitudeFrame().
+    QGroundControlQmlGlobal::AltitudeFrame _globalAltFrame = QGroundControlQmlGlobal::AltitudeFrameRelative;
 
     static constexpr const char* _settingsGroup =                 "MissionController";
     static constexpr const char* _jsonItemsKey =                  "items";

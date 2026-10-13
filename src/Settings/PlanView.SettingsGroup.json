@@ -10,6 +10,17 @@
             "label": "Display the presets tab at start"
         },
         {
+            "name": "defaultMissionAltitudeFrame",
+            "shortDesc": "Altitude frame given to a new mission plan.",
+            "longDesc": "New plans, and plans read from a vehicle that has none, start in this frame. Values map to QGroundControlQmlGlobal::AltitudeFrame.",
+            "type": "uint32",
+            "default": 4,
+            "enumStrings": "Relative (Rel),Absolute (AMSL),Above Terrain Calced (AGLC),Above Terrain (AGL)",
+            "enumValues": "1,2,3,4",
+            "label": "Default Mission Altitude Frame",
+            "keywords": "altitude,frame,terrain,agl"
+        },
+        {
             "name": "showMissionItemStatus",
             "shortDesc": "Show/Hide the mission item status display",
             "type": "bool",
