@@ -266,6 +266,18 @@ open a PR. Never merge `upstream/master` (daily builds).
 
 ## Gotchas
 
+- **A UDP hostname is resolved asynchronously and retried.** Upstream resolves at
+  `addHost()` and once more at connect, and nowhere else; the send loop then skips a
+  target with a null address in silence. One failed lookup therefore killed a
+  hostname link for the life of the session - observed in the field when the GCS
+  lost internet but the aircraft was still reachable on the LAN, and the operator
+  had to recreate the link by IP. `addHost()` now only parses a literal, because it
+  runs on the GUI thread and `QHostInfo::fromName()` blocks there for the resolver's
+  full timeout. Names are looked up by `UDPWorker` with `QHostInfo::lookupHost()` and
+  retried every `kResolveRetryIntervalMs` while the link is up, and the operator is
+  told once per name. **A late resolve must re-run `_snapshotAcceptedAddresses()`**:
+  the accept list below is built from resolved addresses at connect, so without that
+  the name would resolve, telemetry would arrive, and the link would drop it.
 - **UDP links diverge from upstream in three ways, all deliberate.** They bind
   `DontShareAddress`, so a second link on a port another link already holds fails
   instead of binding successfully and silently receiving nothing (two sockets on

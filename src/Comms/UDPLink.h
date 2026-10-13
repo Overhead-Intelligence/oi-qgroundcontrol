@@ -8,6 +8,7 @@
 #include <QtCore/QMutex>
 #include <QtCore/QString>
 #include <QtNetwork/QHostAddress>
+#include <QtNetwork/QHostInfo>
 
 #include <atomic>
 
@@ -83,7 +84,13 @@ public:
 
     QStringList hostList() const { return _hostList; }
     QList<std::shared_ptr<UDPClient>> targetHosts() const { return _targetHosts; }
-    void resolveHosts() const;
+
+    /// Hostnames with no address yet. The worker resolves these; nothing on a GUI thread does,
+    /// because a name lookup blocks for as long as the system resolver takes to give up.
+    QStringList unresolvedHostnames() const;
+    /// Record a lookup result against every target using that name.
+    /// @return true if any target's address changed.
+    bool applyResolvedAddress(const QString &hostname, const QHostAddress &address) const;
     quint16 localPort() const { return _localPort; }
     void setLocalPort(quint16 port) { if (port != _localPort) { _localPort = port; emit localPortChanged(); } }
 
@@ -101,7 +108,11 @@ signals:
 private:
     void _updateHostList();
 
-    static QString _getIpAddress(const QString &address);
+    /// Parses an address that is already a literal. Deliberately does **not** do a name
+    /// lookup: this runs on the GUI thread from addHost(), and QHostInfo::fromName() blocks
+    /// there until the resolver gives up - seconds, when a DNS server is configured but
+    /// unreachable, which is exactly what losing internet on a working LAN looks like.
+    static QHostAddress _literalAddress(const QString &address);
 
     QStringList _hostList;
     QList<std::shared_ptr<UDPClient>> _targetHosts;
@@ -135,6 +146,8 @@ signals:
     void dataSent(const QByteArray &data);
 
 private slots:
+    void _onHostLookupFinished(const QHostInfo &info);
+    void _resolvePendingHosts();
     void _onSocketConnected();
     void _onSocketDisconnected();
     void _onSocketReadyRead();
@@ -161,6 +174,18 @@ private:
     bool _acceptAnySender = false;
     /// Senders already reported as rejected, so one misrouted aircraft cannot flood the log.
     QSet<QHostAddress> _rejectedSenders;
+
+    /// Retries name lookups for as long as the link is up.
+    ///
+    /// A name that failed once used to stay failed for the life of the link: resolution ran at
+    /// connect and nowhere else, and the send loop skips a target with no address without
+    /// saying anything. Losing internet in the field therefore killed a hostname link until it
+    /// was recreated by IP, even though the aircraft was reachable on the LAN the whole time.
+    QTimer *_resolveTimer = nullptr;
+    /// Lookups already in flight, so a slow resolver is not asked the same name every tick.
+    QSet<QString> _lookupsInFlight;
+    /// Names already reported to the operator, so the retry does not reopen the same error.
+    QSet<QString> _reportedUnresolved;
 };
 
 /*===========================================================================*/

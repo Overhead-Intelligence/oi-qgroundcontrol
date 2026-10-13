@@ -4,6 +4,7 @@
 
 #include <QtCore/QMutexLocker>
 #include <QtCore/QThread>
+#include <QtCore/QTimer>
 #include <QtNetwork/QHostInfo>
 #include <QtNetwork/QNetworkDatagram>
 #include <QtNetwork/QNetworkInterface>
@@ -13,6 +14,8 @@
 QGC_LOGGING_CATEGORY(UDPLinkLog, "Comms.UDPLink")
 
 namespace {
+    /// How often an unresolved hostname is retried while the link is up.
+    constexpr int kResolveRetryIntervalMs = 5000;
     /// Port a link gets when its settings carry none. Only a starting value for the field in
     /// the UI - every link stores its own, and nothing binds this implicitly.
     constexpr quint16 kDefaultUdpPort = 14550;
@@ -155,10 +158,10 @@ void UDPConfiguration::addHost(const QString &host, quint16 port)
         return;
     }
 
-    const QHostAddress address(_getIpAddress(cleanHost));
-    if (address.isNull()) {
-        qCWarning(UDPLinkLog) << "Could not resolve host:" << cleanHost << "port:" << port << "- will retry on connect";
-    }
+    // A literal resolves here and now; a name is left for the worker to look up, because this
+    // runs on the GUI thread and a blocking lookup freezes the window for as long as the
+    // resolver takes to fail.
+    const QHostAddress address = _literalAddress(cleanHost);
 
     _targetHosts.append(std::make_shared<UDPClient>(cleanHost, address, port));
     _updateHostList();
@@ -192,7 +195,9 @@ void UDPConfiguration::removeHost(const QString &host, quint16 port)
         }
     }
 
-    const QHostAddress resolved(_getIpAddress(cleanHost));
+    // Only a literal is matched here. A target added by name is found by the hostname loop
+    // above, and looking the name up would block this GUI thread for no extra reach.
+    const QHostAddress resolved = _literalAddress(cleanHost);
     if (!resolved.isNull()) {
         for (qsizetype i = 0; i < _targetHosts.size(); ++i) {
             const std::shared_ptr<UDPClient> &target = _targetHosts[i];
@@ -219,42 +224,41 @@ void UDPConfiguration::_updateHostList()
     emit hostListChanged();
 }
 
-void UDPConfiguration::resolveHosts() const
+QStringList UDPConfiguration::unresolvedHostnames() const
 {
+    QStringList names;
+
     for (const std::shared_ptr<UDPClient> &target : _targetHosts) {
-        if (target->hostname.isEmpty()) {
+        if (target->hostname.isEmpty() || !target->address.isNull()) {
             continue;
         }
-
-        const QString ipAdd = _getIpAddress(target->hostname);
-        if (!ipAdd.isEmpty()) {
-            target->address = QHostAddress(ipAdd);
-        } else {
-            qCWarning(UDPLinkLog) << "Could not resolve host:" << target->hostname << "port:" << target->port;
+        if (!names.contains(target->hostname)) {
+            names.append(target->hostname);
         }
     }
+
+    return names;
 }
 
-QString UDPConfiguration::_getIpAddress(const QString &address)
+bool UDPConfiguration::applyResolvedAddress(const QString &hostname, const QHostAddress &address) const
+{
+    bool changed = false;
+
+    for (const std::shared_ptr<UDPClient> &target : _targetHosts) {
+        if ((target->hostname != hostname) || (target->address == address)) {
+            continue;
+        }
+        target->address = address;
+        changed = true;
+    }
+
+    return changed;
+}
+
+QHostAddress UDPConfiguration::_literalAddress(const QString &address)
 {
     const QHostAddress host(address);
-    if (!host.isNull()) {
-        return address;
-    }
-
-    const QHostInfo info = QHostInfo::fromName(address);
-    if (info.error() != QHostInfo::NoError) {
-        return QString();
-    }
-
-    const QList<QHostAddress> hostAddresses = info.addresses();
-    for (const QHostAddress &hostAddress : hostAddresses) {
-        if (hostAddress.protocol() == QAbstractSocket::NetworkLayerProtocol::IPv4Protocol) {
-            return hostAddress.toString();
-        }
-    }
-
-    return QString();
+    return host.isNull() ? QHostAddress() : host;
 }
 
 /*===========================================================================*/
@@ -262,7 +266,13 @@ QString UDPConfiguration::_getIpAddress(const QString &address)
 UDPWorker::UDPWorker(const UDPConfiguration *config, QObject *parent)
     : QObject(parent)
     , _udpConfig(config)
+    , _resolveTimer(new QTimer(this))
 {
+    // Long enough that a dead resolver is not hammered, short enough that an operator who
+    // plugs the network back in sees the link recover without touching it.
+    _resolveTimer->setInterval(kResolveRetryIntervalMs);
+    (void) connect(_resolveTimer, &QTimer::timeout, this, &UDPWorker::_resolvePendingHosts);
+
     qCDebug(UDPLinkLog) << this;
 }
 
@@ -326,8 +336,11 @@ void UDPWorker::connectLink()
 
     _errorEmitted = false;
 
-    _udpConfig->resolveHosts();
+    _lookupsInFlight.clear();
+    _reportedUnresolved.clear();
     _snapshotAcceptedAddresses();
+    _resolvePendingHosts();
+    _resolveTimer->start();
 
     qCDebug(UDPLinkLog) << "Attempting to bind to port:" << _udpConfig->localPort();
     // DontShareAddress, not ReuseAddressHint. Two sockets on one UDP port is not a shared
@@ -361,6 +374,11 @@ void UDPWorker::connectLink()
 
 void UDPWorker::disconnectLink()
 {
+    if (_resolveTimer) {
+        _resolveTimer->stop();
+    }
+    _lookupsInFlight.clear();
+
     // Deliberately not gated on isConnected(). That gate, paired with the identical one in
     // UDPLink::disconnect(), meant a link that failed to bind could never be torn down:
     // nothing closed the socket and nothing emitted `disconnected`, so the configuration
@@ -421,6 +439,71 @@ void UDPWorker::writeData(const QByteArray &data)
     locker.unlock();
 
     emit dataSent(data);
+}
+
+void UDPWorker::_resolvePendingHosts()
+{
+    const QStringList pending = _udpConfig->unresolvedHostnames();
+    if (pending.isEmpty()) {
+        // Nothing left to chase. The timer keeps running: a link can gain a host while it is
+        // up, and the tick is cheap when there is nothing to do.
+        return;
+    }
+
+    for (const QString &hostname : pending) {
+        if (_lookupsInFlight.contains(hostname)) {
+            // A resolver that is timing out rather than answering would otherwise collect one
+            // outstanding lookup per tick for the same name.
+            continue;
+        }
+
+        (void) _lookupsInFlight.insert(hostname);
+        // Asynchronous on purpose. The blocking form stalled this thread for the resolver's
+        // full timeout on every connect, and answered once.
+        (void) QHostInfo::lookupHost(hostname, this, &UDPWorker::_onHostLookupFinished);
+    }
+}
+
+void UDPWorker::_onHostLookupFinished(const QHostInfo &info)
+{
+    const QString hostname = info.hostName();
+    (void) _lookupsInFlight.remove(hostname);
+
+    QHostAddress resolved;
+    if (info.error() == QHostInfo::NoError) {
+        for (const QHostAddress &candidate : info.addresses()) {
+            if (candidate.protocol() == QAbstractSocket::NetworkLayerProtocol::IPv4Protocol) {
+                resolved = candidate;
+                break;
+            }
+        }
+    }
+
+    if (resolved.isNull()) {
+        qCDebug(UDPLinkLog) << "Could not resolve host:" << hostname << info.errorString() << "- will retry";
+
+        // Said once per name per connection. The retry is the point of this, so repeating the
+        // failure every tick would bury the link's real traffic in the log and the UI.
+        if (!_reportedUnresolved.contains(hostname)) {
+            (void) _reportedUnresolved.insert(hostname);
+            emit errorOccurred(tr("Could not resolve host '%1'. Retrying - telemetry to it is "
+                                  "paused until the name resolves.").arg(hostname));
+        }
+        return;
+    }
+
+    if (!_udpConfig->applyResolvedAddress(hostname, resolved)) {
+        return;
+    }
+
+    qCDebug(UDPLinkLog) << "Resolved host:" << hostname << "to" << resolved;
+    (void) _reportedUnresolved.remove(hostname);
+
+    // Required, not tidying. The accept list is built from resolved addresses at connect, so a
+    // host that resolves after that is not on it - and this link drops datagrams from senders
+    // that are not on it. Without this the name would resolve, telemetry would arrive, and the
+    // link would silently throw it away.
+    _snapshotAcceptedAddresses();
 }
 
 void UDPWorker::_snapshotAcceptedAddresses()
