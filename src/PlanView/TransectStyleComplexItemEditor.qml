@@ -24,6 +24,14 @@ Rectangle {
     property var    transectValuesComponent:        undefined
     property var    presetsTransectValuesComponent: undefined
 
+    // The shape tools. These used to be a PlanEditToolbar floating over the top of the map,
+    // which operators were not finding - the panel said "use the Polygon Tools" and the tools
+    // were a row of small buttons somewhere else entirely. They are a section in this panel now.
+    property var    transectAreaObject:             undefined   ///< QGCMapPolygon or QGCMapPolyline
+    property string transectAreaToolsName:          _internalError
+    property bool   transectAreaSupportsCircle:     false
+    property var    transectAreaLoadDialog:         undefined
+
     readonly property string _internalError: "Internal Error"
 
     property var    _missionItem:               missionItem
@@ -33,6 +41,11 @@ Rectangle {
     property real   _cameraMinTriggerInterval:  _missionItem.cameraCalc.minTriggerInterval.rawValue
     property string _doneAdjusting:             qsTr("Done")
     property bool   _presetsAvailable:          _missionItem.presetNames.length !== 0
+    property bool   _tracing:                   transectAreaObject ? transectAreaObject.traceMode : false
+    // Everything except the tools is hidden until there is an area to configure, and while a
+    // trace is in progress - the same as the old behaviour, which hid the panel behind a help
+    // line until the polygon existed.
+    property bool   _areaReady:                 transectAreaDefinitionComplete && !_missionItem.wizardMode && !_tracing
 
     function polygonCaptureStarted() {
         _missionItem.clearPolygon()
@@ -53,6 +66,66 @@ Rectangle {
 
     QGCPalette { id: qgcPal; colorGroupEnabled: true }
 
+    Component {
+        id: transectAreaToolsComponent
+
+        ColumnLayout {
+            spacing: _margin
+
+            SectionHeader {
+                id:                 toolsHeader
+                Layout.fillWidth:   true
+                text:               transectAreaToolsName
+            }
+
+            ColumnLayout {
+                Layout.fillWidth:   true
+                spacing:            _margin
+                // Forced open while tracing, otherwise a collapsed section would take the
+                // "Done Tracing" button away with it and leave no way to finish.
+                visible:            toolsHeader.checked || _tracing
+
+                QGCLabel {
+                    Layout.fillWidth:   true
+                    wrapMode:           Text.WordWrap
+                    text:               _tracing ? qsTr("Click in the map to add vertices. Click 'Done Tracing' when finished.")
+                                                 : transectAreaDefinitionHelp
+                    visible:            _tracing || !transectAreaDefinitionComplete
+                }
+
+                QGCButton {
+                    Layout.fillWidth:   true
+                    text:               qsTr("Basic")
+                    visible:            !_tracing
+                    onClicked:          transectAreaObject.requestBasicShape()
+                }
+
+                QGCButton {
+                    Layout.fillWidth:   true
+                    text:               qsTr("Circular")
+                    visible:            !_tracing && transectAreaSupportsCircle
+                    onClicked:          transectAreaObject.requestCircularShape()
+                }
+
+                QGCButton {
+                    Layout.fillWidth:   true
+                    text:               _tracing ? qsTr("Done Tracing") : qsTr("Trace")
+                    // Setting the property is the whole gesture: the map visuals save the
+                    // existing vertices on the way in and restore them if the trace is
+                    // abandoned, so there is nothing to coordinate from here.
+                    onClicked:          transectAreaObject.traceMode = !transectAreaObject.traceMode
+                }
+
+                QGCButton {
+                    Layout.fillWidth:   true
+                    text:               qsTr("Load KML/SHP...")
+                    visible:            !_tracing
+                    onClicked:          transectAreaLoadDialog.openForLoad()
+                }
+            }
+        }
+    }
+
     ColumnLayout {
         id:                 editorColumn
         anchors.margins:    _margin
@@ -60,19 +133,18 @@ Rectangle {
         anchors.left:       parent.left
         anchors.right:      parent.right
 
-        QGCLabel {
-            id:                     transectAreaDefinitionCompleteLabel
-            Layout.fillWidth:       true
-            wrapMode:               Text.WordWrap
-            horizontalAlignment:    Text.AlignHCenter
-            text:                   transectAreaDefinitionHelp
-            visible:                !transectAreaDefinitionComplete || _missionItem.wizardMode
+        // Before there is an area - and while one is being traced - the tools are the only
+        // thing in the panel. Once there is one they move down next to Statistics, below.
+        Loader {
+            Layout.fillWidth:   true
+            active:             !_areaReady
+            sourceComponent:    transectAreaToolsComponent
         }
 
         ColumnLayout {
             Layout.fillWidth:   true
             spacing:            _margin
-            visible:            transectAreaDefinitionComplete && !_missionItem.wizardMode
+            visible:            _areaReady
 
             TransectStyleComplexItemTabBar {
                 id:                 tabBar
@@ -121,6 +193,12 @@ Rectangle {
                     text:               qsTr("Rotate Entry Point")
                     onClicked:          _missionItem.rotateEntryPoint()
                     visible:            transectValuesHeader.checked
+                }
+
+                Loader {
+                    Layout.fillWidth:   true
+                    active:             _areaReady
+                    sourceComponent:    transectAreaToolsComponent
                 }
 
                 SectionHeader {

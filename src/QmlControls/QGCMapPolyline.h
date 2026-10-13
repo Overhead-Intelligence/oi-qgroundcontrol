@@ -30,6 +30,8 @@ public:
     Q_PROPERTY(bool                 traceMode   READ traceMode      WRITE setTraceMode      NOTIFY traceModeChanged)
     Q_PROPERTY(int              selectedVertex  READ selectedVertex WRITE selectVertex      NOTIFY selectedVertexChanged)
 
+    Q_INVOKABLE void requestBasicShape (void) { emit basicShapeRequested(); }
+
     Q_INVOKABLE void clear(void);
     Q_INVOKABLE void appendVertex(const QGeoCoordinate& coordinate);
     Q_INVOKABLE void removeVertex(int vertexIndex);
@@ -102,6 +104,8 @@ public:
     static constexpr const char* jsonPolylineKey = "polyline";
 
 signals:
+    /// See QGCMapPolygon::requestBasicShape for why this is routed through here.
+    void basicShapeRequested (void);
     void countChanged       (int count);
     void pathChanged        (void);
     void dragPathChanged    (void);
