@@ -280,11 +280,14 @@ public:
 
     Q_INVOKABLE QString lastError() const { return _lastError; }
 
-    /// Puts a line in the vehicle's own message panel.
+    /// Puts a line in the vehicle's own message panel, at INFO.
     ///
     /// Goes in at StatusTextHandler rather than through Vehicle::_textMessageReceived,
-    /// which is the path a real STATUSTEXT takes and which reads anything at NOTICE or
-    /// worse out loud. Two spoken lines per connect would wear thin quickly.
+    /// which is the path a real STATUSTEXT takes and reads anything at NOTICE or worse
+    /// out loud. INFO is already under that threshold, but the entry point is what
+    /// makes that true regardless of the severity someone picks later - and INFO is
+    /// also the only severity the panel renders plainly, since NOTICE and WARNING are
+    /// both bold orange.
     static void sayToVehicle(Vehicle *vehicle, const QString &text);
 
 signals:

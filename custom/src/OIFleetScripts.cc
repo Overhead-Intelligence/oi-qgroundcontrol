@@ -293,7 +293,11 @@ void OIFleetVehicleSync::_onCalcFileCRC32Complete(const QString &file, quint32 c
 {
     Q_UNUSED(file)
 
-    if (_phase != Phase::Checksumming) {
+    // The queue is non-empty whenever the phase is Checksumming - _beginPass() clears
+    // both together - but takeFirst() on an empty list is a crash rather than a
+    // misbehaviour, and a probe restarted by an arm/disarm bounce is exactly the kind
+    // of timing that would find a hole in that invariant.
+    if (_phase != Phase::Checksumming || _checksumQueue.isEmpty()) {
         return;
     }
     _phase = Phase::Idle;
@@ -456,12 +460,16 @@ void OIFleetVehicleSync::_restartScripting()
     // We only reach this with SCR_ENABLE non-zero, and the scripts directory present -
     // which AP_Scripting::init() creates, and init() returns early when scripting is
     // off. So the Lua thread is running and will pick the new files up.
+    //
+    // Nothing is said here on purpose. ArduPilot announces its own restart at
+    // CRITICAL ("Scripting: restarted"), which is both louder and better evidence
+    // than anything the GCS could claim about it - a second line from us would only
+    // repeat it, half a second earlier and with less authority.
     _vehicle->sendMavCommand(MAV_COMP_ID_AUTOPILOT1,
                              static_cast<MAV_CMD>(MAV_CMD_SCRIPTING),
                              false /* showError */,
                              kScriptingCmdStopAndRestart);
 
-    OIFleetScriptManager::sayToVehicle(_vehicle, tr("Scripts uploaded. Changes applied."));
     _setStatus(tr("All scripts present"), LevelGood);
 }
 
@@ -705,7 +713,7 @@ void OIFleetScriptManager::sayToVehicle(Vehicle *vehicle, const QString &text)
     }
     vehicle->statusTextHandler()->handleHTMLEscapedTextMessage(
         static_cast<MAV_COMPONENT>(MAV_COMP_ID_AUTOPILOT1),
-        MAV_SEVERITY_NOTICE,
+        MAV_SEVERITY_INFO,
         text.toHtmlEscaped(),
         QString());
 }

@@ -19,14 +19,42 @@ import OI.Controls
 /// aircraft this page is describing. OIFleetScripts.activeVehicleName names it, so
 /// the operator is never guessing which one they are reading about.
 ///
-/// Layout note: SettingsGroupLayout gives its content a fixed width, and a RowLayout
-/// will not shrink a child below its implicit width - it overflows the group border
-/// instead. So rows stay short and anything long is fillWidth with minimumWidth 0.
+/// Layout note: SettingsGroupLayout sizes its content box from the content's own
+/// minimum width, so one child that refuses to shrink pushes everything past the
+/// border. The stock LabelledButton is exactly that child - it pins its label with
+/// `Layout.minimumWidth: implicitWidth`, so a label longer than the panel overflows
+/// rather than wrapping. ActionRow below is the same control with a label that can
+/// actually shrink; everything else here is fillWidth with minimumWidth 0. No fixed
+/// width is needed once nothing has an unshrinkable minimum.
 Item {
     id:             root
     implicitHeight: mainLayout.implicitHeight
 
     readonly property var _sync: OIFleetScripts.activeSync
+
+    /// LabelledButton that wraps instead of overflowing. See the layout note above.
+    component ActionRow: RowLayout {
+        id:         _row
+        spacing:    ScreenTools.defaultFontPixelWidth * 2
+
+        property alias label:       _label.text
+        property alias buttonText:  _button.text
+        property alias buttonEnabled: _button.enabled
+
+        signal clicked
+
+        QGCLabel {
+            id:                     _label
+            Layout.fillWidth:       true
+            Layout.minimumWidth:    0
+            wrapMode:               Text.WordWrap
+        }
+
+        QGCButton {
+            id:         _button
+            onClicked:  _row.clicked()
+        }
+    }
 
     /// Mirrors OIFleetVehicleSync::StatusLevel. Red is reserved for things that are
     /// actually broken - no vehicle and armed are ordinary states, not faults.
@@ -47,7 +75,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Scripting")
-            headingDescription: qsTr("If a connected drone is disarmed, scripts checked here are automatically uploaded to it if not present in its SD card's scripts folder. Scripting will need to be enabled to use this feature (SCR_ENABLE = 1), and any changes will be applied immediately after uploads are finished.")
+            headingDescription: qsTr("If the active vehicle is disarmed, scripts checked here are matched to its flight controller where possible. Scripting must be enabled (SCR_ENABLE = 1) on boot to use this feature.")
 
             // ------------------------------------------------------------ status
             QGCLabel {
@@ -71,7 +99,7 @@ Item {
                 wrapMode:               Text.WordWrap
                 font.pointSize:         ScreenTools.smallFontPointSize
                 visible:                _sync && _sync.unmanagedCount > 0
-                text:                   qsTr("%1 script(s) on the vehicle are not in this list: %2")
+                text:                   qsTr("%1 script(s) on the vehicle are not tracked here: %2")
                                             .arg(_sync ? _sync.unmanagedCount : 0)
                                             .arg(_sync ? _sync.unmanagedScripts.join(", ") : "")
             }
@@ -112,17 +140,19 @@ Item {
                 visible:            OIFleetScripts.scripts.count === 0
             }
 
-            LabelledButton {
-                label:      qsTr("Import a Lua script")
-                buttonText: qsTr("Import")
-                onClicked:  importDialog.openForLoad()
+            ActionRow {
+                Layout.fillWidth:   true
+                label:              qsTr("Import a Lua script")
+                buttonText:         qsTr("Import")
+                onClicked:          importDialog.openForLoad()
             }
 
-            LabelledButton {
-                label:      qsTr("Re-read scripts from disk and re-check the vehicle")
-                buttonText: qsTr("Refresh")
-                enabled:    OIFleetScripts.scripts.count > 0
-                onClicked:  OIFleetScripts.refreshAll()
+            ActionRow {
+                Layout.fillWidth:   true
+                label:              qsTr("Re-read scripts from disk and re-check the vehicle")
+                buttonText:         qsTr("Refresh")
+                buttonEnabled:      OIFleetScripts.scripts.count > 0
+                onClicked:          OIFleetScripts.refreshAll()
             }
 
             QGCLabel {
