@@ -28,6 +28,7 @@
 #include "InstrumentValueData.h"
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
+#include "OIEkfStatus.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
@@ -199,6 +200,25 @@ void OIPlugin::init()
     // engine does. It stays disarmed until an operator arms it.
     _keyboard = new OIKeyboardController(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
+
+    // Fed from mavlinkMessage() below rather than from a Vehicle fact group: QGC parses
+    // EKF_STATUS_REPORT and discards it, and reading it through the plugin hook keeps the whole
+    // feature in custom/ instead of adding a fact group to src/Vehicle.
+    _ekfStatus = new OIEkfStatus(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIEkfStatus", _ekfStatus);
+}
+
+bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
+{
+    Q_UNUSED(link);
+
+    if (_ekfStatus) {
+        // Filters on message id itself, so this stays one comparison for everything else on the
+        // link - the hook sees every message to every vehicle.
+        _ekfStatus->handleMessage(vehicle, message);
+    }
+
+    return QGCCorePlugin::mavlinkMessage(vehicle, link, message);
 }
 
 QString OIPlugin::stableDownloadLocation() const
@@ -245,14 +265,26 @@ const QVariantList &OIPlugin::toolBarIndicators()
         _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
-        // Before the gimbal readout, so the two indicators that are always present -
-        // keyboard and video - stay put as aircraft-dependent ones appear beside them.
-        // Video configuration is routine here rather than a setup step, so it is reached
-        // from the Fly view instead of through the settings pages.
+        // Two groups, in order: indicators about this ground station, then indicators
+        // about the aircraft. The boundary falls between these two - video settings is
+        // the last thing that is about the GCS, EKF health the first that is about the
+        // vehicle. Each decides its own visibility, so this only fixes the order among
+        // whichever of them are showing.
+        //
+        // It decides nothing about the vehicle's *own* indicators.
+        // FlyViewToolBarIndicators.qml draws those from a second Repeater that runs
+        // after this whole list, so everything here sits left of them whatever order
+        // this is in - do not read the position below as what achieves that.
+        //
+        // Video configuration is routine in flight rather than a setup step, which is
+        // why it is reached from the Fly view at all instead of the settings pages.
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIVideoIndicator.qml"))));
-        // Beside it rather than inside it: the gimbal readout hides itself when the
-        // aircraft has no gimbal, and its warnings must not disturb the flying one.
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIEkfIndicator.qml"))));
+        // Beside the keyboard readout rather than inside it: the gimbal readout hides
+        // itself when the aircraft has no gimbal, and its warnings must not disturb the
+        // flying one.
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIGimbalIndicator.qml"))));
     }

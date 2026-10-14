@@ -22,6 +22,8 @@ set(QGC_RESOURCES ${QGC_RESOURCES} ${CUSTOM_RESOURCES} CACHE STRING "Paths to .q
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIEkfStatus.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIEkfStatus.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardController.cc
