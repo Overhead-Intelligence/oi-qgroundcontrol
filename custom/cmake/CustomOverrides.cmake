@@ -46,9 +46,11 @@ set(QGC_DISABLE_PX4_PLUGIN_FACTORY ON CACHE BOOL "Disable PX4 Plugin Factory" FO
 # Icons and installer artwork (generated from the OI brand kit, see custom/README.md)
 # ----------------------------------------------------------------------------
 
-# Linux AppImage icon (not shipped by OI, kept so a Linux build still brands correctly)
-if(EXISTS "${CMAKE_SOURCE_DIR}/${QGC_CUSTOM_DIR}/res/icons/oi-qgroundcontrol.svg")
-    set(QGC_APPIMAGE_ICON_SCALABLE_PATH "${CMAKE_SOURCE_DIR}/${QGC_CUSTOM_DIR}/res/icons/oi-qgroundcontrol.svg" CACHE FILEPATH "AppImage Icon SVG Path" FORCE)
+# Linux AppImage icon (not shipped by OI, kept so a Linux build still brands correctly).
+# Points at the shared badge rather than a copy under res/icons: it was byte-identical to the
+# mark before, and two copies of one piece of artwork only ever diverge.
+if(EXISTS "${CMAKE_SOURCE_DIR}/${QGC_CUSTOM_DIR}/res/Images/OIBadge.svg")
+    set(QGC_APPIMAGE_ICON_SCALABLE_PATH "${CMAKE_SOURCE_DIR}/${QGC_CUSTOM_DIR}/res/Images/OIBadge.svg" CACHE FILEPATH "AppImage Icon SVG Path" FORCE)
 endif()
 
 # Windows installer header (150x57 BMP shown at the top of every installer page)

@@ -48,6 +48,7 @@ ColumnLayout {
         }
 
         FactTextFieldSlider {
+            showSlider:             true
             Layout.fillWidth: true
             label: fact.shortDescription
             fact: _joystickSettings.exponentialPct
@@ -81,6 +82,7 @@ ColumnLayout {
         }
 
         FactTextFieldSlider {
+            showSlider:             true
             Layout.fillWidth: true
             label: fact.shortDescription
             fact: _joystickSettings.axisFrequencyHz
@@ -88,6 +90,7 @@ ColumnLayout {
         }
 
         FactTextFieldSlider {
+            showSlider:             true
             Layout.fillWidth: true
             label: fact.shortDescription
             fact: _joystickSettings.buttonFrequencyHz

@@ -29,6 +29,7 @@
 #include "InstrumentValueData.h"
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
+#include "OIEkfStatus.h"
 #include "OIFlightAngles.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
@@ -207,6 +208,12 @@ void OIPlugin::init()
     // through the plugin hook keeps the instrument panel's data path in custom/.
     _flightAngles = new OIFlightAngles(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIFlightAngles", _flightAngles);
+
+    // Fed from mavlinkMessage() below rather than from a Vehicle fact group: QGC parses
+    // EKF_STATUS_REPORT and discards it, and reading it through the plugin hook keeps the whole
+    // feature in custom/ instead of adding a fact group to src/Vehicle.
+    _ekfStatus = new OIEkfStatus(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIEkfStatus", _ekfStatus);
 }
 
 /// Fill in the body rate facts from ATTITUDE.
@@ -253,9 +260,18 @@ bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavli
 {
     Q_UNUSED(link);
 
+    // Each of these filters on the message id itself, so the common case stays one
+    // comparison per consumer - the hook sees every message to every vehicle.
+    //
+    // All three run on every message. They read different messages and none of them is
+    // an alternative to another, so this list only ever grows by adding a line: dropping
+    // one here disables its feature outright and still compiles, which is exactly how a
+    // careless merge of this function would fail.
+    if (_ekfStatus) {
+        _ekfStatus->handleMessage(vehicle, message);
+    }
+
     if (_flightAngles) {
-        // Filters on message id itself, so this stays one comparison for everything else on the
-        // link - the hook sees every message to every vehicle.
         _flightAngles->handleMessage(vehicle, message);
     }
 
@@ -308,8 +324,26 @@ const QVariantList &OIPlugin::toolBarIndicators()
         _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
-        // Beside it rather than inside it: the gimbal readout hides itself when the
-        // aircraft has no gimbal, and its warnings must not disturb the flying one.
+        // Two groups, in order: indicators about this ground station, then indicators
+        // about the aircraft. The boundary falls between these two - video settings is
+        // the last thing that is about the GCS, EKF health the first that is about the
+        // vehicle. Each decides its own visibility, so this only fixes the order among
+        // whichever of them are showing.
+        //
+        // It decides nothing about the vehicle's *own* indicators.
+        // FlyViewToolBarIndicators.qml draws those from a second Repeater that runs
+        // after this whole list, so everything here sits left of them whatever order
+        // this is in - do not read the position below as what achieves that.
+        //
+        // Video configuration is routine in flight rather than a setup step, which is
+        // why it is reached from the Fly view at all instead of the settings pages.
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIVideoIndicator.qml"))));
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIEkfIndicator.qml"))));
+        // Beside the keyboard readout rather than inside it: the gimbal readout hides
+        // itself when the aircraft has no gimbal, and its warnings must not disturb the
+        // flying one.
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIGimbalIndicator.qml"))));
     }

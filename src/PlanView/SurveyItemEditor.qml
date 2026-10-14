@@ -10,8 +10,12 @@ import QGroundControl.FlightMap
 
 TransectStyleComplexItemEditor {
     transectAreaDefinitionComplete: missionItem.surveyAreaPolygon.isValid
-    transectAreaDefinitionHelp:     qsTr("Use the Polygon Tools to create the polygon which outlines your survey area.")
+    transectAreaDefinitionHelp:     qsTr("Create the polygon which outlines your survey area.")
     transectValuesHeaderName:       qsTr("Transects")
+    transectAreaObject:             missionItem.surveyAreaPolygon
+    transectAreaToolsName:          qsTr("Polygon Tools")
+    transectAreaSupportsCircle:     true
+    transectAreaLoadDialog:         kmlOrSHPLoadDialog
     transectValuesComponent:        _transectValuesComponent
     presetsTransectValuesComponent: _transectValuesComponent
 

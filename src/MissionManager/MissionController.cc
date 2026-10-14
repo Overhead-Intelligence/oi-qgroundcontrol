@@ -44,6 +44,10 @@ MissionController::MissionController(PlanMasterController* masterController, QOb
     , _planViewSettings     (SettingsManager::instance()->planViewSettings())
     , _appSettings          (SettingsManager::instance()->appSettings())
 {
+    // Before anything can create an item against it. A member initialiser cannot read this
+    // because the settings pointer is only valid once the initialiser list above has run.
+    _globalAltFrame = _defaultGlobalAltitudeFrame();
+
     _resetMissionFlightStatus();
 
     _updateTimer.setSingleShot(true);
@@ -154,8 +158,11 @@ void MissionController::_newMissionItemsAvailableFromVehicle(bool removeAllReque
             _visualItems->append(simpleItem);
         }
 
-        // We set Altitude frame to mixed, otherwise if we need a non relative altitude frame we won't be able to change it
-        setGlobalAltitudeFrame(weHaveItemsFromVehicle ? QGroundControlQmlGlobal::AltitudeFrameMixed : QGroundControlQmlGlobal::AltitudeFrameRelative);
+        // Mixed when the vehicle actually sent items, so that a plan holding several frames can
+        // still be edited. With nothing to read back from, this is a new plan and starts in the
+        // configured default rather than a hardcoded Relative - that hardcode is what kept
+        // overriding the setting.
+        setGlobalAltitudeFrame(weHaveItemsFromVehicle ? QGroundControlQmlGlobal::AltitudeFrameMixed : _defaultGlobalAltitudeFrame());
 
         MissionController::_scanForAdditionalSettings(_visualItems, _masterController);
 
@@ -352,6 +359,21 @@ bool MissionController::multipleLandPatternsAllowed(void) const {
            _planViewSettings->allowMultipleLandingPatterns()
                ->rawValue().toBool() &&
            !_masterController->managerVehicle()->px4Firmware();
+}
+
+VisualMissionItem* MissionController::insertReturnToLaunchItem(QGeoCoordinate coordinate, int visualItemIndex, bool makeCurrentItem)
+{
+    VisualMissionItem* rtlItem = _insertSimpleMissionItemWorker(coordinate, MAV_CMD_NAV_RETURN_TO_LAUNCH, visualItemIndex, makeCurrentItem);
+
+    // RTL carries no altitude, so _setDefaultsForCommand() leaves it on MAV_FRAME_MISSION.
+    // Framed above terrain instead, to match the rest of a terrain-referenced plan. ArduPilot
+    // ignores the frame on this command - the aircraft flies RTL_ALTITUDE either way - so this
+    // is for the plan's own consistency, not a change in how the return is flown.
+    if (SimpleMissionItem* simpleItem = qobject_cast<SimpleMissionItem*>(rtlItem)) {
+        simpleItem->missionItem().setFrame(MAV_FRAME_GLOBAL_TERRAIN_ALT);
+    }
+
+    return rtlItem;
 }
 
 VisualMissionItem* MissionController::insertLandItem(QGeoCoordinate coordinate, int visualItemIndex, bool makeCurrentItem)
@@ -2403,6 +2425,12 @@ MissionController::SendToVehiclePreCheckState MissionController::sendToVehiclePr
         return SendToVehiclePreCheckStateFirwmareVehicleMismatch;
     }
     return SendToVehiclePreCheckStateOk;
+}
+
+QGroundControlQmlGlobal::AltitudeFrame MissionController::_defaultGlobalAltitudeFrame(void) const
+{
+    return static_cast<QGroundControlQmlGlobal::AltitudeFrame>(
+                _planViewSettings->defaultMissionAltitudeFrame()->rawValue().toUInt());
 }
 
 QGroundControlQmlGlobal::AltitudeFrame MissionController::globalAltitudeFrame(void)
