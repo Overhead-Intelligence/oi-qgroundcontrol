@@ -69,8 +69,10 @@ private:
     const double _heightAglMeters;
 };
 
-/// One imported file. Referenced where the operator put it, not copied: hazard
-/// sets are per mission and change between trips.
+/// One imported file. The file is copied into the application's own storage on
+/// import and the layer refers to that copy, so clearing out Downloads after a
+/// trip does not quietly empty an operator's hazard set. The copy is removed only
+/// when the layer is removed here.
 class OIMapOverlayLayer : public QObject
 {
     Q_OBJECT
@@ -203,11 +205,15 @@ public:
     int maxMarkers() const { return kMaxMarkers; }
 
     /// Imports a layer. Accepts a local path or a file:// URL (QGCFileDialog hands
-    /// back the latter). Returns false and sets lastError() if the file cannot be
+    /// back the latter). The file is copied into application storage and the layer
+    /// refers to the copy. Returns false and sets lastError() if the file cannot be
     /// read or is neither KML nor DOF; a file that parses to zero points is still
     /// imported, so the operator can see that it held nothing usable.
     Q_INVOKABLE bool addLayer(const QString &fileUrlOrPath);
 
+    /// Removes the layer and deletes its copy from application storage. A layer
+    /// imported before copying existed still points outside storage; that file is
+    /// the operator's own and is left alone.
     Q_INVOKABLE void removeLayer(int index);
 
     /// Re-reads every layer from disk (files change between missions).
@@ -222,6 +228,17 @@ private slots:
     void _rebuildMarkers();
 
 private:
+    /// Directory the imported copies live in, created on demand. Empty when the
+    /// application has no save path configured, in which case import falls back to
+    /// referencing the file where it sits - degraded, but still an import.
+    static QString _storageDir();
+    /// True if @p filePath sits inside _storageDir(), i.e. it is ours to delete.
+    static bool _isInStorage(const QString &filePath);
+    /// Copies @p sourcePath into storage and returns the new path. Returns
+    /// @p sourcePath unchanged if it is already in storage, if storage is
+    /// unavailable, if the file is missing, or if the copy fails.
+    static QString _adoptIntoStorage(const QString &sourcePath);
+
     void _load();
     void _save() const;
     void _connectLayer(OIMapOverlayLayer *layer);

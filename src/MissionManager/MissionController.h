@@ -118,6 +118,12 @@ public:
     /// @return Newly created item
     Q_INVOKABLE VisualMissionItem* insertTakeoffItem(QGeoCoordinate coordinate, int visualItemIndex, bool makeCurrentItem = false);
 
+    /// Add a Return To Launch item to the list, framed above terrain.
+    ///     @param visualItemIndex: index to insert at, -1 for end of list
+    ///     @param makeCurrentItem: true: Make this item the current item
+    /// @return Newly created item
+    Q_INVOKABLE VisualMissionItem* insertReturnToLaunchItem(QGeoCoordinate coordinate, int visualItemIndex, bool makeCurrentItem = false);
+
     /// Add a new land item to the list
     ///     @param coordinate: Coordinate for item
     ///     @param visualItemIndex: index to insert at, -1 for end of list
@@ -292,6 +298,9 @@ public:
 
     QGroundControlQmlGlobal::AltitudeFrame globalAltitudeFrame(void);
     QGroundControlQmlGlobal::AltitudeFrame globalAltitudeFrameDefault(void);
+
+    /// The frame a plan starts in, from settings.
+    QGroundControlQmlGlobal::AltitudeFrame _defaultGlobalAltitudeFrame(void) const;
     void setGlobalAltitudeFrame(QGroundControlQmlGlobal::AltitudeFrame altFrame);
 
     // Top-level group row indices in _visualItemsTree (must match _setupTreeModel order)
@@ -452,6 +461,8 @@ private:
     double                      _maxAMSLAltitude =              0;
     bool                        _missionContainsVTOLTakeoff =   false;
 
+    /// Set from planViewSettings()->defaultMissionAltitudeFrame() in the constructor and reset
+    /// to it whenever an empty mission arrives; see _defaultGlobalAltitudeFrame().
     QGroundControlQmlGlobal::AltitudeFrame _globalAltFrame = QGroundControlQmlGlobal::AltitudeFrameRelative;
 
     static constexpr const char* _settingsGroup =                 "MissionController";

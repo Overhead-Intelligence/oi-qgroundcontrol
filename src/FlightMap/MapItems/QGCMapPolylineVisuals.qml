@@ -39,7 +39,10 @@ Item {
 
     function _addInteractiveVisuals() {
         if (_objMgrInteractiveVisuals.empty) {
-            _objMgrInteractiveVisuals.createObjects([ dragHandlesComponent, splitHandlesComponent, edgeLengthHandlesComponent, toolbarComponent ], mapControl)
+            // toolbarComponent is gone: the Basic / Trace / Load buttons are a section in the
+            // item editor panel now, beside the settings they belong with. See
+            // TransectStyleComplexItemEditor, and QGCMapPolygonVisuals for the same change.
+            _objMgrInteractiveVisuals.createObjects([ dragHandlesComponent, splitHandlesComponent, edgeLengthHandlesComponent ], mapControl)
         }
     }
 
@@ -88,15 +91,27 @@ Item {
 
     Connections {
         target: mapPolyline
+
+        // Entering and leaving a trace is done here rather than in the button that used to
+        // start it, so any caller can drive it by setting the property alone.
         function onTraceModeChanged(traceMode) {
             if (traceMode) {
+                _saveCurrentVertices()
+                mapPolyline.clear()
                 _instructionText = _traceText
                 _objMgrTraceVisuals.createObject(traceMouseAreaComponent, mapControl, false)
             } else {
+                // Fewer than two vertices is not a line: restore what was there rather than
+                // leaving an abandoned trace having deleted the corridor.
+                if (mapPolyline.count < 2) {
+                    _restorePreviousVertices()
+                }
                 _instructionText = _corridorToolsText
                 _objMgrTraceVisuals.destroyObjects()
             }
         }
+
+        function onBasicShapeRequested() { _resetPolyline() }
     }
 
     Component.onCompleted: {
@@ -382,50 +397,6 @@ Item {
         }
     }
 
-    Component {
-        id: toolbarComponent
-
-        PlanEditToolbar {
-            anchors.horizontalCenter:       mapControl.left
-            anchors.horizontalCenterOffset: mapControl.centerViewport.left + (mapControl.centerViewport.width / 2)
-            y:                              mapControl.centerViewport.top
-            z:                              QGroundControl.zOrderMapItems + 2
-            availableWidth:                 mapControl.centerViewport.width
-
-            QGCButton {
-                _horizontalPadding: 0
-                text:               qsTr("Basic")
-                visible:            !mapPolyline.traceMode
-                onClicked:          _resetPolyline()
-            }
-
-            QGCButton {
-                _horizontalPadding: 0
-                text:               mapPolyline.traceMode ? qsTr("Done Tracing") : qsTr("Trace")
-                onClicked: {
-                    if (mapPolyline.traceMode) {
-                        if (mapPolyline.count < 2) {
-                            _restorePreviousVertices()
-                        }
-                        mapPolyline.traceMode = false
-                    } else {
-                        _saveCurrentVertices()
-                        mapPolyline.traceMode = true
-                        mapPolyline.clear();
-                    }
-                }
-            }
-
-            QGCButton {
-                _horizontalPadding: 0
-                text:               qsTr("Load KML/SHP...")
-                onClicked:          kmlOrSHPLoadDialog.openForLoad()
-                visible:            !mapPolyline.traceMode
-            }
-        }
-    }
-
-    // Mouse area to capture clicks for tracing a polyline
     Component {
         id:  traceMouseAreaComponent
 

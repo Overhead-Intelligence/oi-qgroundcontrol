@@ -1,0 +1,34 @@
+<!--
+  The OI mark as a badge: white on an opaque black box with a white outline.
+
+  Used wherever the mark has to carry its own contrast against a background nobody controls -
+  the ground station marker on the Fly view map, and the Windows application icon on a taskbar
+  that may be light or dark. The .ico files in ../icons and ../../deploy/windows are this
+  artwork rasterised; keep them in step.
+
+  Separate from OILogoMark.svg because those are the only places the mark is drawn untinted.
+  Everywhere else it goes through QGCColoredImage, whose provider composites with
+  CompositionMode_SourceIn - it keeps the alpha and replaces every pixel's colour with one
+  flat tint. A two-tone badge there would come out as a solid filled square.
+
+  The white outline is what makes it work on dark imagery. A black box alone solves a black
+  mark on dark terrain but moves the problem to the box's own edge, which then disappears into
+  the same background; the outline gives the badge a boundary against anything. Stock QGC's own
+  map logo is built the same way - a rounded box with a contrasting border.
+
+  Geometry is OILogoMark.svg's paths at 0.87 about the centre, which leaves even padding
+  inside the box; keep the two in step if the mark is ever redrawn.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+  <!-- Inset by half the stroke width so the outline lands inside the viewBox rather than
+       being clipped along its outer half. -->
+  <rect x="28" y="28" width="944" height="944" rx="152" ry="152"
+        fill="#000000" stroke="#ffffff" stroke-width="56"/>
+  <g transform="translate(500,500) scale(0.87) translate(-500,-500)" fill="#ffffff" fill-rule="nonzero">
+    <path d="M 720.49 165.06 A 401.0 401.0 0 0 0 278.93 165.44 L 326.37 233.58 A 318.0 318.0 0 0 1 673.16 233.28 Z"/>
+    <path d="M 262.92 176.59 A 401.0 401.0 0 0 0 263.49 823.83 L 310.82 755.60 A 318.0 318.0 0 0 1 310.37 244.73 Z"/>
+    <path d="M 279.51 834.94 A 401.0 401.0 0 0 0 721.07 834.56 L 673.63 766.42 A 318.0 318.0 0 0 1 326.84 766.72 Z"/>
+    <path d="M 737.08 823.41 A 401.0 401.0 0 0 0 736.51 176.17 L 689.18 244.40 A 318.0 318.0 0 0 1 689.63 755.27 Z"/>
+    <path d="M 462.00 100.80 H 538.00 V 899.20 H 462.00 Z"/>
+  </g>
+</svg>

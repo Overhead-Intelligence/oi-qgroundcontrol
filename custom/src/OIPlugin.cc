@@ -265,13 +265,26 @@ const QVariantList &OIPlugin::toolBarIndicators()
         _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
-        // Ahead of the gimbal readout, and so ahead of every indicator the vehicle supplies,
-        // because EKF health is the thing an operator wants in the same place every flight -
-        // most of all on the flights where the rest of the toolbar is changing.
+        // Two groups, in order: indicators about this ground station, then indicators
+        // about the aircraft. The boundary falls between these two - video settings is
+        // the last thing that is about the GCS, EKF health the first that is about the
+        // vehicle. Each decides its own visibility, so this only fixes the order among
+        // whichever of them are showing.
+        //
+        // It decides nothing about the vehicle's *own* indicators.
+        // FlyViewToolBarIndicators.qml draws those from a second Repeater that runs
+        // after this whole list, so everything here sits left of them whatever order
+        // this is in - do not read the position below as what achieves that.
+        //
+        // Video configuration is routine in flight rather than a setup step, which is
+        // why it is reached from the Fly view at all instead of the settings pages.
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIVideoIndicator.qml"))));
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIEkfIndicator.qml"))));
-        // Beside it rather than inside it: the gimbal readout hides itself when the
-        // aircraft has no gimbal, and its warnings must not disturb the flying one.
+        // Beside the keyboard readout rather than inside it: the gimbal readout hides
+        // itself when the aircraft has no gimbal, and its warnings must not disturb the
+        // flying one.
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIGimbalIndicator.qml"))));
     }

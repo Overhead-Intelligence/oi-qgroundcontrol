@@ -78,6 +78,16 @@ public:
     /// Adjust polygon winding order to be clockwise (if needed)
     Q_INVOKABLE void verifyClockwiseWinding(void);
 
+
+    /// Ask the map visuals to rebuild the shape at its default size.
+    ///
+    /// Routed through this object rather than called on the visuals directly because the two
+    /// are not reachable from each other: the buttons live in the item editor panel, which has
+    /// no map, and fitting a default shape needs the map viewport. Both sides already hold this
+    /// object, so it carries the request.
+    Q_INVOKABLE void requestBasicShape      (void) { emit basicShapeRequested(); }
+    Q_INVOKABLE void requestCircularShape   (void) { emit circularShapeRequested(); }
+
     Q_INVOKABLE void beginReset (void);
     Q_INVOKABLE void endReset   (void);
 
@@ -132,6 +142,8 @@ public:
     static constexpr const char* jsonPolygonKey = "polygon";
 
 signals:
+    void basicShapeRequested    (void);
+    void circularShapeRequested (void);
     void countChanged       (int count);
     void pathChanged        (void);
     void dragPathChanged    (void);
