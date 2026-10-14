@@ -62,16 +62,14 @@ Item {
         _objMgrEditingVisuals.destroyObjects()
     }
 
-    function addToolbarVisuals() {
-        if (_objMgrToolVisuals.empty) {
-            var toolbar = _objMgrToolVisuals.createObject(toolbarComponent, mapControl)
-            toolbar.z = QGroundControl.zOrderWidgets
-        }
-    }
+    // The Basic / Circular / Trace / Load buttons used to float over the top of the map in a
+    // PlanEditToolbar. They are now a section in the item editor panel, beside the settings they
+    // belong with - a row of small buttons over the map was not being found at all. See
+    // TransectStyleComplexItemEditor. Kept as no-ops so the interactive-state handling below
+    // reads the same as upstream's.
+    function addToolbarVisuals() { }
 
-    function removeToolVisuals() {
-        _objMgrToolVisuals.destroyObjects()
-    }
+    function removeToolVisuals() { }
 
     function addCircleVisuals() {
         if (_objMgrCircleVisuals.empty) {
@@ -182,15 +180,29 @@ Item {
 
     Connections {
         target: mapPolygon
+
+        // All of the entering and leaving work lives here rather than in the button that used
+        // to start it, so any caller can begin or end a trace by setting the property alone.
         function onTraceModeChanged(traceMode) {
             if (traceMode) {
+                _saveCurrentVertices()
+                _circleMode = false
+                mapPolygon.clear()
                 _instructionText = _traceText
                 _objMgrTraceVisuals.createObject(traceMouseAreaComponent, mapControl, false)
             } else {
+                // Too few vertices to be a polygon: put back whatever was there before, so an
+                // abandoned trace does not destroy the existing area.
+                if (mapPolygon.count < 3) {
+                    _restorePreviousVertices()
+                }
                 _instructionText = _polygonToolsText
                 _objMgrTraceVisuals.destroyObjects()
             }
         }
+
+        function onBasicShapeRequested()    { _resetPolygon() }
+        function onCircularShapeRequested() { _resetCircle() }
     }
 
     Component.onCompleted: {
@@ -633,56 +645,6 @@ Item {
             Component.onDestruction: {
                 dragHandle.destroy()
                 dragArea.destroy()
-            }
-        }
-    }
-
-    Component {
-        id: toolbarComponent
-
-        PlanEditToolbar {
-            anchors.horizontalCenter:       mapControl.left
-            anchors.horizontalCenterOffset: mapControl.centerViewport.left + (mapControl.centerViewport.width / 2)
-            y:                              mapControl.centerViewport.top
-            availableWidth:                 mapControl.centerViewport.width
-
-            QGCButton {
-                _horizontalPadding: 0
-                text:               qsTr("Basic")
-                visible:            !mapPolygon.traceMode
-                onClicked:          _resetPolygon()
-            }
-
-            QGCButton {
-                _horizontalPadding: 0
-                text:               qsTr("Circular")
-                visible:            !mapPolygon.traceMode
-                onClicked:          _resetCircle()
-            }
-
-            QGCButton {
-                _horizontalPadding: 0
-                text:               mapPolygon.traceMode ? qsTr("Done Tracing") : qsTr("Trace")
-                onClicked: {
-                    if (mapPolygon.traceMode) {
-                        if (mapPolygon.count < 3) {
-                            _restorePreviousVertices()
-                        }
-                        mapPolygon.traceMode = false
-                    } else {
-                        _saveCurrentVertices()
-                        _circleMode = false
-                        mapPolygon.traceMode = true
-                        mapPolygon.clear();
-                    }
-                }
-            }
-
-            QGCButton {
-                _horizontalPadding: 0
-                text:               qsTr("Load KML/SHP...")
-                onClicked:          kmlOrSHPLoadDialog.openForLoad()
-                visible:            !mapPolygon.traceMode
             }
         }
     }

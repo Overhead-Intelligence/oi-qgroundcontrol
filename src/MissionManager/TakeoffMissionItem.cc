@@ -67,10 +67,15 @@ void TakeoffMissionItem::_init(bool forLoad)
         SimpleMissionItem::setCoordinate(homePosition);
     }
 
-    // Wizard mode is set if:
-    //  - Launch position is missing - requires prompt to user to click to set launch
-    //  - Fixed wing - warn about climb out position adjustment
-    if (!homePosition.isValid() || _controllerVehicle->fixedWing()) {
+    // Wizard mode is set only when the launch position is missing, which genuinely needs a
+    // map click before the item means anything.
+    //
+    // Upstream also raises it for every fixed wing, to warn about adjusting the climb out
+    // position. That warning is dropped here: it is purely informational - the item stays
+    // draggable afterwards - and it does not describe this fleet's workflow, where the takeoff
+    // point snaps to the aircraft's own position on upload. All it did was put a Done button
+    // between the operator and the takeoff settings on every new plan.
+    if (!homePosition.isValid()) {
         _wizardMode = true;
     }
 

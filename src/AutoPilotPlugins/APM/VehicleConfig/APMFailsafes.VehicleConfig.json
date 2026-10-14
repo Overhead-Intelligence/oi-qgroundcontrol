@@ -84,7 +84,9 @@
                 "low battery",
                 "critical battery",
                 "lipo",
-                "power"
+                "power",
+                "voltage source",
+                "sag"
             ],
             "image": "/qmlimages/Battery.svg",
             "repeat": {
@@ -108,6 +110,13 @@
                     "control": "combobox",
                     "optional": true,
                     "showWhen": "controller.parameterExists(-1, _fullParamName(\"FS_CRT_ACT\"))"
+                },
+                {
+                    "param": "FS_VOLTSRC",
+                    "label": "Voltage source",
+                    "control": "combobox",
+                    "optional": true,
+                    "showWhen": "controller.parameterExists(-1, _fullParamName(\"FS_VOLTSRC\"))"
                 },
                 {
                     "param": "LOW_VOLT",

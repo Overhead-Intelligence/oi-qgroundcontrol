@@ -19,6 +19,8 @@ public:
     DEFINE_SETTINGFACT(guidedAltitudeFrame)
     DEFINE_SETTINGFACT(showLogReplayStatusBar)
     DEFINE_SETTINGFACT(showAdditionalIndicatorsCompass)
+    DEFINE_SETTINGFACT(showAdditionalIndicatorsAirspeed)
+    DEFINE_SETTINGFACT(showAdditionalIndicatorsAltitude)
     DEFINE_SETTINGFACT(lockNoseUpCompass)
     DEFINE_SETTINGFACT(maxGoToLocationDistance)
     DEFINE_SETTINGFACT(forwardFlightGoToLocationLoiterRad)
@@ -31,4 +33,6 @@ public:
     DEFINE_SETTINGFACT(requestControlAllowTakeover)
     DEFINE_SETTINGFACT(requestControlTimeout)
     DEFINE_SETTINGFACT(enableAutomaticMissionPopups)
+    DEFINE_SETTINGFACT(showVideoIndicator)
+    DEFINE_SETTINGFACT(showEkfIndicator)
 };

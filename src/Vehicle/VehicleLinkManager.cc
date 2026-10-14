@@ -203,7 +203,7 @@ void VehicleLinkManager::_addLink(LinkInterface *link)
     }
 }
 
-void VehicleLinkManager::_removeLink(LinkInterface *link)
+void VehicleLinkManager::_removeLink(LinkInterface *link, bool keepConnected)
 {
     const int linkIndex = _containsLinkIndex(link);
     if (linkIndex == -1) {
@@ -219,7 +219,7 @@ void VehicleLinkManager::_removeLink(LinkInterface *link)
     }
 
     disconnect(link, &LinkInterface::disconnected, this, &VehicleLinkManager::_linkDisconnected);
-    link->removeVehicleReference();
+    link->removeVehicleReference(!keepConnected);
     emit linkNamesChanged();
     _rgLinkInfo.removeAt(linkIndex); // Remove the link last since it may cause the link itself to be deleted
 
@@ -343,13 +343,13 @@ bool VehicleLinkManager::_updatePrimaryLink()
     return true;
 }
 
-void VehicleLinkManager::closeVehicle()
+void VehicleLinkManager::closeVehicle(bool keepLinksConnected)
 {
     // Vehicle is no longer communicating with us. Remove all link references
 
     const QList<LinkInfo_t> rgLinkInfoCopy = _rgLinkInfo;
     for (const LinkInfo_t &linkInfo: rgLinkInfoCopy) {
-        _removeLink(linkInfo.link.get());
+        _removeLink(linkInfo.link.get(), keepLinksConnected);
     }
 
     _rgLinkInfo.clear();

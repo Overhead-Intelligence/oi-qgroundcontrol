@@ -183,6 +183,38 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
   actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.
+- **A comms dropout does not destroy the Vehicle; a link teardown does.**
+  `VehicleLinkManager::_autoDisconnect` is false by default, so missed heartbeats only
+  set `communicationLost` and the `Vehicle` survives with its flight timer running. It
+  is `allLinksRemoved` - a serial port disappearing, a TCP socket closing, an operator
+  reconnecting - that makes `MultiVehicleManager` delete the `Vehicle`, and anything
+  held on it goes too. That is why `src/Vehicle/FlightStatsResume.{h,cc}` is owned by
+  `MultiVehicleManager` rather than by the `Vehicle` whose totals it carries.
+  It derives flight time and distance from ArduPilot's own `AP_Stats` counters, which
+  are plain parameters: `STAT_FLTTIME`, `STAT_DISTFLWN`, `STAT_FLTCNT`, `STAT_BOOTCNT`.
+  Those are lifetime totals, so what matters is their value when the current flight
+  began, and **two measured facts give it exactly** (SITL, fleet branch). `STAT_FLTCNT`
+  increments at **takeoff**, not at arming (14.4 s and 15.9 s after arm across two runs) -
+  that is the flight boundary. And `STAT_FLTTIME` counts **airborne** time, so it is
+  frozen while not flying - armed on the ground for 238 s it stayed at 0.0 - which makes
+  *any* pre-takeoff reading an exact baseline. So the poller keeps the last reading, and
+  the first time `STAT_FLTCNT` is seen to have moved it commits that previous reading as
+  the flight's baseline and persists it.
+  **The baseline is written once per flight and never rewritten, and that is the design
+  rather than a detail.** A half-connected GCS can read it and display from it but has no
+  path to replace it. The first version kept a rolling pair of "what we displayed" and
+  "what the vehicle read"; a failed reconnect attempt overwrote it with its own near-zero
+  ground-side value, and the next good connection then resumed from the failed attempt
+  instead of from takeoff. Seen in the field on 2026-09-29.
+  The counters are flushed to their parameters only every 30 s
+  (`AP_Stats::flush_interval_ms`) - measured worst case 30.8 s and 918 m over a 1188 s,
+  30 km flight - but the baseline is read while frozen, so only the live value lags.
+  A reading only ever corrects the display *forward*, so it never runs backwards.
+  The values must be **read**, never taken from the parameter cache: on a reconnect that
+  cache holds exactly the pre-gap values the resume is measuring against. Hence
+  `ParameterManager::bulkRefresh` plus the `_paramRequestReadSuccess` signal to know when
+  all four have come back. Touches `src/` - no hook reaches the flight totals or the
+  vehicle lifecycle.
 - **MAVLink actions are a list, not a file.** `flyViewActionsFile` and
   `joystickActionsFile` hold `;`-separated file names, and `MavlinkActionManager`
   loads every one of them into a single action model. `;` rather than `,` because
@@ -266,6 +298,36 @@ open a PR. Never merge `upstream/master` (daily builds).
 
 ## Gotchas
 
+- **A UDP hostname is resolved asynchronously and retried.** Upstream resolves at
+  `addHost()` and once more at connect, and nowhere else; the send loop then skips a
+  target with a null address in silence. One failed lookup therefore killed a
+  hostname link for the life of the session - observed in the field when the GCS
+  lost internet but the aircraft was still reachable on the LAN, and the operator
+  had to recreate the link by IP. `addHost()` now only parses a literal, because it
+  runs on the GUI thread and `QHostInfo::fromName()` blocks there for the resolver's
+  full timeout. Names are looked up by `UDPWorker` with `QHostInfo::lookupHost()` and
+  retried every `kResolveRetryIntervalMs` while the link is up, and the operator is
+  told once per name. **A late resolve must re-run `_snapshotAcceptedAddresses()`**:
+  the accept list below is built from resolved addresses at connect, so without that
+  the name would resolve, telemetry would arrive, and the link would drop it.
+- **UDP links diverge from upstream in three ways, all deliberate.** They bind
+  `DontShareAddress`, so a second link on a port another link already holds fails
+  instead of binding successfully and silently receiving nothing (two sockets on
+  one UDP port is not a shared subscription - the OS picks one). They accept
+  datagrams only from their own configured server addresses, matched on address so
+  an aircraft answering from a different source port still works, unless `Accept
+  data from any sender` is ticked. And they no longer join multicast `224.0.0.1`.
+  Our ports are assigned per pilot rather than per aircraft, so every link an
+  operator owns shares a port by design; without the first two changes they
+  collide, and whichever bound first received every aircraft on that port.
+- **There is no vehicle auto-discovery.** `autoConnectUDP`, `autoConnectPixhawk`,
+  `autoConnectSiKRadio`, `autoConnectLibrePilot` and the `udpListenPort` /
+  `udpTargetHost*` settings are gone, along with the AutoConnect section in Comm
+  Links and in the no-vehicle status drawer. What survives in the `AutoConnect`
+  settings group is NMEA GPS and RTK GPS - peripherals, not vehicles - and the
+  group keeps its name so saved keys still load. A per-link `Automatically
+  Connect on Start` also survives; it is explicit, and it no longer rewrites the
+  link's port the way `UDPConfiguration::setAutoConnect` used to.
 - MAVLink FTP is **one operation at a time per vehicle**. `FTPManager` refuses a
   second caller with a bare `false`, and it is shared by `ParameterManager` (the
   `@PARAM/param.pck` fetch on every connect), component metadata, Onboard Logs,

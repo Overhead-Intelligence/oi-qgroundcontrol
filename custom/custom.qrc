@@ -2,7 +2,13 @@
     <!-- Stock resources replaced through the URL interceptor in OIPlugin.cc:
          a request for qrc:/res/X is served from :/Custom/res/X when that exists. -->
     <qresource prefix="/Custom/res">
-        <file alias="QGCLogoFull.svg">res/Images/OILogoMark.svg</file>
+        <!-- QGCLogoFull is reached by exactly one live consumer: the ground station marker on
+             the Fly view map (FlightMap.qml). The three toolbar references to it are
+             QGCToolBarButton with logo:true, and the OI override of that control ignores
+             icon.source and names /custom/OILogoMark.svg itself - so re-pointing this name
+             changes the map marker and nothing else. QGCLogoWhite, below, is the one the
+             Settings page icon reads, and it stays on the plain mark. -->
+        <file alias="QGCLogoFull.svg">res/Images/OIBadge.svg</file>
         <file alias="QGCLogoWhite.svg">res/Images/OILogoMark.svg</file>
         <file alias="qgroundcontrol.ico">res/icons/oi-qgroundcontrol.ico</file>
     </qresource>
@@ -19,10 +25,20 @@
          (it only prefixes /Custom, and :/Custom/custom/... does not exist). These
          files are outside every QML module, so they must import what they use. -->
     <qresource prefix="/custom/qml">
+        <file alias="OIAdvancedVerticalPanel.qml">src/qml/OIAdvancedVerticalPanel.qml</file>
+        <file alias="OIAoaIndexer.qml">src/qml/OIAoaIndexer.qml</file>
+        <file alias="OIAttitudeWidget.qml">src/qml/OIAttitudeWidget.qml</file>
+        <file alias="OIBankScale.qml">src/qml/OIBankScale.qml</file>
+        <file alias="OICompassWidget.qml">src/qml/OICompassWidget.qml</file>
+        <file alias="OIEkfIndicator.qml">src/qml/OIEkfIndicator.qml</file>
+        <file alias="OIFlightPathVector.qml">src/qml/OIFlightPathVector.qml</file>
         <file alias="OIGimbalIndicator.qml">src/qml/OIGimbalIndicator.qml</file>
         <file alias="OIKeyboardIndicator.qml">src/qml/OIKeyboardIndicator.qml</file>
         <file alias="OIMapOverlayMarker.qml">src/qml/OIMapOverlayMarker.qml</file>
         <file alias="OIOnboardFilesPage.qml">src/qml/OIOnboardFilesPage.qml</file>
+        <file alias="OISlipIndicator.qml">src/qml/OISlipIndicator.qml</file>
+        <file alias="OIVerticalTape.qml">src/qml/OIVerticalTape.qml</file>
+        <file alias="OIVideoIndicator.qml">src/qml/OIVideoIndicator.qml</file>
     </qresource>
 
     <!-- Settings groups: SettingsGroup loads :/json/<Name>.SettingsGroup.json -->

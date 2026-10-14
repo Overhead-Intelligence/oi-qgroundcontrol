@@ -11,6 +11,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         FTPController.h
         FTPManager.cc
         FTPManager.h
+        FlightStatsResume.cc
+        FlightStatsResume.h
         InitialConnectStateMachine.cc
         InitialConnectStateMachine.h
         MavCommandQueue.cc
@@ -19,6 +21,7 @@ target_sources(${CMAKE_PROJECT_NAME}
         MAVLinkLogManager.h
         MessageIntervalManager.cc
         MessageIntervalManager.h
+        MotorLayout.cc
         MultiVehicleManager.cc
         MultiVehicleManager.h
         RemoteIDManager.cc
