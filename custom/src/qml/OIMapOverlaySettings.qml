@@ -33,7 +33,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Map Overlays")
-            headingDescription: qsTr("FAA obstacle (.Dat) and KML layers drawn on the Fly view map. Files are read where they are, not copied.")
+            headingDescription: qsTr("FAA obstacle (.Dat) and KML layers drawn on the Fly view map. An imported file is copied into the application's own folder, so it stays available after the original is moved or deleted. Remove clears that copy.")
 
             Repeater {
                 model: OIMapOverlays.layers
