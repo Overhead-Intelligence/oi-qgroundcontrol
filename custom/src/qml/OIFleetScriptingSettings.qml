@@ -75,7 +75,7 @@ Item {
         SettingsGroupLayout {
             Layout.fillWidth:   true
             heading:            qsTr("Scripting")
-            headingDescription: qsTr("If the active vehicle is disarmed, scripts checked here are matched to its flight controller where possible. Scripting must be enabled (SCR_ENABLE = 1) on boot to use this feature.")
+            headingDescription: qsTr("If a connected vehicle is disarmed, scripts checked here are matched to its flight controller where possible. Scripting must be enabled (SCR_ENABLE = 1) on boot to use this feature.")
 
             // ------------------------------------------------------------ status
             QGCLabel {
