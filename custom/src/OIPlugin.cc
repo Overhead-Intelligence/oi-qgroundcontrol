@@ -245,6 +245,12 @@ const QVariantList &OIPlugin::toolBarIndicators()
         _toolBarIndicators = QGCCorePlugin::toolBarIndicators();
         _toolBarIndicators.append(QVariant::fromValue(
             QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIKeyboardIndicator.qml"))));
+        // Before the gimbal readout, so the two indicators that are always present -
+        // keyboard and video - stay put as aircraft-dependent ones appear beside them.
+        // Video configuration is routine here rather than a setup step, so it is reached
+        // from the Fly view instead of through the settings pages.
+        _toolBarIndicators.append(QVariant::fromValue(
+            QUrl::fromUserInput(QStringLiteral("qrc:/custom/qml/OIVideoIndicator.qml"))));
         // Beside it rather than inside it: the gimbal readout hides itself when the
         // aircraft has no gimbal, and its warnings must not disturb the flying one.
         _toolBarIndicators.append(QVariant::fromValue(
