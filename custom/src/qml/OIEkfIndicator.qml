@@ -22,10 +22,16 @@ Item {
     anchors.bottom: parent.bottom
     width:          iconRow.width
 
-    /// Shown whenever there is an aircraft, not only when a report has arrived. A missing EKF
-    /// report is itself worth seeing - an indicator that disappears instead looks like one that
-    /// was never there.
-    property bool showIndicator: _activeVehicle
+    /// Off unless the operator asked for it. Once on, shown whenever there is an aircraft and
+    /// not only when a report has arrived: a missing EKF report is itself worth seeing, and an
+    /// indicator that disappears instead looks like one that was never there.
+    ///
+    /// Hiding here rather than leaving the indicator out of QGCCorePlugin::toolBarIndicators()
+    /// is what makes the toggle take effect at once: that list is built once and cached, so a
+    /// plugin-side test would need a restart. FlyViewToolBarIndicators.qml binds each Loader's
+    /// visible to this, and the Row it sits in closes the gap.
+    property bool showIndicator: _activeVehicle &&
+                                 QGroundControl.settingsManager.flyViewSettings.showEkfIndicator.rawValue
 
     property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
 

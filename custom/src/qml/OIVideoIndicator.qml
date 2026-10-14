@@ -25,9 +25,16 @@ Item {
     anchors.bottom: parent.bottom
     width:          iconRow.width
 
-    /// Hidden when the build has no video support, matching the Video settings page's own
-    /// visibility test - a shortcut to a page that is not there would be worse than nothing.
-    property bool showIndicator: _videoSettings.userVisible
+    /// Off unless the operator asked for it, and hidden anyway when the build has no video
+    /// support - matching the Video settings page's own visibility test, because a shortcut
+    /// to a page that is not there would be worse than nothing.
+    ///
+    /// Hiding here rather than leaving the indicator out of QGCCorePlugin::toolBarIndicators()
+    /// is what makes the toggle take effect at once: that list is built once and cached, so a
+    /// plugin-side test would need a restart. FlyViewToolBarIndicators.qml binds each Loader's
+    /// visible to this, and the Row it sits in closes the gap.
+    property bool showIndicator: _videoSettings.userVisible &&
+                                 QGroundControl.settingsManager.flyViewSettings.showVideoIndicator.rawValue
 
     property var    _videoSettings: QGroundControl.settingsManager.videoSettings
     property string _source:        _videoSettings.videoSource.rawValue

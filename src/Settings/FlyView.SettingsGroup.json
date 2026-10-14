@@ -146,6 +146,22 @@
             "default": true,
             "label": "Enable automatic mission start/resume popups",
             "keywords": "mission popup"
+        },
+        {
+            "name": "showVideoIndicator",
+            "shortDesc": "Show video source and recording settings in the Fly view toolbar.",
+            "type": "bool",
+            "default": false,
+            "label": "Show Video Settings Indicator",
+            "keywords": "video indicator toolbar"
+        },
+        {
+            "name": "showEkfIndicator",
+            "shortDesc": "Show EKF health in the Fly view toolbar.",
+            "type": "bool",
+            "default": false,
+            "label": "Show EKF Health Indicator",
+            "keywords": "ekf indicator toolbar health estimator"
         }
     ]
 }
