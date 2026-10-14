@@ -1249,7 +1249,11 @@ public:
     int messageCount() const;
     QString formattedMessages() const;
 
-    // StatusTextHandler* statusTextHandler() { return m_statusTextHandler; }
+    /// OI: exposed so GCS-side code can put a line in this vehicle's message panel.
+    /// Going in here rather than through _textMessageReceived() is deliberate - that is
+    /// the path a real STATUSTEXT takes, and it reads anything at NOTICE or worse out
+    /// loud. The Q_PROPERTY above stays commented out; this is a C++ accessor only.
+    StatusTextHandler* statusTextHandler() { return m_statusTextHandler; }
 
 signals:
     void textMessageReceived(int sysid, int componentid, int severity, QString text, QString description);

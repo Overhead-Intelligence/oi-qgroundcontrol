@@ -30,6 +30,7 @@
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
 #include "OIEkfStatus.h"
+#include "OIFleetScripts.h"
 #include "OIFlightAngles.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
@@ -203,6 +204,12 @@ void OIPlugin::init()
     // engine does. It stays disarmed until an operator arms it.
     _keyboard = new OIKeyboardController(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
+
+    // Watches MultiVehicleManager for itself, so it has to outlive any one vehicle and
+    // cannot wait for the Fleet settings page to be opened - the whole point is that it
+    // runs whether or not anybody is looking at it.
+    _fleetScripts = new OIFleetScriptManager(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIFleetScripts", _fleetScripts);
 
     // Fed from mavlinkMessage() below. QGC parses AOA_SSA and discards it, and reading it
     // through the plugin hook keeps the instrument panel's data path in custom/.

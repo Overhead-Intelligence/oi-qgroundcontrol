@@ -8,6 +8,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QDir>
+#include <QtCore/QtEndian>
 #include <limits>
 
 QGC_LOGGING_CATEGORY(FTPManagerLog, "Vehicle.FTPManager")
@@ -486,6 +487,156 @@ void FTPManager::_deleteComplete(const QString& errorMsg)
     _deleteState.reset();
 
     emit deleteComplete(deletedPath, errorMsg);
+}
+
+bool FTPManager::calcFileCRC32(uint8_t fromCompId, const QString& fromURI)
+{
+    qCDebug(FTPManagerLog) << "calcFileCRC32 fromURI:" << fromURI << "fromCompId:" << fromCompId;
+
+    if (!_rgStateMachine.isEmpty()) {
+        qCDebug(FTPManagerLog) << "Cannot calc crc32. Already in another operation";
+        return false;
+    }
+
+    static const StateFunctions_t rgStateMachine[] = {
+        { &FTPManager::_calcFileCRC32Begin,             &FTPManager::_calcFileCRC32AckOrNak,    &FTPManager::_calcFileCRC32Timeout },
+        { &FTPManager::_calcFileCRC32CompleteNoError,   nullptr,                                nullptr },
+    };
+    for (size_t i=0; i<sizeof(rgStateMachine)/sizeof(rgStateMachine[0]); i++) {
+        _rgStateMachine.append(rgStateMachine[i]);
+    }
+
+    _calcFileCRC32State.reset();
+    _calcFileCRC32Result = 0;
+
+    if (!_parseURI(fromCompId, fromURI, _calcFileCRC32State.fullPathOnVehicle, _ftpCompId)) {
+        qCWarning(FTPManagerLog) << "_parseURI failed";
+        _rgStateMachine.clear();
+        return false;
+    }
+
+    _startStateMachine();
+
+    return true;
+}
+
+void FTPManager::_calcFileCRC32Begin(void)
+{
+    qCDebug(FTPManagerLog) << "file" << _calcFileCRC32State.fullPathOnVehicle;
+
+    MavlinkFTP::Request request{};
+    request.hdr.session = 0;
+    request.hdr.opcode  = MavlinkFTP::kCmdCalcFileCRC32;
+    request.hdr.offset  = 0;
+    request.hdr.size    = 0;
+    _fillRequestDataWithString(&request, _calcFileCRC32State.fullPathOnVehicle);
+    _sendRequestExpectAck(&request);
+}
+
+void FTPManager::_calcFileCRC32AckOrNak(const MavlinkFTP::Request* ackOrNak)
+{
+    MavlinkFTP::OpCode_t requestOpCode = static_cast<MavlinkFTP::OpCode_t>(ackOrNak->hdr.req_opcode);
+    if (requestOpCode != MavlinkFTP::kCmdCalcFileCRC32) {
+        qCDebug(FTPManagerLog) << "_calcFileCRC32AckOrNak: Ack disregarding ack for incorrect requestOpCode" << MavlinkFTP::opCodeToString(requestOpCode);
+        return;
+    }
+    if (ackOrNak->hdr.seqNumber != _expectedIncomingSeqNumber) {
+        qCDebug(FTPManagerLog) << "_calcFileCRC32AckOrNak: Ack disregarding ack for incorrect sequence actual:expected" << ackOrNak->hdr.seqNumber << _expectedIncomingSeqNumber;
+        return;
+    }
+
+    _ackOrNakTimeoutTimer.stop();
+
+    if (ackOrNak->hdr.opcode == MavlinkFTP::kRspAck) {
+        // The checksum rides back in the data payload as a little-endian uint32. A short
+        // payload means the server answered something other than what we asked, so treat
+        // it as a failure rather than reporting a checksum assembled from whatever was
+        // in the buffer - a wrong checksum reads as "this file changed" forever.
+        if (ackOrNak->hdr.size < sizeof(quint32)) {
+            qCDebug(FTPManagerLog) << "_calcFileCRC32AckOrNak: Ack payload too short" << ackOrNak->hdr.size;
+            _calcFileCRC32Complete(tr("Checksum failed: malformed response"));
+            return;
+        }
+        _calcFileCRC32Result = qFromLittleEndian<quint32>(ackOrNak->data);
+        _advanceStateMachine();
+    } else if (ackOrNak->hdr.opcode == MavlinkFTP::kRspNak) {
+        qCDebug(FTPManagerLog) << "_calcFileCRC32AckOrNak: Nak -" << _errorMsgFromNak(ackOrNak);
+        _calcFileCRC32Complete(tr("Checksum failed") + ": " + _errorMsgFromNak(ackOrNak));
+    }
+}
+
+void FTPManager::_calcFileCRC32Timeout(void)
+{
+    if (++_calcFileCRC32State.retryCount > _maxRetry) {
+        qCDebug(FTPManagerLog) << QString("_calcFileCRC32Timeout retries exceeded");
+        _calcFileCRC32Complete(tr("Checksum failed"));
+    } else {
+        qCDebug(FTPManagerLog) << QString("_calcFileCRC32Timeout: retrying - retryCount(%1)").arg(_calcFileCRC32State.retryCount);
+        _calcFileCRC32Begin();
+    }
+}
+
+void FTPManager::_calcFileCRC32Complete(const QString& errorMsg)
+{
+    qCDebug(FTPManagerLog) << QString("_calcFileCRC32Complete: errorMsg(%1)").arg(errorMsg);
+
+    const QString path = _calcFileCRC32State.fullPathOnVehicle;
+    const quint32 crc  = _calcFileCRC32Result;
+
+    _ackOrNakTimeoutTimer.stop();
+    _rgStateMachine.clear();
+    _currentStateMachineIndex = -1;
+
+    _calcFileCRC32State.reset();
+    _calcFileCRC32Result = 0;
+
+    emit calcFileCRC32Complete(path, crc, errorMsg);
+}
+
+/// One byte of ArduPilot's crc_crc32(). It uses a 256 entry table; this is the same
+/// polynomial unrolled, which avoids carrying a copy of the table and makes the
+/// seed-0/no-final-inversion convention visible at the call site.
+static inline quint32 _crc32UpdateByte(quint32 crc, quint8 byte)
+{
+    quint32 c = (crc ^ byte) & 0xFFU;
+    for (int k = 0; k < 8; k++) {
+        c = (c & 1U) ? (0xEDB88320U ^ (c >> 1)) : (c >> 1);
+    }
+    return c ^ (crc >> 8);
+}
+
+uint32_t FTPManager::crc32ForLocalFile(const QString& localFilePath, bool* ok)
+{
+    if (ok) {
+        *ok = false;
+    }
+
+    QFile file(localFilePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qCDebug(FTPManagerLog) << "crc32ForLocalFile: cannot open" << localFilePath << file.errorString();
+        return 0;
+    }
+
+    quint32 crc = 0;
+    char buffer[4096];
+    for (;;) {
+        const qint64 read = file.read(buffer, sizeof(buffer));
+        if (read < 0) {
+            qCDebug(FTPManagerLog) << "crc32ForLocalFile: read error" << localFilePath << file.errorString();
+            return 0;
+        }
+        if (read == 0) {
+            break;
+        }
+        for (qint64 i = 0; i < read; i++) {
+            crc = _crc32UpdateByte(crc, static_cast<quint8>(buffer[i]));
+        }
+    }
+
+    if (ok) {
+        *ok = true;
+    }
+    return crc;
 }
 
 void FTPManager::_createFileBegin(void)

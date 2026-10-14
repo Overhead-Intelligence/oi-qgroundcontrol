@@ -1,0 +1,23 @@
+{
+    "version": 1,
+    "fileType": "SettingsUI",
+    "comment": "OI: umbrella for features that manage content across every drone this GCS connects to. Sections live in the OI.Settings QML module (custom/src/qml/CMakeLists.txt).",
+    "imports": [
+        "OI.Settings"
+    ],
+    "groups": [
+        {
+            "component": "OIFleetScriptingSettings",
+            "sectionName": "Scripting",
+            "keywords": [
+                "scripting",
+                "lua",
+                "script",
+                "fleet",
+                "upload",
+                "scr_enable",
+                "ftp"
+            ]
+        }
+    ]
+}

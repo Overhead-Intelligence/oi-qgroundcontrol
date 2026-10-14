@@ -28,6 +28,7 @@ class FactValueGrid;
 class OIFlightAngles;
 class OIEkfStatus;
 class OIKeyboardController;
+class OIFleetScriptManager;
 class OIMapOverlayManager;
 class QQmlApplicationEngine;
 class QSettings;
@@ -109,6 +110,7 @@ private:
     OIKeyboardController *_keyboard = nullptr;      ///< keyboard guided control
     OIFlightAngles *_flightAngles = nullptr;        ///< angle of attack and sideslip
     OIEkfStatus *_ekfStatus = nullptr;              ///< EKF health for the Fly view indicator
+    OIFleetScriptManager *_fleetScripts = nullptr;  ///< fleet-wide Lua script set
     QVariantList _analyzePages;                     ///< built once on the first analyzePages() call
     QVariantList _toolBarIndicators;                ///< built once on the first toolBarIndicators() call
     QQmlApplicationEngine *_qmlEngine = nullptr;
