@@ -46,6 +46,12 @@
                 },
                 {
                     "setting": "flyViewSettings.enableAutomaticMissionPopups"
+                },
+                {
+                    "setting": "flyViewSettings.showVideoIndicator"
+                },
+                {
+                    "setting": "flyViewSettings.showEkfIndicator"
                 }
             ]
         },
