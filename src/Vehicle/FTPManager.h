@@ -65,6 +65,28 @@ public:
     /// Signals deleteComplete
     bool deleteFile(uint8_t fromCompId, const QString& fromURI);
 
+    /// Asks the vehicle to checksum a file it already holds, so the caller can tell
+    /// "same name" from "same contents" without downloading it.
+    ///     @param fromCompId Component id to ask. MAV_COMP_ID_ALL means MAV_COMP_ID_AUTOPILOT1.
+    ///     @param fromURI    File path on the component, fully qualified. May include the mftp:// scheme.
+    /// @return true: process has started, false: error
+    /// Signals calcFileCRC32Complete
+    bool calcFileCRC32(uint8_t fromCompId, const QString& fromURI);
+
+    /// Checksum of a local file, in the form the vehicle reports.
+    ///
+    /// NOT zlib's crc32: ArduPilot's AP_Filesystem::crc32() seeds the accumulator with 0
+    /// and does no final inversion, where zlib seeds 0xFFFFFFFF and inverts both ends. The
+    /// polynomial is the same, the answers are not, so this cannot be swapped for a
+    /// library helper without silently making every file look modified.
+    ///
+    /// Measured against a vehicle (ArduPlane, 2026-10-14) if this ever needs re-checking:
+    ///     vtol_fs_skip.lua          5376 B  vehicle 0xedbec752  here 0xedbec752  zlib 0xabd2cfa8
+    ///     motor_health_monitor.lua 39073 B  vehicle 0xd7c1bcd4  here 0xd7c1bcd4  zlib 0x992b5f1b
+    ///     @param localFilePath File to read
+    ///     @param ok            (optional) set false if the file could not be read
+    static uint32_t crc32ForLocalFile(const QString& localFilePath, bool* ok = nullptr);
+
     /// Cancel the download operation
     /// This will emit downloadComplete() when done, and if there's currently a download in progress
     void cancelDownload();
@@ -88,6 +110,7 @@ signals:
     void uploadComplete         (const QString& file, const QString& errorMsg);
     void listDirectoryComplete  (const QStringList& dirList, const QString& errorMsg);
     void deleteComplete         (const QString& file, const QString& errorMsg);
+    void calcFileCRC32Complete  (const QString& file, quint32 crc32, const QString& errorMsg);
 
     /// Signalled during a lengthy command to show progress
     ///     @param value Amount of progress: 0.0 = none, 1.0 = complete
@@ -180,6 +203,18 @@ private:
         }
     };
 
+    struct CalcFileCRC32State_t {
+        QString fullPathOnVehicle;      ///< Fully qualified path to file on vehicle
+        int     retryCount = 0;
+
+        bool inProgress() const { return !fullPathOnVehicle.isEmpty(); }
+
+        void reset() {
+            fullPathOnVehicle.clear();
+            retryCount = 0;
+        }
+    };
+
     struct UploadState_t {
         uint8_t     sessionId;
         uint32_t    totalBytesSent;
@@ -241,6 +276,12 @@ private:
     void    _deleteCompleteNoError      (void) { _deleteComplete(QString()); }
     void    _deleteComplete             (const QString& errorMsg);
 
+    void    _calcFileCRC32Begin         (void);
+    void    _calcFileCRC32AckOrNak      (const MavlinkFTP::Request* ackOrNak);
+    void    _calcFileCRC32Timeout       (void);
+    void    _calcFileCRC32CompleteNoError(void) { _calcFileCRC32Complete(QString()); }
+    void    _calcFileCRC32Complete      (const QString& errorMsg);
+
     void    _createFileBegin            (void);
     void    _createFileAckOrNak         (const MavlinkFTP::Request* ackOrNak);
     void    _createFileTimeout          (void);
@@ -283,6 +324,8 @@ private:
     DownloadState_t         _downloadState;
     ListDirectoryState_t    _listDirectoryState;
     DeleteFileState_t       _deleteState;
+    CalcFileCRC32State_t    _calcFileCRC32State;
+    quint32                 _calcFileCRC32Result = 0;
     UploadState_t           _uploadState;
     QTimer                  _ackOrNakTimeoutTimer;
     int                     _currentStateMachineIndex   = -1;
