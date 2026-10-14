@@ -120,6 +120,20 @@
             "keywords": "mission altitude,default altitude"
         },
         {
+            "name": "defaultTakeoffItemAltitude",
+            "shortDesc": "Default altitude assigned to the takeoff item during mission planning.",
+            "longDesc": "Takeoff is usually flown lower than the rest of the mission, so it has its own default rather than sharing the waypoint altitude.",
+            "type": "double",
+            "default": 50.0,
+            "min": 0.0,
+            "units": "vertical m",
+            "decimalPlaces": 1,
+            "userMin": 0.0,
+            "userMax": 121.92,
+            "label": "Default Takeoff Altitude",
+            "keywords": "mission altitude,default altitude,takeoff"
+        },
+        {
             "name": "audioMuted",
             "shortDesc": "Mute audio output",
             "longDesc": "Mutes all audio output without changing the volume level.",
