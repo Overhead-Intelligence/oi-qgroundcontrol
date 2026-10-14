@@ -2316,7 +2316,15 @@ void Vehicle::_rebootCommandResultHandler(void* resultHandlerData, int /*compId*
         }
         QGC::showAppMessage(tr("Vehicle reboot failed."));
     } else {
-        vehicle->closeVehicle();
+        // The vehicle is torn down, not kept: a reboot is usually how new parameters
+        // or a new calibration take effect, so it has to come back read fresh rather
+        // than resumed from whatever we already believed about it.
+        //
+        // The link, though, is held. An operator who just rebooted an aircraft
+        // intends to carry on flying it, and letting the last vehicle reference
+        // disconnect the link made them reconnect by hand to do that. Held, the
+        // aircraft reappears on its own when it finishes booting.
+        vehicle->_vehicleLinkManager->closeVehicle(true /* keepLinksConnected */);
     }
 }
 
