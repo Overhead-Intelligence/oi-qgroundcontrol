@@ -21,6 +21,7 @@ target_sources(${CMAKE_PROJECT_NAME}
         MAVLinkLogManager.h
         MessageIntervalManager.cc
         MessageIntervalManager.h
+        MotorLayout.cc
         MultiVehicleManager.cc
         MultiVehicleManager.h
         RemoteIDManager.cc
