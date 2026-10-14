@@ -15,6 +15,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QIODevice>
 #include <QtCore/QMetaType>
+#include <QtCore/QtMath>
 #include <QtCore/QSettings>
 #include <QtCore/QStringList>
 #include <QtCore/QVariant>
@@ -29,12 +30,14 @@
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
 #include "OIEkfStatus.h"
+#include "OIFlightAngles.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
 #include "QmlComponentInfo.h"
 #include "QmlObjectListModel.h"
 #include "SettingsManager.h"
+#include "Vehicle.h"
 
 QGC_LOGGING_CATEGORY(OILog, "OI.Plugin")
 
@@ -201,6 +204,11 @@ void OIPlugin::init()
     _keyboard = new OIKeyboardController(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
 
+    // Fed from mavlinkMessage() below. QGC parses AOA_SSA and discards it, and reading it
+    // through the plugin hook keeps the instrument panel's data path in custom/.
+    _flightAngles = new OIFlightAngles(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIFlightAngles", _flightAngles);
+
     // Fed from mavlinkMessage() below rather than from a Vehicle fact group: QGC parses
     // EKF_STATUS_REPORT and discards it, and reading it through the plugin hook keeps the whole
     // feature in custom/ instead of adding a fact group to src/Vehicle.
@@ -208,15 +216,66 @@ void OIPlugin::init()
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIEkfStatus", _ekfStatus);
 }
 
+/// Fill in the body rate facts from ATTITUDE.
+///
+/// QGC populates rollRate/pitchRate/yawRate **only** from ATTITUDE_QUATERNION (id 31), and
+/// ArduPilot does not stream that message in any default group - ArduPlane's EXTRA1 carries
+/// plain ATTITUDE (id 30). VehicleFactGroup::_handleAttitude() decodes that message and uses
+/// three of its six fields, dropping rollspeed, pitchspeed and yawspeed on the floor. So the
+/// three rate facts sit at their initial zero for the whole flight, and everything that reads
+/// them - the panel's rate of turn arc, and the Yaw Rate value an operator can put in the
+/// telemetry bar - reads a steady zero that looks like a measurement.
+///
+/// Writing the stock facts rather than exposing new ones is deliberate: the data was always
+/// meant to be there, and anything already reading them starts working without knowing about
+/// this. If a vehicle ever does send ATTITUDE_QUATERNION, both paths write the same numbers at
+/// the same rate, so the duplication is harmless.
+static void populateBodyRates(Vehicle *vehicle, const mavlink_message_t &message)
+{
+    if (message.msgid != MAVLINK_MSG_ID_ATTITUDE) {
+        return;
+    }
+
+    // Same test the stock handler makes: only the vehicle's own flight controller, not a
+    // companion computer or a second autopilot sharing the link.
+    if (!vehicle || (message.sysid != vehicle->id()) || (message.compid != vehicle->compId())) {
+        return;
+    }
+
+    mavlink_attitude_t attitude{};
+    mavlink_msg_attitude_decode(&message, &attitude);
+
+    if (!qIsFinite(attitude.rollspeed) || !qIsFinite(attitude.pitchspeed) || !qIsFinite(attitude.yawspeed)) {
+        return;
+    }
+
+    // Degrees per second, which is what the facts' metadata declares and what QGC's own
+    // quaternion path converts to.
+    vehicle->rollRate()->setRawValue(qRadiansToDegrees(static_cast<double>(attitude.rollspeed)));
+    vehicle->pitchRate()->setRawValue(qRadiansToDegrees(static_cast<double>(attitude.pitchspeed)));
+    vehicle->yawRate()->setRawValue(qRadiansToDegrees(static_cast<double>(attitude.yawspeed)));
+}
+
 bool OIPlugin::mavlinkMessage(Vehicle *vehicle, LinkInterface *link, const mavlink_message_t &message)
 {
     Q_UNUSED(link);
 
+    // Each of these filters on the message id itself, so the common case stays one
+    // comparison per consumer - the hook sees every message to every vehicle.
+    //
+    // All three run on every message. They read different messages and none of them is
+    // an alternative to another, so this list only ever grows by adding a line: dropping
+    // one here disables its feature outright and still compiles, which is exactly how a
+    // careless merge of this function would fail.
     if (_ekfStatus) {
-        // Filters on message id itself, so this stays one comparison for everything else on the
-        // link - the hook sees every message to every vehicle.
         _ekfStatus->handleMessage(vehicle, message);
     }
+
+    if (_flightAngles) {
+        _flightAngles->handleMessage(vehicle, message);
+    }
+
+    populateBodyRates(vehicle, message);
 
     return QGCCorePlugin::mavlinkMessage(vehicle, link, message);
 }
@@ -297,6 +356,14 @@ const QVariantList &OIPlugin::toolBarIndicators()
 void OIPlugin::adjustSettingMetaData(const QString &settingsGroup, FactMetaData &metaData, bool &userVisible)
 {
     QGCCorePlugin::adjustSettingMetaData(settingsGroup, metaData, userVisible);
+
+    // The instrument panel is chosen from an enum of QML file paths, so a custom build can
+    // offer its own by appending to that enum - no stock QML or settings file has to name it,
+    // and the operator can switch back to a stock panel at any time.
+    if ((settingsGroup == QLatin1String("FlyView")) && (metaData.name() == QLatin1String("instrumentQmlFile2"))) {
+        metaData.addEnumInfo(tr("Advanced Large Vertical"),
+                             QStringLiteral("qrc:/custom/qml/OIAdvancedVerticalPanel.qml"));
+    }
 
     // Settings with an empty group name (App and MAVLink) sit in the [General] section of
     // the ini, which QSettings exposes as top-level keys (no "General/" prefix).

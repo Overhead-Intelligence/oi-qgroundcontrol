@@ -24,6 +24,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIEkfStatus.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIEkfStatus.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIFlightAngles.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/OIFlightAngles.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIMapOverlays.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/OIKeyboardController.cc
