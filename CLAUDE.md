@@ -183,6 +183,38 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
   actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.
+- **A comms dropout does not destroy the Vehicle; a link teardown does.**
+  `VehicleLinkManager::_autoDisconnect` is false by default, so missed heartbeats only
+  set `communicationLost` and the `Vehicle` survives with its flight timer running. It
+  is `allLinksRemoved` - a serial port disappearing, a TCP socket closing, an operator
+  reconnecting - that makes `MultiVehicleManager` delete the `Vehicle`, and anything
+  held on it goes too. That is why `src/Vehicle/FlightStatsResume.{h,cc}` is owned by
+  `MultiVehicleManager` rather than by the `Vehicle` whose totals it carries.
+  It derives flight time and distance from ArduPilot's own `AP_Stats` counters, which
+  are plain parameters: `STAT_FLTTIME`, `STAT_DISTFLWN`, `STAT_FLTCNT`, `STAT_BOOTCNT`.
+  Those are lifetime totals, so what matters is their value when the current flight
+  began, and **two measured facts give it exactly** (SITL, fleet branch). `STAT_FLTCNT`
+  increments at **takeoff**, not at arming (14.4 s and 15.9 s after arm across two runs) -
+  that is the flight boundary. And `STAT_FLTTIME` counts **airborne** time, so it is
+  frozen while not flying - armed on the ground for 238 s it stayed at 0.0 - which makes
+  *any* pre-takeoff reading an exact baseline. So the poller keeps the last reading, and
+  the first time `STAT_FLTCNT` is seen to have moved it commits that previous reading as
+  the flight's baseline and persists it.
+  **The baseline is written once per flight and never rewritten, and that is the design
+  rather than a detail.** A half-connected GCS can read it and display from it but has no
+  path to replace it. The first version kept a rolling pair of "what we displayed" and
+  "what the vehicle read"; a failed reconnect attempt overwrote it with its own near-zero
+  ground-side value, and the next good connection then resumed from the failed attempt
+  instead of from takeoff. Seen in the field on 2026-09-29.
+  The counters are flushed to their parameters only every 30 s
+  (`AP_Stats::flush_interval_ms`) - measured worst case 30.8 s and 918 m over a 1188 s,
+  30 km flight - but the baseline is read while frozen, so only the live value lags.
+  A reading only ever corrects the display *forward*, so it never runs backwards.
+  The values must be **read**, never taken from the parameter cache: on a reconnect that
+  cache holds exactly the pre-gap values the resume is measuring against. Hence
+  `ParameterManager::bulkRefresh` plus the `_paramRequestReadSuccess` signal to know when
+  all four have come back. Touches `src/` - no hook reaches the flight totals or the
+  vehicle lifecycle.
 - **MAVLink actions are a list, not a file.** `flyViewActionsFile` and
   `joystickActionsFile` hold `;`-separated file names, and `MavlinkActionManager`
   loads every one of them into a single action model. `;` rather than `,` because
