@@ -28,6 +28,7 @@
 #include "InstrumentValueData.h"
 #include "MavlinkActionManager.h"
 #include "MavlinkActionsSettings.h"
+#include "OIFleetScripts.h"
 #include "OIKeyboardController.h"
 #include "OIMapOverlays.h"
 #include "QGCLoggingCategory.h"
@@ -199,6 +200,12 @@ void OIPlugin::init()
     // engine does. It stays disarmed until an operator arms it.
     _keyboard = new OIKeyboardController(this);
     (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIKeyboard", _keyboard);
+
+    // Watches MultiVehicleManager for itself, so it has to outlive any one vehicle and
+    // cannot wait for the Fleet settings page to be opened - the whole point is that it
+    // runs whether or not anybody is looking at it.
+    _fleetScripts = new OIFleetScriptManager(this);
+    (void) qmlRegisterSingletonInstance("OI.Controls", 1, 0, "OIFleetScripts", _fleetScripts);
 }
 
 QString OIPlugin::stableDownloadLocation() const

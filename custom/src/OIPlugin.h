@@ -26,6 +26,7 @@
 class FactMetaData;
 class FactValueGrid;
 class OIKeyboardController;
+class OIFleetScriptManager;
 class OIMapOverlayManager;
 class QQmlApplicationEngine;
 class QSettings;
@@ -101,6 +102,7 @@ private:
     QSettings *_defaults = nullptr;                 ///< read-only view of :/custom/OI-defaults.ini
     OIMapOverlayManager *_mapOverlays = nullptr;    ///< hazard layers and their markers
     OIKeyboardController *_keyboard = nullptr;      ///< keyboard guided control
+    OIFleetScriptManager *_fleetScripts = nullptr;  ///< fleet-wide Lua script set
     QVariantList _analyzePages;                     ///< built once on the first analyzePages() call
     QVariantList _toolBarIndicators;                ///< built once on the first toolBarIndicators() call
     QQmlApplicationEngine *_qmlEngine = nullptr;

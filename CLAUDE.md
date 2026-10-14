@@ -266,6 +266,44 @@ open a PR. Never merge `upstream/master` (daily builds).
 
 ## Gotchas
 
+- MAVLink FTP is **one operation at a time per vehicle**. `FTPManager` refuses a
+  second caller with a bare `false`, and it is shared by `ParameterManager` (the
+  `@PARAM/param.pck` fetch on every connect), component metadata, Onboard Logs,
+  Onboard Files, the vehicle-config Scripting tab and Fleet scripting. Anything
+  new that uses it must yield rather than queue: check `inProgress()` before each
+  step and retry later. A background user that wins the race at connect pushes
+  `ParameterManager` onto the slow per-parameter path, which presents only as
+  "QGC got slower". Never leave an operation marker set across a refusal either —
+  `FTPController` clears its own before returning, which is the only reason an
+  idle Onboard Files page does not repaint itself with another consumer's listing.
+- ArduPilot's `CalcFileCRC32` is **not** zlib's crc32. `AP_Filesystem::crc32()`
+  seeds the accumulator with 0 and does no final inversion; zlib seeds
+  `0xFFFFFFFF` and inverts both ends. Same polynomial, different answers, so
+  swapping `FTPManager::crc32ForLocalFile` for a library helper makes every file
+  compare as modified forever. Measured values to re-verify against are in the
+  comment on that function. A directory listing already carries each file's size
+  (`F<name>\t<size>`), so compare sizes first and spend a checksum only when they
+  agree.
+- Uploading over an existing file needs no delete: `kCmdCreateFile` opens with
+  `O_WRONLY|O_CREAT|O_TRUNC` on the vehicle, so a write replaces in place.
+- Scripts take effect without a reboot. `MAV_CMD_SCRIPTING` with param1 =
+  `SCRIPTING_CMD_STOP_AND_RESTART` (3) makes `AP_Scripting::thread()` build a
+  fresh `lua_scripts`, which re-reads the scripts directory. The exception is
+  `SCR_ENABLE` having been 0 at boot — `AP_Scripting::init()` returns early then,
+  so no thread exists to restart. That same early return is why a missing
+  `/APM/scripts` means no usable SD card rather than "no scripts yet": init
+  creates the directory itself whenever scripting is on.
+- A GCS-side line in a vehicle's message panel goes in at
+  `Vehicle::statusTextHandler()->handleHTMLEscapedTextMessage()`, not through
+  `_textMessageReceived()`. The latter is the path a real STATUSTEXT takes and it
+  speaks anything at NOTICE or worse, so injecting there gets the message read
+  aloud. NOTICE and WARNING also render identically in the panel (bold orange,
+  `MessageWarning`); INFO is the only genuinely quieter severity.
+- OI's birds run mavlink-router with **demand-driven** UDP endpoints on
+  11000–11010: a port stays silent until the GCS sends it something, so passively
+  listening on the right port looks exactly like an aircraft that is offline.
+  Poke it with a heartbeat first (`udpout:`, not `udpin:`). Endpoints are
+  additive, so a second client does not disturb a GCS already connected.
 - The GCS system ID stays at QGC's default 255 (Roger's live setting on
   2026-09-16; the May export had 254). ArduPilot gates `MANUAL_CONTROL`, RC
   override and the GCS failsafe on `MAV_GCS_SYSID`; guided commands are not gated.
