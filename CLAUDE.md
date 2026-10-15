@@ -14,7 +14,7 @@ sources under `src/` are untouched. It ships a Windows x64 installer through
 GitHub Releases. Operators fly ArduPlane QuadPlanes (Cube Orange) with it; the
 SITL bench is `ardupilot-SITL-environment`.
 
-Current version: 1.1.0 (released 2026-10-01). Upstream base: QGroundControl
+Current version: 1.2.0 (released 2026-10-15). Upstream base: QGroundControl
 **v5.1.4** (`main` and `development` both started from tag `v5.1.4`).
 The QGC line is Roger's decision, not a sync: on 2026-09-17 he weighed going
 back to the 5.0 line (he dislikes parts of the 5.1 interface) and chose to
@@ -261,12 +261,18 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - Branches `feat/`, `fix/`, `docs/`, `chore/` off `development`; Conventional
   Commits; PR against `development`; a `CHANGELOG.md` `[Unreleased]` entry in
   every PR; humans merge with a merge commit (the ruleset allows nothing else).
-  `main` fast-forwards at release time; tags are OI versions `vX.Y.Z`, not QGC's.
+  `main` takes `development` through its own PR at release time - its ruleset sets
+  non-fast-forward and allows merge commits only, so it cannot be fast-forwarded.
+  Tags are OI versions `vX.Y.Z`, not QGC's.
 - **Every release updates the What's New tab.** `custom/src/qml/OIWhatsNewPage.qml`
-  is Settings → What's New, the last visible page in the list. It describes **one
-  release**, not a running history: at release time replace `releaseVersion`,
-  `features` and `fixes` wholesale, and make `releaseVersion` match
-  `custom/VERSION` - and the "Current version" line at the top of this file. It is
+  is Settings → What's New, the last visible page in the list. It is a browsable
+  history: at release time **prepend** an entry to `releases` - do not replace what
+  is there, which is what the page did before 1.2.0 and which deleted the previous
+  release's explanations every time. Most of the org skips a release and a customer
+  arrives several versions late, so arriving late is the normal case. The first
+  entry's `version` must match `custom/VERSION` - and the "Current version" line at
+  the top of this file. Notes stay in QML rather than a JSON resource so `qsTr()`
+  keeps reaching them; strings in a data file are invisible to lupdate. It is
   not the changelog in different words — `CHANGELOG.md` is
   written for whoever maintains the code, this is written for whoever flies with
   it, so each entry says what the operator can now do and names the tab or window
