@@ -8,6 +8,40 @@ Versions are OI's own (`vX.Y.Z`). Each release notes the upstream QGroundControl
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-15
+
+Built on upstream QGroundControl **v5.1.4**.
+
+### Added
+- **Fleet-wide Lua scripting**, under a new **Fleet** tab in Application Settings. Scripts are imported into the GCS's own `FleetScripts` folder and ticked individually; when a disarmed vehicle connects, each ticked script is compared against what the aircraft holds and uploaded if it differs. Identity is contents, not filename: the directory listing already carries each file's size, so size is the free first test and a checksum is only spent when sizes agree. Changes apply without a reboot — `MAV_CMD_SCRIPTING` with `SCRIPTING_CMD_STOP_AND_RESTART` makes `AP_Scripting::thread()` build a fresh `lua_scripts`, which re-reads the directory. The exception is `SCR_ENABLE` having been 0 at boot, since `AP_Scripting::init()` returns early and there is no thread to restart; that same early return is why a missing `/APM/scripts` is reported as a bad SD card rather than "no scripts yet". **Nothing is ever deleted**: unticking a script leaves it on the aircraft, and scripts the list does not recognise are reported, never removed. The sync runs per vehicle rather than per *active* vehicle, so switching focus never abandons an upload mid-queue and leaves an aircraft with new scripts and a stale VM.
+- **`CalcFileCRC32` support in `FTPManager`.** MAVLink FTP has carried opcode 14 all along and ArduPilot implements it, but QGC only had state machines for download, upload, list and delete, so there was no way to tell "a file with that name is present" from "that file is present". Note that `FTPManager::crc32ForLocalFile` deliberately does not use a library helper: `AP_Filesystem::crc32()` seeds the accumulator with 0 and does no final inversion where zlib seeds `0xFFFFFFFF` and inverts both ends, so the same polynomial gives different answers and the obvious substitution would make every file compare as modified forever. Verified against an aircraft; the measured values are in the header comment so the convention can be re-checked without a flight. Touches `src/`.
+- **Advanced instrument panel**, selectable under Fly View Settings → Instrument Panel. Airspeed and altitude tapes labelled with their active frame, a VSI bar, an attitude display with a rotating bank scale and a fixed roll pointer, a slip/skid ball, an angle-of-attack indexer, a flight path vector and a compass rose. Three of its inputs are data the autopilot already sends and QGC discarded: body rates (`ATTITUDE`'s `rollspeed`/`pitchspeed`/`yawspeed`, which QGC only ever populated from `ATTITUDE_QUATERNION` — a message ArduPlane does not stream in any default group, so the rate facts read a steady zero that looked like a measurement), angle of attack and sideslip (`AOA_SSA`), and lateral acceleration (`RAW_IMU`). The slip/skid ball is driven by lateral acceleration rather than sideslip: a ball is a force balance and sideslip is an aerodynamic angle derived from the EKF velocity solution and an estimated wind vector, and they disagree routinely — over the 2026-10-09 sortie sideslip ran a median +3.4° while lateral acceleration ran −0.036 g.
+- **EKF health indicator** in the Fly view toolbar, reporting the variances from `EKF_STATUS_REPORT` with colour carrying the risk level. Off by default; enable under Fly View Settings → General.
+- **Video settings indicator** in the Fly view toolbar: stream source and format editable in flight, with a shortcut to the full Video settings page. Off by default; enable under Fly View Settings → General.
+- **Loiter Over Home plan template**, between Corridor Scan and No Template. Takeoff, an indefinite loiter at 120 m with a 250 m radius placed at the launch point, and an RTL that honours the configured default altitude frame.
+- **Failsafe voltage source** (`BATT_FS_VOLTSRC`) in the Battery Failsafe section of the vehicle configuration Failsafes tab, below the low and critical battery action options.
+- **Disconnect is always available** from the Fly view, with a confirmation step while the vehicle is flying rather than the control being hidden.
+- **The link is held across a commanded reboot.** The vehicle object still closes and reopens, but the link stays up, so a rebooted aircraft comes back on the connection it left rather than needing one to be rebuilt.
+- **The What's New page is now a browsable history** rather than a single release. Older/Newer controls walk back through previous releases, because most of the org skipped 1.1.0 and a customer will arrive several versions late as a matter of course — cutting a release previously deleted the previous release's explanations. Cutting a release now *prepends* to `releases` rather than replacing it.
+
+### Changed
+- **Plan view defaults follow the OI standard configuration.** Waypoint altitudes default to AGL at 120 m with flight speed unchecked, takeoff is 50 m at 0° pitch with the climb-out prompt removed, survey defaults are set for the Skylord platform (trigger distance 0, spacing 75 m, turnaround 0, options off), and templates finish with an RTL rather than a landing pattern. The polygon and polyline tools move into the item editor. Note that the default altitude frame is now a setting read in both places that previously hardcoded `AltitudeFrameRelative`.
+- **Imported map overlays are copied into application storage** instead of being referenced where the operator picked them from, so a layer survives someone tidying their Downloads folder. Overlay files and fleet scripts now share one helper for this (`OIAppStorage::folder()`), resolved per use so both follow the application save path setting if it changes while the app is running.
+- **The GCS map marker and the application icon** are now a white mark on a dark badge with a white outline, legible against both satellite imagery and a light desktop. The previous marker was a white mark that vanished over pale terrain.
+- **The motor test page** has been reworked with per-motor detail, additional settings and new safety measures.
+- Sliders are no longer drawn on numeric fields that did not benefit from them, for visual clarity.
+
+### Fixed
+- **UDP links no longer hear each other.** A link now binds `DontShareAddress`, so a second link on a port another link already holds fails rather than binding successfully and silently receiving nothing; accepts datagrams only from its own configured server addresses, matched on address so an aircraft answering from a different source port still works, unless **Accept data from any sender** is ticked; and no longer joins multicast `224.0.0.1`. Connecting one aircraft previously brought up another.
+- **A UDP hostname that fails to resolve is retried for the life of the link.** Upstream resolved at `addHost()` and once more at connect and nowhere else, and the send loop then skipped a target with a null address in silence — so one failed lookup killed a hostname link for the whole session, observed in the field when the GCS lost internet while the aircraft was still reachable on the LAN. Lookups now run on the worker thread rather than the GUI thread, where `QHostInfo::fromName()` blocks for the resolver's full timeout.
+- **Flight time and distance survive a reconnect.** If the GCS saw a drone's launch and was disconnected mid-flight, it now resumes the track rather than restarting it from zero.
+- **The motors tab detects the airframe's motor count** from the frame class and type instead of assuming one.
+
+### Notes
+- `src/` is touched by the fleet scripting, instrument panel, mission planning, motor test, UDP, flight stats and settings-page changes. These are sync-conflict surface against upstream QGroundControl, not upstream contributions — OI does not push changes back to `mavlink/qgroundcontrol`.
+- The RTSP late-packet fix (#34) is deliberately **not** in this release. It is untested and remains open for a hotfix once hardware is available to verify it.
+
+
 ## [1.1.0] - 2026-10-01
 
 ### Added

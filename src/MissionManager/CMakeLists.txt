@@ -71,6 +71,8 @@ target_sources(${CMAKE_PROJECT_NAME}
         StructureScanPlanCreator.h
         SurveyComplexItem.cc
         SurveyComplexItem.h
+        LoiterOverHomePlanCreator.cc
+        LoiterOverHomePlanCreator.h
         SurveyPlanCreator.cc
         SurveyPlanCreator.h
         TakeoffMissionItem.cc
@@ -101,6 +103,7 @@ qt_add_resources(${CMAKE_PROJECT_NAME} missionmanager_plancreator_images
     FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/BlankPlanCreator.png"
         "${CMAKE_CURRENT_SOURCE_DIR}/CorridorScanPlanCreator.png"
+        "${CMAKE_CURRENT_SOURCE_DIR}/LoiterOverHomePlanCreator.png"
         "${CMAKE_CURRENT_SOURCE_DIR}/StructureScanPlanCreator.png"
         "${CMAKE_CURRENT_SOURCE_DIR}/SurveyPlanCreator.png"
 )

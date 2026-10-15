@@ -13,8 +13,9 @@ version of it.
 | `custom.qrc` | Resources compiled into the exe: images, `OI-defaults.ini`, the `OI-*.json` actions files, QML overrides | Adding an image, a data file or a QML override |
 | `res/OI-defaults.ini` | Default settings for a fresh install | Changing a default (units, guided limits, hidden modes, ...) |
 | `res/OI-*.json` | Fly view / joystick custom action buttons, one file per capability | Adding or changing a MAVLink action |
-| `res/Images/OILogoMark.svg` | The OI logo mark as a vector, used for the toolbar logo and menus | Rebranding |
-| `res/icons/`, `deploy/windows/` | App icon, installer icon and installer header | Rebranding |
+| `res/Images/OILogoMark.svg` | The OI logo mark as a vector, used for the toolbar logo and menus - drawn tinted, so it must stay one flat colour on transparency | Rebranding |
+| `res/Images/OIBadge.svg` | The same mark as a badge: white on a black box with a white outline, for the two places it is drawn **untinted** and has to carry its own contrast - the GCS marker on the Fly view map, and the application icon | Rebranding |
+| `res/icons/`, `deploy/windows/` | App icon, installer icon and installer header. The `.ico` files are `OIBadge.svg` rasterised at 16-256 px; regenerate both together | Rebranding |
 | `src/OIPlugin.{h,cc}` | The QGC core plugin: applies the defaults, builds the telemetry bar, deploys the actions file, installs the override interceptor | Adding a new hook |
 | `src/OIMapOverlays.{h,cc}` | Hazard overlays: FAA DOF and KML import, parsing, the height/radius filters, persistence, and the markers drawn on the Fly view map | Changing overlay behaviour or a filter default |
 | `src/qml/OIMapOverlayMarker.qml`, `src/qml/OIMapOverlaySettings.qml`, `src/qml/CMakeLists.txt` | The marker, the Settings -> Maps section, and the `OI.Settings` QML module the section must live in | Changing how a hazard looks or the import UI |
@@ -101,3 +102,34 @@ The mark, icons and installer header were generated from the OI brand kit
 (`G:\Shared drives\OI-Marketing\Logo\OI.FinalLogos`). `OILogoMark.svg` is a
 vector reconstruction of the icon lockup (ring radii, bar width and the four
 slots measured from the master PNG) so it stays crisp at every size.
+
+`OIBadge.svg` is that same geometry at 0.87 about the centre, in white, on a
+black box with a white outline. **Which of the two a place needs is decided by
+whether it tints.** Anything drawn through `QGCColoredImage` takes the plain
+mark: that provider composites with `CompositionMode_SourceIn`, keeping only the
+source alpha and replacing every pixel's colour with one flat tint, so a badge
+there collapses to a solid square. The two places that draw the artwork as-is -
+the GCS marker on the Fly view map, and the Windows application icon - take the
+badge, because nothing else gives them contrast against map imagery or a taskbar
+of unknown colour.
+
+The `.ico` files are the badge rasterised at 16, 24, 32, 48, 64, 128 and 256 px.
+`res/icons/oi-qgroundcontrol.ico` is the window icon QGCApplication sets at
+runtime and `deploy/windows/WindowsQGC.ico` is the icon linked into the `.exe`;
+they are the same bytes and should be replaced together. Note that the mark's
+ring spans 802 of the 1000-unit viewBox, not the full box, so a rasteriser
+working from a tightly cropped glyph has to scale by `0.87 * 0.802` to match the
+SVG rather than by `0.87`.
+
+**Changing the `.ico` does not rebuild the icon locally.** The generated
+`build/QGroundControl-OI_resource.rc` names the file by absolute path, and
+nothing declares the `.ico` as a dependency of the compiled resource, so an
+incremental build relinks happily and ships the previous icon with no warning.
+Delete `build/CMakeFiles/QGroundControl-OI.dir/QGroundControl-OI_resource.rc.res`
+and build again. CI builds from clean and is unaffected. To check what actually
+landed in the exe rather than trusting the build:
+
+```powershell
+Add-Type -AssemblyName System.Drawing
+[System.Drawing.Icon]::ExtractAssociatedIcon("build\Release\QGroundControl-OI.exe").ToBitmap().Save("$env:TEMP\icon.png")
+```

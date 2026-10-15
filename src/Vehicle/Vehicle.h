@@ -172,6 +172,7 @@ public:
     Q_PROPERTY(VehicleSupports*     supports                    READ supports                                                       CONSTANT)
     Q_PROPERTY(QString              prearmError                 READ prearmError                WRITE setPrearmError                NOTIFY prearmErrorChanged)
     Q_PROPERTY(int                  motorCount                  READ motorCount                                                     CONSTANT)
+    Q_PROPERTY(QVariantList         motorLayout                 READ motorLayout                                                    CONSTANT)
     Q_PROPERTY(bool                 coaxialMotors               READ coaxialMotors                                                  CONSTANT)
     Q_PROPERTY(bool                 xConfigMotors               READ xConfigMotors                                                  CONSTANT)
     Q_PROPERTY(bool                 isOfflineEditingVehicle     READ isOfflineEditingVehicle                                        CONSTANT)
@@ -373,7 +374,10 @@ public:
     ///     @param motor Motor number, 1-based
     ///     @param percent 0-no power, 100-full power
     ///     @param timeoutSec Disabled motor after this amount of time
-    Q_INVOKABLE void motorTest(int motor, int percent, int timeoutSecs, bool showError);
+    /// Spin one motor, or - with @p motorCount above 1 - that many consecutively starting at
+    /// @p motor. The sequence is run by the autopilot rather than by sending a command per
+    /// motor, which keeps the motors armed throughout; see the note in the implementation.
+    Q_INVOKABLE void motorTest(int motor, int percent, int timeoutSecs, bool showError, int motorCount = 0);
 
     enum PIDTuningTelemetryMode {
         ModeDisabled,
@@ -423,6 +427,13 @@ public:
     void setInitialGCSTemperature(qreal temperature) { _initialGCSTemperature = temperature; }
 
     void updateFlightDistance(double distance);
+
+    /// Set the flight totals from the aircraft's own counters and keep counting from there.
+    /// With `force` the values are applied outright, for a flight the ground side has not
+    /// been following; otherwise they only correct *forward*, so the smoother local timer
+    /// wins between reads and the display never runs backwards. Ignored while disarmed, so
+    /// polling on the ground cannot restart a finished flight. See FlightStatsResume.
+    void syncFlightStats(double flightTimeSecs, double flightDistanceM, bool force);
 
     void sendJoystickDataThreadSafe (float roll, float pitch, float yaw, float thrust, quint16 buttons, quint16 buttons2, float pitchExtension, float rollExtension, float aux1, float aux2, float aux3, float aux4, float aux5, float aux6);
     /// Sends RC_CHANNELS_OVERRIDE for joystick aux axes mapped to RC channels 5–10 only.
@@ -687,6 +698,11 @@ public:
 
     /// @return -1 = Unknown, Number of motors on vehicle
     int motorCount();
+    /// One entry per test sequence, in order: { sequence, motorNumber, clockwise }. Empty when
+    /// the frame is not tabulated, which the UI shows as sequence letters alone.
+    QVariantList motorLayout();
+    /// Reads Q_FRAME_CLASS/Q_FRAME_TYPE, else FRAME_CLASS/FRAME_TYPE. False when neither exists.
+    bool _frameClassAndType(int &frameClass, int &frameType);
 
     /// @return true: Motors are coaxial like an X8 config, false: Quadcopter for example
     bool coaxialMotors();
@@ -1004,6 +1020,9 @@ private:
 
     QElapsedTimer                   _flightTimer;
     QTimer                          _flightTimeUpdater;
+    /// Added to the elapsed timer, so a flight resumed after a reconnect continues from
+    /// where it was instead of from zero. Reset by _flightTimerStart().
+    double                          _flightTimeOffsetSecs = 0;
     TrajectoryPoints*               _trajectoryPoints = nullptr;
     std::unique_ptr<QmlObjectListModel> _cameraTriggerPoints;
     //QMap<QString, ADSBVehicle*>     _trafficVehicleMap;
@@ -1230,7 +1249,11 @@ public:
     int messageCount() const;
     QString formattedMessages() const;
 
-    // StatusTextHandler* statusTextHandler() { return m_statusTextHandler; }
+    /// OI: exposed so GCS-side code can put a line in this vehicle's message panel.
+    /// Going in here rather than through _textMessageReceived() is deliberate - that is
+    /// the path a real STATUSTEXT takes, and it reads anything at NOTICE or worse out
+    /// loud. The Q_PROPERTY above stays commented out; this is a C++ accessor only.
+    StatusTextHandler* statusTextHandler() { return m_statusTextHandler; }
 
 signals:
     void textMessageReceived(int sysid, int componentid, int severity, QString text, QString description);

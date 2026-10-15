@@ -14,7 +14,7 @@ sources under `src/` are untouched. It ships a Windows x64 installer through
 GitHub Releases. Operators fly ArduPlane QuadPlanes (Cube Orange) with it; the
 SITL bench is `ardupilot-SITL-environment`.
 
-Current version: 1.1.0 (released 2026-10-01). Upstream base: QGroundControl
+Current version: 1.2.0 (released 2026-10-15). Upstream base: QGroundControl
 **v5.1.4** (`main` and `development` both started from tag `v5.1.4`).
 The QGC line is Roger's decision, not a sync: on 2026-09-17 he weighed going
 back to the 5.0 line (he dislikes parts of the 5.1 interface) and chose to
@@ -183,6 +183,38 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - `custom/res/` — logo mark SVG, icons, `OI-defaults.ini`, and the bundled
   actions files `OI-Gripper.json`, `OI-Starnav.json`, `OI-WingtipLights.json`.
   `custom/deploy/windows/` — installer icon and header.
+- **A comms dropout does not destroy the Vehicle; a link teardown does.**
+  `VehicleLinkManager::_autoDisconnect` is false by default, so missed heartbeats only
+  set `communicationLost` and the `Vehicle` survives with its flight timer running. It
+  is `allLinksRemoved` - a serial port disappearing, a TCP socket closing, an operator
+  reconnecting - that makes `MultiVehicleManager` delete the `Vehicle`, and anything
+  held on it goes too. That is why `src/Vehicle/FlightStatsResume.{h,cc}` is owned by
+  `MultiVehicleManager` rather than by the `Vehicle` whose totals it carries.
+  It derives flight time and distance from ArduPilot's own `AP_Stats` counters, which
+  are plain parameters: `STAT_FLTTIME`, `STAT_DISTFLWN`, `STAT_FLTCNT`, `STAT_BOOTCNT`.
+  Those are lifetime totals, so what matters is their value when the current flight
+  began, and **two measured facts give it exactly** (SITL, fleet branch). `STAT_FLTCNT`
+  increments at **takeoff**, not at arming (14.4 s and 15.9 s after arm across two runs) -
+  that is the flight boundary. And `STAT_FLTTIME` counts **airborne** time, so it is
+  frozen while not flying - armed on the ground for 238 s it stayed at 0.0 - which makes
+  *any* pre-takeoff reading an exact baseline. So the poller keeps the last reading, and
+  the first time `STAT_FLTCNT` is seen to have moved it commits that previous reading as
+  the flight's baseline and persists it.
+  **The baseline is written once per flight and never rewritten, and that is the design
+  rather than a detail.** A half-connected GCS can read it and display from it but has no
+  path to replace it. The first version kept a rolling pair of "what we displayed" and
+  "what the vehicle read"; a failed reconnect attempt overwrote it with its own near-zero
+  ground-side value, and the next good connection then resumed from the failed attempt
+  instead of from takeoff. Seen in the field on 2026-09-29.
+  The counters are flushed to their parameters only every 30 s
+  (`AP_Stats::flush_interval_ms`) - measured worst case 30.8 s and 918 m over a 1188 s,
+  30 km flight - but the baseline is read while frozen, so only the live value lags.
+  A reading only ever corrects the display *forward*, so it never runs backwards.
+  The values must be **read**, never taken from the parameter cache: on a reconnect that
+  cache holds exactly the pre-gap values the resume is measuring against. Hence
+  `ParameterManager::bulkRefresh` plus the `_paramRequestReadSuccess` signal to know when
+  all four have come back. Touches `src/` - no hook reaches the flight totals or the
+  vehicle lifecycle.
 - **MAVLink actions are a list, not a file.** `flyViewActionsFile` and
   `joystickActionsFile` hold `;`-separated file names, and `MavlinkActionManager`
   loads every one of them into a single action model. `;` rather than `,` because
@@ -229,12 +261,18 @@ overrides as he names things. A complete 5.0 port is parked on branch
 - Branches `feat/`, `fix/`, `docs/`, `chore/` off `development`; Conventional
   Commits; PR against `development`; a `CHANGELOG.md` `[Unreleased]` entry in
   every PR; humans merge with a merge commit (the ruleset allows nothing else).
-  `main` fast-forwards at release time; tags are OI versions `vX.Y.Z`, not QGC's.
+  `main` takes `development` through its own PR at release time - its ruleset sets
+  non-fast-forward and allows merge commits only, so it cannot be fast-forwarded.
+  Tags are OI versions `vX.Y.Z`, not QGC's.
 - **Every release updates the What's New tab.** `custom/src/qml/OIWhatsNewPage.qml`
-  is Settings → What's New, the last visible page in the list. It describes **one
-  release**, not a running history: at release time replace `releaseVersion`,
-  `features` and `fixes` wholesale, and make `releaseVersion` match
-  `custom/VERSION` - and the "Current version" line at the top of this file. It is
+  is Settings → What's New, the last visible page in the list. It is a browsable
+  history: at release time **prepend** an entry to `releases` - do not replace what
+  is there, which is what the page did before 1.2.0 and which deleted the previous
+  release's explanations every time. Most of the org skips a release and a customer
+  arrives several versions late, so arriving late is the normal case. The first
+  entry's `version` must match `custom/VERSION` - and the "Current version" line at
+  the top of this file. Notes stay in QML rather than a JSON resource so `qsTr()`
+  keeps reaching them; strings in a data file are invisible to lupdate. It is
   not the changelog in different words — `CHANGELOG.md` is
   written for whoever maintains the code, this is written for whoever flies with
   it, so each entry says what the operator can now do and names the tab or window
@@ -266,6 +304,74 @@ open a PR. Never merge `upstream/master` (daily builds).
 
 ## Gotchas
 
+- **A UDP hostname is resolved asynchronously and retried.** Upstream resolves at
+  `addHost()` and once more at connect, and nowhere else; the send loop then skips a
+  target with a null address in silence. One failed lookup therefore killed a
+  hostname link for the life of the session - observed in the field when the GCS
+  lost internet but the aircraft was still reachable on the LAN, and the operator
+  had to recreate the link by IP. `addHost()` now only parses a literal, because it
+  runs on the GUI thread and `QHostInfo::fromName()` blocks there for the resolver's
+  full timeout. Names are looked up by `UDPWorker` with `QHostInfo::lookupHost()` and
+  retried every `kResolveRetryIntervalMs` while the link is up, and the operator is
+  told once per name. **A late resolve must re-run `_snapshotAcceptedAddresses()`**:
+  the accept list below is built from resolved addresses at connect, so without that
+  the name would resolve, telemetry would arrive, and the link would drop it.
+- **UDP links diverge from upstream in three ways, all deliberate.** They bind
+  `DontShareAddress`, so a second link on a port another link already holds fails
+  instead of binding successfully and silently receiving nothing (two sockets on
+  one UDP port is not a shared subscription - the OS picks one). They accept
+  datagrams only from their own configured server addresses, matched on address so
+  an aircraft answering from a different source port still works, unless `Accept
+  data from any sender` is ticked. And they no longer join multicast `224.0.0.1`.
+  Our ports are assigned per pilot rather than per aircraft, so every link an
+  operator owns shares a port by design; without the first two changes they
+  collide, and whichever bound first received every aircraft on that port.
+- **There is no vehicle auto-discovery.** `autoConnectUDP`, `autoConnectPixhawk`,
+  `autoConnectSiKRadio`, `autoConnectLibrePilot` and the `udpListenPort` /
+  `udpTargetHost*` settings are gone, along with the AutoConnect section in Comm
+  Links and in the no-vehicle status drawer. What survives in the `AutoConnect`
+  settings group is NMEA GPS and RTK GPS - peripherals, not vehicles - and the
+  group keeps its name so saved keys still load. A per-link `Automatically
+  Connect on Start` also survives; it is explicit, and it no longer rewrites the
+  link's port the way `UDPConfiguration::setAutoConnect` used to.
+- MAVLink FTP is **one operation at a time per vehicle**. `FTPManager` refuses a
+  second caller with a bare `false`, and it is shared by `ParameterManager` (the
+  `@PARAM/param.pck` fetch on every connect), component metadata, Onboard Logs,
+  Onboard Files, the vehicle-config Scripting tab and Fleet scripting. Anything
+  new that uses it must yield rather than queue: check `inProgress()` before each
+  step and retry later. A background user that wins the race at connect pushes
+  `ParameterManager` onto the slow per-parameter path, which presents only as
+  "QGC got slower". Never leave an operation marker set across a refusal either —
+  `FTPController` clears its own before returning, which is the only reason an
+  idle Onboard Files page does not repaint itself with another consumer's listing.
+- ArduPilot's `CalcFileCRC32` is **not** zlib's crc32. `AP_Filesystem::crc32()`
+  seeds the accumulator with 0 and does no final inversion; zlib seeds
+  `0xFFFFFFFF` and inverts both ends. Same polynomial, different answers, so
+  swapping `FTPManager::crc32ForLocalFile` for a library helper makes every file
+  compare as modified forever. Measured values to re-verify against are in the
+  comment on that function. A directory listing already carries each file's size
+  (`F<name>\t<size>`), so compare sizes first and spend a checksum only when they
+  agree.
+- Uploading over an existing file needs no delete: `kCmdCreateFile` opens with
+  `O_WRONLY|O_CREAT|O_TRUNC` on the vehicle, so a write replaces in place.
+- Scripts take effect without a reboot. `MAV_CMD_SCRIPTING` with param1 =
+  `SCRIPTING_CMD_STOP_AND_RESTART` (3) makes `AP_Scripting::thread()` build a
+  fresh `lua_scripts`, which re-reads the scripts directory. The exception is
+  `SCR_ENABLE` having been 0 at boot — `AP_Scripting::init()` returns early then,
+  so no thread exists to restart. That same early return is why a missing
+  `/APM/scripts` means no usable SD card rather than "no scripts yet": init
+  creates the directory itself whenever scripting is on.
+- A GCS-side line in a vehicle's message panel goes in at
+  `Vehicle::statusTextHandler()->handleHTMLEscapedTextMessage()`, not through
+  `_textMessageReceived()`. The latter is the path a real STATUSTEXT takes and it
+  speaks anything at NOTICE or worse, so injecting there gets the message read
+  aloud. NOTICE and WARNING also render identically in the panel (bold orange,
+  `MessageWarning`); INFO is the only genuinely quieter severity.
+- OI's birds run mavlink-router with **demand-driven** UDP endpoints on
+  11000–11010: a port stays silent until the GCS sends it something, so passively
+  listening on the right port looks exactly like an aircraft that is offline.
+  Poke it with a heartbeat first (`udpout:`, not `udpin:`). Endpoints are
+  additive, so a second client does not disturb a GCS already connected.
 - The GCS system ID stays at QGC's default 255 (Roger's live setting on
   2026-09-16; the May export had 254). ArduPilot gates `MANUAL_CONTROL`, RC
   override and the GCS failsafe on `MAV_GCS_SYSID`; guided commands are not gated.

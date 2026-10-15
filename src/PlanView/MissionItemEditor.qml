@@ -359,14 +359,37 @@ Rectangle {
         Component.onCompleted: _root._loadEditor()
     }
 
-    onHeightChanged: {
+    // Fires once per expansion, not on every height change.
+    //
+    // It used to restart on any height change while this was the current item, which meant a
+    // relayout caused by something else entirely - collapsing the Defaults group, say - churned
+    // the delegate's height and then scrolled the panel to this editor 100 ms later. The symptom
+    // was the whole right panel snapping so Mission Items sat at the top whenever another group
+    // was opened or closed. Only an actual expansion should move the view.
+    Connections {
+        target: missionItem
+        // Watched on the mission item rather than on the local _currentItem alias: QML's handler
+        // naming for an underscore-prefixed property is ambiguous enough not to rely on.
+        function onIsCurrentItemChanged() { _root._armSettleTimer() }
+    }
+
+    function _armSettleTimer() {
         if (_currentItem && editorLoader.status === Loader.Ready) {
             _editorHeightSettleTimer.restart()
         }
     }
 
+    Connections {
+        target: editorLoader
+        // The editor is loaded asynchronously, so becoming current and becoming loaded can
+        // happen in either order; whichever lands second arms the timer.
+        function onStatusChanged() { _root._armSettleTimer() }
+    }
+
     Timer {
         id: _editorHeightSettleTimer
+        // Long enough for the loaded editor to lay out and settle on its final height, which is
+        // what the scroll is measured against.
         interval: 100
         onTriggered: _root.editorExpandedAndLoaded()
     }

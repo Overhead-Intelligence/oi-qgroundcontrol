@@ -10,8 +10,13 @@ import QGroundControl.FlightMap
 
 TransectStyleComplexItemEditor {
     transectAreaDefinitionComplete: _missionItem.corridorPolyline.isValid
-    transectAreaDefinitionHelp:     qsTr("Use the Polyline Tools to create the polyline which defines the corridor.")
+    transectAreaDefinitionHelp:     qsTr("Create the polyline which defines the corridor.")
     transectValuesHeaderName:       qsTr("Corridor")
+    transectAreaObject:             _missionItem.corridorPolyline
+    transectAreaToolsName:          qsTr("Polyline Tools")
+    // A corridor is a line; there is no circular form of it.
+    transectAreaSupportsCircle:     false
+    transectAreaLoadDialog:         kmlOrSHPLoadDialog
     transectValuesComponent:        _transectValuesComponent
     presetsTransectValuesComponent: _transectValuesComponent
 
@@ -49,6 +54,17 @@ TransectStyleComplexItemEditor {
                 enabled:            _missionItem.hoverAndCaptureAllowed ? !_missionItem.hoverAndCapture.rawValue : true
                 visible:            !forPresets
             }
+        }
+    }
+
+    KMLOrSHPFileDialog {
+        id:     kmlOrSHPLoadDialog
+        title:  qsTr("Select Polyline File")
+
+        onAcceptedForLoad: (file) => {
+            _missionItem.corridorPolyline.loadKMLOrSHPFile(file)
+            _missionItem.resetState = false
+            close()
         }
     }
 }
