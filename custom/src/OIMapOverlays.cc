@@ -9,6 +9,8 @@
 
 #include "OIMapOverlays.h"
 
+#include "OIAppStorage.h"
+
 #include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
@@ -19,12 +21,10 @@
 #include <QtCore/QTimer>
 #include <QtCore/QXmlStreamReader>
 
-#include "AppSettings.h"
 #include "MultiVehicleManager.h"
 #include "QGCLoggingCategory.h"
 #include "QGroundControlQmlGlobal.h"
 #include "QmlObjectListModel.h"
-#include "SettingsManager.h"
 #include "Vehicle.h"
 
 QGC_LOGGING_CATEGORY(OIMapOverlaysLog, "OI.MapOverlays")
@@ -419,20 +419,7 @@ int OIMapOverlayManager::markerCount() const
 
 QString OIMapOverlayManager::_storageDir()
 {
-    const QString rootPath = SettingsManager::instance()->appSettings()->savePath()->rawValue().toString();
-    if (rootPath.isEmpty()) {
-        return QString();
-    }
-
-    QDir dir(rootPath);
-    if (!dir.exists() && !QDir().mkpath(rootPath)) {
-        return QString();
-    }
-    if (!dir.exists(QString::fromLatin1(kStorageDirName)) && !dir.mkpath(QString::fromLatin1(kStorageDirName))) {
-        return QString();
-    }
-
-    return dir.filePath(QString::fromLatin1(kStorageDirName));
+    return OIAppStorage::folder(QString::fromLatin1(kStorageDirName));
 }
 
 bool OIMapOverlayManager::_isInStorage(const QString &filePath)

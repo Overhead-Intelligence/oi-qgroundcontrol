@@ -246,7 +246,7 @@ class OIFleetScriptManager : public QObject
     Q_PROPERTY(OIFleetVehicleSync *activeSync READ activeSync NOTIFY activeSyncChanged)
     Q_PROPERTY(QString activeVehicleName READ activeVehicleName NOTIFY activeSyncChanged)
     Q_PROPERTY(int enabledCount READ enabledCount NOTIFY scriptsChanged)
-    Q_PROPERTY(QString scriptsFolder READ scriptsFolder CONSTANT)
+    Q_PROPERTY(QString scriptsFolder READ scriptsFolder NOTIFY scriptsChanged)
 
 public:
     /// Where scripts live on an ArduPilot SD card. AP_Scripting::init() creates this
@@ -260,7 +260,9 @@ public:
     OIFleetVehicleSync *activeSync() const { return _activeSync; }
     QString activeVehicleName() const;
     int enabledCount() const;
-    QString scriptsFolder() const { return _scriptsFolder; }
+    /// Where imported scripts are kept, created on demand. Empty when the application
+    /// save path is unset. Resolved per call, so it follows the save path setting.
+    QString scriptsFolder() const;
 
     /// Scripts that should be on every aircraft, in list order.
     QList<OIFleetScript *> enabledScripts() const;
@@ -309,6 +311,5 @@ private:
     QHash<Vehicle *, OIFleetVehicleSync *> _syncs;
     OIFleetVehicleSync *_activeSync = nullptr;
     Vehicle *_activeVehicle = nullptr;
-    QString _scriptsFolder;
     QString _lastError;
 };

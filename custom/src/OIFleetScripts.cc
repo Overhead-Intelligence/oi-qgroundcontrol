@@ -11,14 +11,12 @@
 
 #include "OIFleetScripts.h"
 
-#include "AppSettings.h"
+#include "OIAppStorage.h"
 #include "FTPManager.h"
 #include "MAVLinkLib.h"
 #include "MultiVehicleManager.h"
 #include "ParameterManager.h"
-#include "QGCFileHelper.h"
 #include "QmlObjectListModel.h"
-#include "SettingsManager.h"
 #include "StatusTextHandler.h"
 #include "Vehicle.h"
 
@@ -516,18 +514,17 @@ OIFleetScriptManager::OIFleetScriptManager(QObject *parent)
     : QObject(parent)
     , _scripts(new QmlObjectListModel(this))
 {
-    const QString root = SettingsManager::instance()->appSettings()->savePath()->rawValue().toString();
-    if (!root.isEmpty()) {
-        _scriptsFolder = QGCFileHelper::joinPath(root, QString::fromLatin1(kFleetScriptsDir));
-        QGCFileHelper::ensureDirectoryExists(_scriptsFolder);
-    }
-
     _load();
 
     MultiVehicleManager *const mvm = MultiVehicleManager::instance();
     connect(mvm, &MultiVehicleManager::vehicleAdded, this, &OIFleetScriptManager::_onVehicleAdded);
     connect(mvm, &MultiVehicleManager::vehicleRemoved, this, &OIFleetScriptManager::_onVehicleRemoved);
     connect(mvm, &MultiVehicleManager::activeVehicleChanged, this, &OIFleetScriptManager::_onActiveVehicleChanged);
+}
+
+QString OIFleetScriptManager::scriptsFolder() const
+{
+    return OIAppStorage::folder(QString::fromLatin1(kFleetScriptsDir));
 }
 
 QString OIFleetScriptManager::activeVehicleName() const
@@ -557,7 +554,8 @@ QList<OIFleetScript *> OIFleetScriptManager::enabledScripts() const
 
 void OIFleetScriptManager::_load()
 {
-    if (_scriptsFolder.isEmpty()) {
+    const QString folder = scriptsFolder();
+    if (folder.isEmpty()) {
         return;
     }
 
@@ -567,7 +565,7 @@ void OIFleetScriptManager::_load()
     QSettings settings;
     settings.beginGroup(QString::fromLatin1(kSettingsGroup));
 
-    QDir dir(_scriptsFolder);
+    QDir dir(folder);
     const QStringList files = dir.entryList(QStringList() << QStringLiteral("*.lua"), QDir::Files, QDir::Name);
     for (const QString &fileName : files) {
         const bool enabled = settings.value(fileName, true).toBool();
@@ -613,7 +611,8 @@ bool OIFleetScriptManager::importScript(const QString &fileUrlOrPath)
 {
     _lastError.clear();
 
-    if (_scriptsFolder.isEmpty()) {
+    const QString folder = scriptsFolder();
+    if (folder.isEmpty()) {
         _lastError = tr("No application save folder is configured.");
         return false;
     }
@@ -641,7 +640,7 @@ bool OIFleetScriptManager::importScript(const QString &fileUrlOrPath)
         }
     }
 
-    const QString destination = QDir(_scriptsFolder).filePath(info.fileName());
+    const QString destination = QDir(folder).filePath(info.fileName());
     if (QFile::exists(destination) && !QFile::remove(destination)) {
         _lastError = tr("Could not replace %1.").arg(destination);
         return false;
